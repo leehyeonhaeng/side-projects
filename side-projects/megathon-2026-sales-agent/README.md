@@ -20,40 +20,54 @@
 
 ```
 웹 페이지 (HTML UI)
-    │
-    ├── A1 상담 에이전트 ──────────────────────────────────────────────┐
-    │       │                                                          │
-    │   API Gateway → Lambda (sales-agent-a1)                         │
-    │       │         ├── Bedrock Claude (질문지/가견적 생성)            │
-    │       │         ├── Google Docs API (문서 자동 생성)              │
-    │       │         └── Google Sheets API (데이터 기록)              │
-    │                                                                  │
-    └── A4 기록관리 에이전트 ──────────────────────────────────────────┘
-            │
-        API Gateway → Lambda (sales-agent-a4)
-                      ├── Amazon S3 (계약서 PDF 보관)
-                      ├── Bedrock Claude (계약서 분석)
-                      └── Google Sheets API (계약 정보 자동 기록)
+    ↓
+API Gateway
+    ↓
+Router Lambda (sales-agent-router)
+    ├── POST /invoke      → Master Agent Proxy (Bedrock Agent Core 중계)
+    ├── POST /invoke-a1   → A1 에이전트 직접 호출
+    └── POST /invoke-a4   → A4 에이전트 직접 호출
+
+Master Agent Proxy Lambda
+    ├── 텍스트 입력    → Bedrock Agent Core (BRFMJAXGJ7) 호출
+    ├── 메일 첨부      → agent-00-email-processor Lambda 직접 호출
+    └── PDF 첨부       → sales-agent-a4 Lambda 직접 호출
+
+Agent-00 (Email Processor)
+    └── 메일 분류/분석 → 서비스 모듈 구조 (bedrock, sheets, s3 등)
+
+A1 (상담 에이전트)
+    ├── 메일 분석 → 질문지 생성
+    └── 수기 입력 → 가견적 생성 → Google Docs + Sheets
+
+A4 (기록관리 에이전트)
+    ├── PDF → S3 저장
+    ├── Bedrock으로 계약서 분석
+    └── Google Sheets Sheet2에 자동 기록
 ```
 
 ---
 
-## 🚀 구현된 에이전트
+## 🚀 구현된 컴포넌트
 
-| 에이전트 | 역할 | 상태 |
-|---------|------|------|
-| **A1** 상담 에이전트 | 메일 분석 → 질문지 생성, 수기 입력 → 가견적 생성 | ✅ 완료 |
-| **A2** 제안 에이전트 | 제안서 자동 작성 | 🔜 예정 |
-| **A3** 계약관리 에이전트 | 계약 진행 상태 관리 | 🔜 예정 |
-| **A4** 기록관리 에이전트 | 계약서 PDF 분석 → S3 저장 → Sheets 기록 | ✅ 완료 |
+| 컴포넌트 | Lambda 함수명 | 역할 | 상태 |
+|---------|-------------|------|------|
+| **Router** | `sales-agent-router` | API Gateway 요청을 에이전트로 라우팅 | ✅ 완료 |
+| **Master Proxy** | `sales-agent-master-proxy` | Bedrock Agent Core 중계, 첨부 파일 분기 | ✅ 완료 |
+| **Agent-00** | `agent-00-email-processor` | 메일 분류/분석, 서비스 모듈 구조 | ✅ 완료 |
+| **A1** | `sales-agent-a1` | 상담 에이전트 (질문지/가견적 생성) | ✅ 완료 |
+| **A4** | `sales-agent-a4` | 기록관리 에이전트 (계약서 분석/기록) | ✅ 완료 |
+
+> A2(제안), A3(계약관리)는 Bedrock Agent Core를 통해 연결 예정
 
 ---
 
 ## 🛠️ 기술 스택
 
 ### AWS
-- **Amazon Bedrock** — `global.anthropic.claude-sonnet-4-6` 모델로 문서 분석 및 생성
-- **AWS Lambda** — Python 3.12, 에이전트 로직 실행
+- **Amazon Bedrock** — `global.anthropic.claude-sonnet-4-6` 모델
+- **Bedrock Agent Runtime** — `InvokeAgent` API로 멀티 에이전트 오케스트레이션
+- **AWS Lambda** — Python 3.12, 각 에이전트 로직 실행
 - **Amazon S3** — 계약서 원본 PDF 보관 (`sales-agent-contracts`)
 - **AWS API Gateway** — HTTP API, 웹 UI와 Lambda 연결
 - **AWS Secrets Manager** — Google OAuth 인증 정보 관리
@@ -61,60 +75,59 @@
 ### Google Workspace
 - Google Docs API — 가견적 문서 자동 생성
 - Google Sheets API — 고객 정보 및 계약 데이터 기록
-- Google Drive API — 문서 저장 및 공유
+- Google Drive API — 문서 저장
 - OAuth 2.0 — refresh_token 방식 인증
-
-### 기타
-- Chrome 확장프로그램 (초기) → 웹 페이지 UI로 전환
-- Python Lambda Layer (`google-api-layer`, `pypdf-layer`, `openpyxl-layer`)
 
 ---
 
 ## 📁 폴더 구조
 
 ```
-📦 sales-agent-system
+📦 megathon-2026-sales-agent/
 ├── 📄 README.md
 ├── 📁 agents/
+│   ├── 📁 agent-00-email-processor/
+│   │   ├── 📁 src/
+│   │   │   ├── lambda_function.py
+│   │   │   └── services/
+│   │   │       ├── agent_service.py
+│   │   │       ├── bedrock_service.py
+│   │   │       ├── classifier.py
+│   │   │       ├── response_builder.py
+│   │   │       ├── s3_service.py
+│   │   │       └── sheets_service.py
+│   │   └── template.yaml
 │   ├── 📁 a1/
-│   │   ├── 📄 README.md          # A1 에이전트 상세 설명
-│   │   └── 📄 lambda_function.py # A1 Lambda 코드
+│   │   ├── 📁 src/lambda_function.py
+│   │   ├── template.yaml
+│   │   └── README.md
 │   └── 📁 a4/
-│       ├── 📄 README.md          # A4 에이전트 상세 설명
-│       └── 📄 lambda_function.py # A4 Lambda 코드
+│       ├── 📁 src/lambda_function.py
+│       ├── template.yaml
+│       └── README.md
+├── 📁 router/
+│   ├── 📁 src/lambda_function.py
+│   └── template.yaml
+├── 📁 master-proxy/
+│   ├── 📁 src/lambda_function.py
+│   └── template.yaml
 └── 📁 docs/
-    ├── 📄 architecture.md        # 아키텍처 상세 설명
-    ├── 📄 aws-setup.md           # AWS 설정 가이드
-    └── 📄 google-setup.md        # Google Cloud 설정 가이드
+    ├── architecture.md
+    ├── aws-setup.md
+    └── google-setup.md
 ```
 
 ---
 
 ## ⚙️ 공통 환경 설정
 
-### AWS 설정
-
 | 항목 | 값 |
 |------|-----|
 | 리전 | `ap-northeast-2` (서울) |
 | Bedrock 모델 | `global.anthropic.claude-sonnet-4-6` |
-| Secrets Manager 키 | `sales-agent/google-credentials` |
-
-### Secrets Manager 저장 형식
-
-```json
-{
-  "client_id": "Google OAuth Client ID",
-  "client_secret": "Google OAuth Client Secret",
-  "refresh_token": "Google OAuth Refresh Token"
-}
-```
-
-### Google Cloud 설정
-
-- 프로젝트: `sales-agent-system`
-- 활성화 API: Gmail, Google Docs, Google Drive, Google Sheets
-- 인증 방식: OAuth 2.0 (refresh_token)
+| Bedrock Agent ID | `BRFMJAXGJ7` |
+| Secrets Manager | `sales-agent/google-credentials` |
+| S3 버킷 | `sales-agent-contracts` |
 
 ---
 
