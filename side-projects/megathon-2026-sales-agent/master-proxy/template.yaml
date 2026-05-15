@@ -1,0 +1,40 @@
+# 이 AWS SAM 템플릿은 함수의 구성에서 생성되었습니다. 함수에 트리거가 하나 이상 있는 경우 이러한 트리거와 관련된 AWS 리소스가 이
+# 템플릿에 완전히 지정되어 있지 않으며 자리 표시자 값도 포함된다는 점에 유의하십시오. AWS Infrastructure Composer 또는
+# 선호하는 IDE에서 이 템플릿을 열고 다른 AWS 리소스와 함께 서버리스 애플리케이션을 지정하도록 수정하십시오.
+#
+# - SAM은 이 템플릿에 정의된 리소스와 상호 작용할 수 있는 권한을 자동으로 생성합니다. 함수에 추가 권한이 필요한 경우
+#   AWS::Serverless::Function 리소스에 정책을 추가하십시오.
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 기능을 설명하는 AWS Serverless Application Model(SAM) 템플릿입니다.
+Resources:
+  MasterAgentProxy:
+    Type: AWS::Serverless::Function
+    Properties:
+      Architectures:
+        - x86_64
+      CodeUri: ./src
+      Description: ''
+      EphemeralStorage:
+        Size: 512
+      Handler: lambda_function.lambda_handler
+      LoggingConfig:
+        LogFormat: Text
+        LogGroup: /aws/lambda/MasterAgentProxy
+      MemorySize: 256
+      PackageType: Zip
+      RecursiveLoop: Terminate
+      Runtime: python3.12
+      RuntimeManagementConfig:
+        UpdateRuntimeOn: Auto
+      SnapStart:
+        ApplyOn: None
+      Tags: {}
+      Timeout: 120
+      Tracing: PassThrough
+      Events:
+        Trigger1Event:
+          Type: Api
+          Properties:
+            Method: POST
+            Path: /chat
