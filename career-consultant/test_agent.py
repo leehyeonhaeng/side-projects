@@ -1,11 +1,9 @@
 import boto3
 
-# 설정
 REGION = "ap-northeast-2"
 AGENT_ID = "4RIKKDLNMY"
-ALIAS_ID = "T5BN51RXDO"
+ALIAS_ID = "44TD4BAA4U"
 
-# 에이전트 invoke
 runtime_client = boto3.client("bedrock-agent-runtime", region_name=REGION)
 
 response = runtime_client.invoke_agent(
