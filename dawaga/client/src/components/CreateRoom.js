@@ -23,7 +23,6 @@ function CreateRoom({ onCreated, onBack }) {
       mapInstanceRef.current = new window.kakao.maps.Map(mapRef.current, options);
       setMapReady(true);
     };
-
     if (window.kakao && window.kakao.maps) {
       window.kakao.maps.load(initMap);
     } else {
@@ -39,10 +38,7 @@ function CreateRoom({ onCreated, onBack }) {
 
   const handleSearch = () => {
     if (!searchKeyword.trim()) return;
-    if (!mapReady) {
-      alert('지도 로딩 중이에요, 잠시만요 🗺️');
-      return;
-    }
+    if (!mapReady) { alert('지도 로딩 중이에요 🗺️'); return; }
     const ps = new window.kakao.maps.services.Places();
     ps.keywordSearch(searchKeyword, (data, status) => {
       if (status === window.kakao.maps.services.Status.OK) {
@@ -59,11 +55,9 @@ function CreateRoom({ onCreated, onBack }) {
     setSelectedPlace({ name: place.place_name, lat, lon, address: place.address_name });
     setSearchResults([]);
     setSearchKeyword(place.place_name);
-
     const position = new window.kakao.maps.LatLng(lat, lon);
     mapInstanceRef.current.setCenter(position);
     mapInstanceRef.current.setLevel(3);
-
     if (markerRef.current) markerRef.current.setMap(null);
     markerRef.current = new window.kakao.maps.Marker({ position, map: mapInstanceRef.current });
   };
@@ -86,16 +80,15 @@ function CreateRoom({ onCreated, onBack }) {
     });
     const data = await res.json();
     setLoading(false);
-    if (data.success) onCreated({ roomId, userName, meetingTime });
+    if (data.success) onCreated({ roomId, userName, meetingTime, destination: selectedPlace });
   };
 
   return (
     <div>
       <button onClick={onBack} style={backBtn}>← 뒤로</button>
       <div style={card}>
-        <h2 style={{ color: theme.text, marginTop: 0 }}>✨ 약속방 만들기</h2>
+        <h2 style={{ color: theme.text, marginTop: 0 }}>✨ 새 약속 만들기</h2>
         <div style={formStyle}>
-
           <label style={labelStyle}>내 이름</label>
           <input value={userName} onChange={e => setUserName(e.target.value)}
             placeholder="홍길동" style={inputStyle} />
@@ -125,20 +118,13 @@ function CreateRoom({ onCreated, onBack }) {
 
           {selectedPlace && (
             <div style={{ background: '#FFE89A', borderRadius: '12px', padding: '10px 14px' }}>
-              <p style={{ margin: 0, fontSize: '13px', fontWeight: '700', color: theme.text }}>
-                📍 {selectedPlace.name}
-              </p>
+              <p style={{ margin: 0, fontSize: '13px', fontWeight: '700', color: theme.text }}>📍 {selectedPlace.name}</p>
               <p style={{ margin: '2px 0 0', fontSize: '12px', color: theme.subtext }}>{selectedPlace.address}</p>
             </div>
           )}
 
           <div ref={mapRef} style={{ width: '100%', height: '200px', borderRadius: '14px', overflow: 'hidden', border: '2px solid #FFD6C0' }} />
-
-          {!mapReady && (
-            <p style={{ textAlign: 'center', color: theme.subtext, fontSize: '13px', margin: 0 }}>
-              🗺️ 지도 로딩 중...
-            </p>
-          )}
+          {!mapReady && <p style={{ textAlign: 'center', color: theme.subtext, fontSize: '13px', margin: 0 }}>🗺️ 지도 로딩 중...</p>}
 
           <label style={labelStyle}>약속 시간</label>
           <input type="datetime-local" value={meetingTime}
@@ -146,7 +132,7 @@ function CreateRoom({ onCreated, onBack }) {
 
           <button onClick={handleCreate} disabled={loading}
             style={{ ...actionBtn, backgroundColor: loading ? '#ccc' : theme.accent }}>
-            {loading ? '생성 중... 🌀' : '방 만들기 🎉'}
+            {loading ? '생성 중... 🌀' : '약속 만들기 🎉'}
           </button>
         </div>
       </div>

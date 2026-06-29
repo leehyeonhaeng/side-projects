@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const axios = require('axios');
 
 const app = express();
 app.use(cors());
@@ -15,12 +16,44 @@ const io = new Server(server, {
   }
 });
 
-// 방 정보 메모리에 저장 (DB 없이 PoC)
 const rooms = {};
+const ODSAY_API_KEY = 'GkR8emvT/KAJbIi7K7UTb6ZfpE0H795kfD/iowKapZc';
 
-// 거리 계산 (Haversine 공식)
+const NUDGE_MESSAGES = {
+  friend: [
+    "야 너 지금 어디야? 우리 다 왔거든? 🔥",
+    "혹시 집에서 출발은 한 거야...? 🤔",
+    "너 때문에 배고파 죽겠다 진짜 😤",
+    "GPS가 너를 포기했나봐 🛰️",
+    "우리 너 없이 먼저 시작한다? 😤",
+    "혹시 오늘 약속 까먹은 거 아니지? 🙃",
+    "지금 어디쯤이야? 대충이라도 알려줘 😭",
+    "너만 기다리고 있어... 빨리와 제발 🥺",
+  ],
+  sarcastic: [
+    "오늘도 패션 지각이시네요~ 역시 믿고 기다렸어요 👏",
+    "바쁘신 분이 이런 자리까지 와주시다니 영광입니다 🙏",
+    "혹시 약속 날짜를 다르게 적어두신 건 아니죠? 😊",
+    "늦게 오는 사람이 제일 빛난다고 하더라고요~ 기대할게요 ✨",
+    "천천히 오세요~ 우리 시간 많아요~ (없음) 😇",
+    "오는 길에 무슨 일이 있으셨나요? 걱정이 되어서요 🤭",
+    "혹시 저희가 장소를 잘못 알려드린 건 아닌지 걱정되네요 😌",
+    "도착하시면 박수로 맞이해 드릴게요 👏👏👏",
+  ],
+  office: [
+    "현재 미팅 시작 대기 중입니다. ETA 공유 부탁드립니다. 🙏",
+    "도착 예정 시간 업데이트 가능하실까요?",
+    "현재 N분 지연 중입니다. 조속한 도착 부탁드립니다.",
+    "선약이 있으신 건지 확인 요청드립니다.",
+    "팀원 전원 대기 중입니다. 빠른 합류 부탁드립니다.",
+    "일정 조율이 필요하신 경우 사전 공유 부탁드립니다.",
+    "현재 장소 도착 완료했습니다. 위치 공유 부탁드립니다.",
+    "금일 약속 컨펌 부탁드립니다. 🙏",
+  ]
+};
+
 function getDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371000; // 지구 반지름 (미터)
+  const R = 6371000;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -29,7 +62,6 @@ function getDistance(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-// 방향 계산 (나침반용)
 function getBearing(lat1, lon1, lat2, lon2) {
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const y = Math.sin(dLon) * Math.cos(lat2 * Math.PI / 180);
@@ -38,79 +70,148 @@ function getBearing(lat1, lon1, lat2, lon2) {
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
-// 거리 → 추상화 텍스트 변환
-function getAbstractDistance(meters) {
-  if (meters < 100) return '거의 다 왔어요!';
+function getAbstractDistance(meters, transport, etaMinutes) {
+  if (etaMinutes !== null) {
+    if (meters < 100) return '거의 다 왔어요! 🎉';
+    return `${etaMinutes}분 후 도착 예정`;
+  }
+  if (meters < 100) return '거의 다 왔어요! 🎉';
   if (meters < 500) return `도보 ${Math.round(meters / 80)}분 남음`;
-  if (meters < 2000) return `도보 ${Math.round(meters / 80)}분 남음`;
   return `약 ${(meters / 1000).toFixed(1)}km 남음`;
 }
 
-// 방 생성 API
+// 독촉 메시지 랜덤 반환 API (room/:roomId 보다 위에 있어야 함)
+app.get('/nudge/:mode', (req, res) => {
+  const { mode } = req.params;
+  const messages = NUDGE_MESSAGES[mode] || NUDGE_MESSAGES.friend;
+  const random = messages[Math.floor(Math.random() * messages.length)];
+  res.json({ message: random });
+});
+
 app.post('/room', (req, res) => {
   const { roomId, destination, meetingTime } = req.body;
-  rooms[roomId] = {
-    destination,   // { lat, lon, name }
-    meetingTime,   // ISO 문자열
-    members: {}
-  };
+  rooms[roomId] = { destination, meetingTime, members: {} };
   res.json({ success: true, roomId });
 });
 
-// 방 정보 조회 API
 app.get('/room/:roomId', (req, res) => {
   const room = rooms[req.params.roomId];
   if (!room) return res.status(404).json({ error: '방을 찾을 수 없어요' });
   res.json(room);
 });
 
-// Socket.io 실시간 연결
+app.post('/route/transit', async (req, res) => {
+  const { startX, startY, endX, endY } = req.body;
+  try {
+    const response = await axios.get('https://api.odsay.com/v1/api/searchPubTransPathT', {
+      params: {
+        apiKey: ODSAY_API_KEY,
+        SX: startX, SY: startY, EX: endX, EY: endY,
+        SearchType: 0, SearchPathType: 0
+      }
+    });
+    const data = response.data;
+    if (data.result && data.result.path && data.result.path.length > 0) {
+      const bestPath = data.result.path[0];
+      const totalTime = bestPath.info.totalTime;
+      const subwayCount = bestPath.info.subwayCount;
+      const busCount = bestPath.info.busCount;
+      let transportDesc = '';
+      if (subwayCount > 0 && busCount > 0) transportDesc = '지하철+버스 환승';
+      else if (subwayCount > 0) transportDesc = `지하철 ${subwayCount}회`;
+      else if (busCount > 0) transportDesc = `버스 ${busCount}회`;
+      res.json({ success: true, totalTime, transportDesc });
+    } else {
+      res.json({ success: false, message: '경로를 찾을 수 없어요' });
+    }
+  } catch (err) {
+    console.error('ODsay 오류:', err.message);
+    res.json({ success: false, message: 'ODsay API 오류' });
+  }
+});
+
+app.post('/route/car', async (req, res) => {
+  const { startX, startY, endX, endY } = req.body;
+  try {
+    const response = await axios.get('https://apis-navi.kakaomobility.com/v1/directions', {
+      headers: { Authorization: `KakaoAK ee181bdceba727f9a6a91fea21a713df` },
+      params: { origin: `${startX},${startY}`, destination: `${endX},${endY}` }
+    });
+    const data = response.data;
+    if (data.routes && data.routes.length > 0 && data.routes[0].result_code === 0) {
+      const duration = Math.round(data.routes[0].summary.duration / 60);
+      res.json({ success: true, totalTime: duration });
+    } else {
+      res.json({ success: false, message: '경로를 찾을 수 없어요' });
+    }
+  } catch (err) {
+    console.error('카카오모빌리티 오류:', err.message);
+    res.json({ success: false, message: '카카오모빌리티 API 오류' });
+  }
+});
+
 io.on('connection', (socket) => {
   console.log('유저 연결:', socket.id);
 
-  // 방 참가
   socket.on('join_room', ({ roomId, userName }) => {
     socket.join(roomId);
     socket.data.roomId = roomId;
     socket.data.userName = userName;
-
     if (rooms[roomId]) {
-      rooms[roomId].members[socket.id] = { userName, lat: null, lon: null };
+      rooms[roomId].members[socket.id] = { userName, lat: null, lon: null, transport: 'walk', etaMinutes: null };
     }
-    console.log(`${userName} 이 ${roomId} 방에 참가`);
+    socket.to(roomId).emit('member_joined', { userName });
+    console.log(`${userName}이 ${roomId} 방에 참가`);
   });
 
-  // 위치 업데이트
-  socket.on('update_location', ({ roomId, lat, lon }) => {
+  socket.on('update_location', async ({ roomId, lat, lon, transport }) => {
     const room = rooms[roomId];
     if (!room) return;
-
     const member = room.members[socket.id];
     if (!member) return;
 
     member.lat = lat;
     member.lon = lon;
+    member.transport = transport || 'walk';
 
-    // 목적지 기준 추상화 정보 계산
     const dest = room.destination;
     const distance = getDistance(lat, lon, dest.lat, dest.lon);
     const bearing = getBearing(lat, lon, dest.lat, dest.lon);
-    const abstractInfo = getAbstractDistance(distance);
+    let etaMinutes = null;
 
-    // 본인 제외 전체에게 브로드캐스트
+    if (transport === 'walk') {
+      etaMinutes = Math.round(distance / 80);
+    } else if (transport === 'transit') {
+      try {
+        const result = await axios.post(`http://localhost:4000/route/transit`, {
+          startX: lon, startY: lat, endX: dest.lon, endY: dest.lat
+        });
+        if (result.data.success) etaMinutes = result.data.totalTime;
+      } catch (e) {}
+    } else if (transport === 'car') {
+      try {
+        const result = await axios.post(`http://localhost:4000/route/car`, {
+          startX: lon, startY: lat, endX: dest.lon, endY: dest.at
+        });
+        if (result.data.success) etaMinutes = result.data.totalTime;
+      } catch (e) {}
+    }
+
+    member.etaMinutes = etaMinutes;
+    const abstractInfo = getAbstractDistance(distance, transport, etaMinutes);
+
     socket.to(roomId).emit('member_updated', {
       socketId: socket.id,
       userName: member.userName,
-      distance,
-      bearing,
-      abstractInfo
+      distance, bearing, abstractInfo, transport, etaMinutes
     });
-
-    // 본인에게도 자신의 정보 전송
-    socket.emit('my_info', { distance, bearing, abstractInfo });
+    socket.emit('my_info', { distance, bearing, abstractInfo, transport, etaMinutes });
   });
 
-  // 연결 해제
+  socket.on('send_nudge', ({ roomId, fromName, toName, message, isAll }) => {
+    io.to(roomId).emit('receive_nudge', { fromName, toName, message, isAll });
+  });
+
   socket.on('disconnect', () => {
     const { roomId, userName } = socket.data;
     if (roomId && rooms[roomId]) {

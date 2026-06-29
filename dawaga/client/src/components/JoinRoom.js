@@ -20,7 +20,12 @@ function JoinRoom({ onJoined, onBack }) {
     }
     const data = await res.json();
     setLoading(false);
-    onJoined({ roomId: roomId.toUpperCase(), userName, meetingTime: data.meetingTime });
+    onJoined({
+      roomId: roomId.toUpperCase(),
+      userName,
+      meetingTime: data.meetingTime,
+      destination: data.destination
+    });
   };
 
   return (
@@ -35,7 +40,7 @@ function JoinRoom({ onJoined, onBack }) {
 
           <label style={labelStyle}>방 코드</label>
           <input value={roomId} onChange={e => setRoomId(e.target.value)}
-            placeholder="ABC123" style={inputStyle}
+            placeholder="ABC123"
             style={{ ...inputStyle, textTransform: 'uppercase', letterSpacing: '4px', fontSize: '20px', fontWeight: '700' }} />
 
           <button onClick={handleJoin} disabled={loading}
