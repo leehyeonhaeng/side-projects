@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import CreateRoom from './components/CreateRoom';
 import JoinRoom from './components/JoinRoom';
 import RoomView from './components/RoomView';
+import { supabase } from './supabase';
 
 const theme = {
   peach: '#FFB997',
@@ -16,42 +17,71 @@ const theme = {
 
 export { theme };
 
-// 기기별 고유 ID 생성
-function getDeviceId() {
-  let id = localStorage.getItem('dawaga_device_id');
-  if (!id) {
-    id = Math.random().toString(36).substr(2, 16);
-    localStorage.setItem('dawaga_device_id', id);
-  }
-  return id;
-}
-
-export { getDeviceId };
-
 function App() {
   const [screen, setScreen] = useState('home');
   const [roomData, setRoomData] = useState(null);
   const [myRooms, setMyRooms] = useState([]);
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
-    const deviceId = getDeviceId();
-    const saved = localStorage.getItem(`dawaga_rooms_${deviceId}`);
-    if (saved) setMyRooms(JSON.parse(saved));
+    // 현재 로그인 상태 확인
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+
+    // 로그인 상태 변경 감지
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    const saved = localStorage.getItem(`dawaga_rooms_${user.id}`);
+    if (saved) setMyRooms(JSON.parse(saved));
+  }, [user]);
+
   const saveRoom = (room) => {
-    const deviceId = getDeviceId();
+    if (!user) return;
     const updated = [room, ...myRooms.filter(r => r.roomId !== room.roomId)];
     setMyRooms(updated);
-    localStorage.setItem(`dawaga_rooms_${deviceId}`, JSON.stringify(updated));
+    localStorage.setItem(`dawaga_rooms_${user.id}`, JSON.stringify(updated));
   };
 
   const deleteRoom = (roomId) => {
-    const deviceId = getDeviceId();
+    if (!user) return;
     const updated = myRooms.filter(r => r.roomId !== roomId);
     setMyRooms(updated);
-    localStorage.setItem(`dawaga_rooms_${deviceId}`, JSON.stringify(updated));
+    localStorage.setItem(`dawaga_rooms_${user.id}`, JSON.stringify(updated));
   };
+
+  const handleLogin = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin }
+    });
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setMyRooms([]);
+  };
+
+  if (authLoading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: `linear-gradient(160deg, #FFF5EE 0%, #FFE8D6 100%)`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center'
+      }}>
+        <p style={{ color: '#A07060', fontSize: '16px' }}>🧭 로딩 중...</p>
+      </div>
+    );
+  }
 
   if (screen === 'room') return (
     <RoomView roomData={roomData} onBack={() => setScreen('home')} />
@@ -65,6 +95,7 @@ function App() {
     }}>
       <div style={{ width: '100%', maxWidth: '420px', margin: '0 auto', padding: '24px' }}>
 
+        {/* 헤더 */}
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <div style={{ fontSize: '52px', marginBottom: '4px' }}>🧭</div>
           <h1 style={{ fontSize: '32px', fontWeight: '800', color: theme.text, margin: 0 }}>다와가</h1>
@@ -73,8 +104,45 @@ function App() {
           </p>
         </div>
 
-        {screen === 'home' && (
+        {/* 로그인 안 된 상태 */}
+        {!user ? (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ background: '#fff', borderRadius: '24px', padding: '32px', boxShadow: '0 4px 20px #FFB99744', marginBottom: '16px' }}>
+              <p style={{ color: theme.subtext, fontSize: '15px', marginBottom: '24px', margin: '0 0 24px' }}>
+                구글 계정으로 로그인하고<br />약속을 만들어보세요 🎉
+              </p>
+              <button onClick={handleLogin} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                gap: '10px', width: '100%', padding: '14px',
+                background: '#fff', border: '2px solid #FFD6C0',
+                borderRadius: '16px', fontSize: '16px', fontWeight: '700',
+                cursor: 'pointer', color: theme.text,
+                boxShadow: '0 2px 8px #FFB99733'
+              }}>
+                <img src="https://www.google.com/favicon.ico" alt="google" width="20" height="20" />
+                Google로 로그인
+              </button>
+            </div>
+          </div>
+        ) : (
           <>
+            {/* 유저 정보 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', background: '#fff', borderRadius: '16px', padding: '12px 16px', boxShadow: '0 2px 8px #FFB99733' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                {user.user_metadata?.avatar_url && (
+                  <img src={user.user_metadata.avatar_url} alt="profile" width="32" height="32" style={{ borderRadius: '50%' }} />
+                )}
+                <span style={{ fontSize: '14px', fontWeight: '700', color: theme.text }}>
+                  {user.user_metadata?.full_name || user.email}
+                </span>
+              </div>
+              <button onClick={handleLogout} style={{
+                background: 'none', border: '1px solid #FFD6C0', borderRadius: '10px',
+                padding: '4px 10px', fontSize: '12px', color: theme.subtext, cursor: 'pointer'
+              }}>로그아웃</button>
+            </div>
+
+            {/* 버튼 */}
             <div style={{ display: 'flex', gap: '10px', marginBottom: '24px' }}>
               <button onClick={() => setScreen('create')} style={mainBtn(theme.accent)}>
                 ✨ 새 약속
@@ -84,6 +152,7 @@ function App() {
               </button>
             </div>
 
+            {/* 약속 목록 */}
             <h3 style={{ color: theme.text, margin: '0 0 12px', fontSize: '16px' }}>📋 내 약속 목록</h3>
             {myRooms.length === 0 ? (
               <div style={emptyCard}>
