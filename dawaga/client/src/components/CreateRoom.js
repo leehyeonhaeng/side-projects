@@ -69,7 +69,7 @@ function CreateRoom({ onCreated, onBack }) {
     }
     setLoading(true);
     const roomId = Math.random().toString(36).substr(2, 6).toUpperCase();
-    const res = await fetch('http://localhost:4000/room', {
+    const res = await fetch(`${process.env.REACT_APP_SERVER_URL || 'http://localhost:4000'}/room`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

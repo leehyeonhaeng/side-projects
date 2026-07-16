@@ -12,7 +12,7 @@ function JoinRoom({ onJoined, onBack }) {
       return;
     }
     setLoading(true);
-    const res = await fetch(`http://localhost:4000/room/${roomId.toUpperCase()}`);
+    const res = await fetch(`${process.env.REACT_APP_SERVER_URL || 'http://localhost:4000'}/room/${roomId.toUpperCase()}`);
     if (!res.ok) {
       alert('방을 찾을 수 없어요 😢');
       setLoading(false);

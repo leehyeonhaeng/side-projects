@@ -16,33 +16,45 @@ const theme = {
 
 export { theme };
 
+// 기기별 고유 ID 생성
+function getDeviceId() {
+  let id = localStorage.getItem('dawaga_device_id');
+  if (!id) {
+    id = Math.random().toString(36).substr(2, 16);
+    localStorage.setItem('dawaga_device_id', id);
+  }
+  return id;
+}
+
+export { getDeviceId };
+
 function App() {
   const [screen, setScreen] = useState('home');
   const [roomData, setRoomData] = useState(null);
   const [myRooms, setMyRooms] = useState([]);
 
   useEffect(() => {
-    const saved = localStorage.getItem('dawaga_rooms');
+    const deviceId = getDeviceId();
+    const saved = localStorage.getItem(`dawaga_rooms_${deviceId}`);
     if (saved) setMyRooms(JSON.parse(saved));
   }, []);
 
   const saveRoom = (room) => {
+    const deviceId = getDeviceId();
     const updated = [room, ...myRooms.filter(r => r.roomId !== room.roomId)];
     setMyRooms(updated);
-    localStorage.setItem('dawaga_rooms', JSON.stringify(updated));
+    localStorage.setItem(`dawaga_rooms_${deviceId}`, JSON.stringify(updated));
   };
 
   const deleteRoom = (roomId) => {
+    const deviceId = getDeviceId();
     const updated = myRooms.filter(r => r.roomId !== roomId);
     setMyRooms(updated);
-    localStorage.setItem('dawaga_rooms', JSON.stringify(updated));
+    localStorage.setItem(`dawaga_rooms_${deviceId}`, JSON.stringify(updated));
   };
 
   if (screen === 'room') return (
-    <RoomView
-      roomData={roomData}
-      onBack={() => setScreen('home')}
-    />
+    <RoomView roomData={roomData} onBack={() => setScreen('home')} />
   );
 
   return (
@@ -53,7 +65,6 @@ function App() {
     }}>
       <div style={{ width: '100%', maxWidth: '420px', margin: '0 auto', padding: '24px' }}>
 
-        {/* 헤더 */}
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <div style={{ fontSize: '52px', marginBottom: '4px' }}>🧭</div>
           <h1 style={{ fontSize: '32px', fontWeight: '800', color: theme.text, margin: 0 }}>다와가</h1>
@@ -64,7 +75,6 @@ function App() {
 
         {screen === 'home' && (
           <>
-            {/* 버튼 */}
             <div style={{ display: 'flex', gap: '10px', marginBottom: '24px' }}>
               <button onClick={() => setScreen('create')} style={mainBtn(theme.accent)}>
                 ✨ 새 약속
@@ -74,7 +84,6 @@ function App() {
               </button>
             </div>
 
-            {/* 약속 목록 */}
             <h3 style={{ color: theme.text, margin: '0 0 12px', fontSize: '16px' }}>📋 내 약속 목록</h3>
             {myRooms.length === 0 ? (
               <div style={emptyCard}>
@@ -93,7 +102,7 @@ function App() {
                 return (
                   <div key={room.roomId} style={roomCard(isActive)}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div style={{ flex: 1 }} onClick={() => { setRoomData(room); setScreen('room'); }} >
+                      <div style={{ flex: 1 }} onClick={() => { setRoomData(room); setScreen('room'); }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                           <span style={{
                             fontSize: '11px', fontWeight: '700', padding: '2px 8px',
@@ -144,29 +153,18 @@ function App() {
 }
 
 const mainBtn = (bg) => ({
-  flex: 1,
-  padding: '16px',
-  backgroundColor: bg,
-  color: '#fff',
-  border: 'none',
-  borderRadius: '20px',
-  fontSize: '16px',
-  fontWeight: '700',
-  cursor: 'pointer',
-  boxShadow: `0 4px 15px ${bg}88`,
+  flex: 1, padding: '16px', backgroundColor: bg, color: '#fff',
+  border: 'none', borderRadius: '20px', fontSize: '16px',
+  fontWeight: '700', cursor: 'pointer', boxShadow: `0 4px 15px ${bg}88`,
 });
 
 const emptyCard = {
-  background: '#fff',
-  borderRadius: '20px',
-  padding: '24px',
+  background: '#fff', borderRadius: '20px', padding: '24px',
   boxShadow: '0 2px 12px #FFB99733',
 };
 
 const roomCard = (isActive) => ({
-  background: '#fff',
-  borderRadius: '20px',
-  padding: '16px',
+  background: '#fff', borderRadius: '20px', padding: '16px',
   marginBottom: '10px',
   boxShadow: isActive ? '0 2px 16px #FF8C6944' : '0 2px 12px #FFB99733',
   border: isActive ? '2px solid #FFE89A' : '2px solid transparent',

@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -11,13 +13,14 @@ app.use(express.json());
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000",
+    origin: process.env.CLIENT_URL || "http://localhost:3000",
     methods: ["GET", "POST"]
   }
 });
 
 const rooms = {};
-const ODSAY_API_KEY = 'GkR8emvT/KAJbIi7K7UTb6ZfpE0H795kfD/iowKapZc';
+const ODSAY_API_KEY = process.env.ODSAY_API_KEY;
+const KAKAO_REST_API_KEY = process.env.KAKAO_REST_API_KEY;
 
 const NUDGE_MESSAGES = {
   friend: [
@@ -80,7 +83,6 @@ function getAbstractDistance(meters, transport, etaMinutes) {
   return `약 ${(meters / 1000).toFixed(1)}km 남음`;
 }
 
-// 독촉 메시지 랜덤 반환 API (room/:roomId 보다 위에 있어야 함)
 app.get('/nudge/:mode', (req, res) => {
   const { mode } = req.params;
   const messages = NUDGE_MESSAGES[mode] || NUDGE_MESSAGES.friend;
@@ -90,7 +92,7 @@ app.get('/nudge/:mode', (req, res) => {
 
 app.post('/room', (req, res) => {
   const { roomId, destination, meetingTime } = req.body;
-  rooms[roomId] = { destination, meetingTime, members: {} };
+  rooms[roomId] = { destination, meetingTime, members: {}, lateFees: {} };
   res.json({ success: true, roomId });
 });
 
@@ -98,6 +100,12 @@ app.get('/room/:roomId', (req, res) => {
   const room = rooms[req.params.roomId];
   if (!room) return res.status(404).json({ error: '방을 찾을 수 없어요' });
   res.json(room);
+});
+
+app.get('/room/:roomId/latefee', (req, res) => {
+  const room = rooms[req.params.roomId];
+  if (!room) return res.status(404).json({ error: '방을 찾을 수 없어요' });
+  res.json({ lateFees: room.lateFees });
 });
 
 app.post('/route/transit', async (req, res) => {
@@ -134,7 +142,7 @@ app.post('/route/car', async (req, res) => {
   const { startX, startY, endX, endY } = req.body;
   try {
     const response = await axios.get('https://apis-navi.kakaomobility.com/v1/directions', {
-      headers: { Authorization: `KakaoAK ee181bdceba727f9a6a91fea21a713df` },
+      headers: { Authorization: `KakaoAK ${KAKAO_REST_API_KEY}` },
       params: { origin: `${startX},${startY}`, destination: `${endX},${endY}` }
     });
     const data = response.data;
@@ -157,9 +165,33 @@ io.on('connection', (socket) => {
     socket.join(roomId);
     socket.data.roomId = roomId;
     socket.data.userName = userName;
+
     if (rooms[roomId]) {
-      rooms[roomId].members[socket.id] = { userName, lat: null, lon: null, transport: 'walk', etaMinutes: null };
+      rooms[roomId].members[socket.id] = {
+        userName, lat: null, lon: null,
+        transport: 'walk', etaMinutes: null,
+        arrived: false, arrivedAt: null,
+        abstractInfo: null, bearing: null
+      };
+
+      const existingMembers = Object.entries(rooms[roomId].members)
+        .filter(([id]) => id !== socket.id)
+        .map(([id, m]) => ({
+          socketId: id,
+          userName: m.userName,
+          abstractInfo: m.abstractInfo,
+          bearing: m.bearing,
+          transport: m.transport,
+          arrived: m.arrived
+        }));
+
+      socket.emit('existing_members', { members: existingMembers });
+
+      if (Object.keys(rooms[roomId].lateFees).length > 0) {
+        socket.emit('latefee_updated', { lateFees: rooms[roomId].lateFees });
+      }
     }
+
     socket.to(roomId).emit('member_joined', { userName });
     console.log(`${userName}이 ${roomId} 방에 참가`);
   });
@@ -168,7 +200,7 @@ io.on('connection', (socket) => {
     const room = rooms[roomId];
     if (!room) return;
     const member = room.members[socket.id];
-    if (!member) return;
+    if (!member || member.arrived) return;
 
     member.lat = lat;
     member.lon = lon;
@@ -198,14 +230,43 @@ io.on('connection', (socket) => {
     }
 
     member.etaMinutes = etaMinutes;
-    const abstractInfo = getAbstractDistance(distance, transport, etaMinutes);
+    member.bearing = bearing;
+    member.abstractInfo = getAbstractDistance(distance, transport, etaMinutes);
+    member.distance = distance;
 
     socket.to(roomId).emit('member_updated', {
       socketId: socket.id,
       userName: member.userName,
-      distance, bearing, abstractInfo, transport, etaMinutes
+      distance, bearing,
+      abstractInfo: member.abstractInfo,
+      transport, etaMinutes
     });
-    socket.emit('my_info', { distance, bearing, abstractInfo, transport, etaMinutes });
+    socket.emit('my_info', { distance, bearing, abstractInfo: member.abstractInfo, transport, etaMinutes });
+  });
+
+  socket.on('arrive', ({ roomId }) => {
+    const room = rooms[roomId];
+    if (!room) return;
+    const member = room.members[socket.id];
+    if (!member || member.arrived) return;
+
+    member.arrived = true;
+    member.arrivedAt = new Date();
+
+    const meetingTime = new Date(room.meetingTime);
+    const diffMs = member.arrivedAt - meetingTime;
+    const lateMinutes = diffMs > 0 ? Math.floor(diffMs / 60000) : 0;
+    const lateFee = lateMinutes * 500;
+
+    room.lateFees[member.userName] = { lateMinutes, lateFee, arrivedAt: member.arrivedAt };
+
+    io.to(roomId).emit('member_arrived', {
+      socketId: socket.id,
+      userName: member.userName,
+      lateMinutes, lateFee
+    });
+    io.to(roomId).emit('latefee_updated', { lateFees: room.lateFees });
+    console.log(`${member.userName} 도착, 지각 ${lateMinutes}분, 지각비 ${lateFee}원`);
   });
 
   socket.on('send_nudge', ({ roomId, fromName, toName, message, isAll }) => {
@@ -222,7 +283,7 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = 4000;
+const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
   console.log(`서버 실행 중: http://localhost:${PORT}`);
 });
