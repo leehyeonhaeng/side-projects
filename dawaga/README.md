@@ -87,6 +87,8 @@ npm start
 ---
 
 ## 📁 프로젝트 구조
+
+```
 dawaga/
 ├── client/                  # React 프론트엔드
 │   ├── public/
@@ -103,6 +105,7 @@ dawaga/
 │   └── .env                 # 환경변수 (git 제외)
 ├── DEVLOG.md                # 개발 일지
 └── README.md
+```
 
 ---
 
