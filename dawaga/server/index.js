@@ -109,7 +109,7 @@ app.post('/room', async (req, res) => {
       destination_name: destination.name,
       destination_lat: destination.lat,
       destination_lon: destination.lon,
-      meeting_time: new Date(meetingTime).toISOString()
+      meeting_time: meetingTime
     });
     if (error) throw error;
 
@@ -139,7 +139,7 @@ app.get('/room/:roomId', async (req, res) => {
         lat: data.destination_lat,
         lon: data.destination_lon
       },
-      meetingTime: new Date(data.meeting_time).toISOString()
+      meetingTime: data.meeting_time
     });
   } catch (err) {
     console.error('방 조회 오류:', err.message);
