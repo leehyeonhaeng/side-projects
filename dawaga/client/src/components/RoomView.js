@@ -538,9 +538,20 @@ function RoomView({ roomData, onBack }) {
       )}
 
       <div style={{ ...card('#FFD6C0'), textAlign: 'center' }}>
-        <p style={{ margin: 0, fontSize: '14px', color: theme.text }}>
+        <p style={{ margin: '0 0 10px', fontSize: '14px', color: theme.text }}>
           친구에게 방 코드 <strong style={{ letterSpacing: '2px' }}>{roomId}</strong> 를 알려주세요 💌
         </p>
+        <button onClick={() => {
+          const url = `${window.location.origin}?room=${roomId}`;
+          navigator.clipboard.writeText(url);
+          alert('링크가 복사됐어요! 친구에게 보내주세요 🔗');
+        }} style={{
+          padding: '10px 20px', background: theme.accent, color: '#fff',
+          border: 'none', borderRadius: '14px', fontSize: '14px',
+          fontWeight: '700', cursor: 'pointer'
+        }}>
+          🔗 초대 링크 복사
+        </button>
       </div>
     </div>
   );

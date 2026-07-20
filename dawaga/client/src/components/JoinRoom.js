@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { theme } from '../App';
 
-function JoinRoom({ onJoined, onBack }) {
+function JoinRoom({ onJoined, onBack, initialRoomId = '' }) {
   const [userName, setUserName] = useState('');
-  const [roomId, setRoomId] = useState('');
+  const [roomId, setRoomId] = useState(initialRoomId);
   const [loading, setLoading] = useState(false);
 
   const handleJoin = async () => {

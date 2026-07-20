@@ -37,6 +37,18 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // URL에 방 코드 있으면 바로 참가 화면으로
+  useEffect(() => {
+    if (authLoading) return;
+    const params = new URLSearchParams(window.location.search);
+    const roomCode = params.get('room');
+    if (roomCode) {
+      setScreen('join');
+      // URL 파라미터 제거
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [authLoading]);
+
   useEffect(() => {
     if (!user) return;
     const saved = localStorage.getItem(`dawaga_rooms_${user.id}`);
@@ -93,7 +105,6 @@ function App() {
     }}>
       <div style={{ width: '100%', maxWidth: '420px', margin: '0 auto', padding: '24px' }}>
 
-        {/* 헤더 */}
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <div style={{ fontSize: '52px', marginBottom: '4px' }}>🧭</div>
           <h1 style={{ fontSize: '32px', fontWeight: '800', color: theme.text, margin: 0 }}>다와가</h1>
@@ -102,7 +113,6 @@ function App() {
           </p>
         </div>
 
-        {/* 로그인 상태 표시 */}
         {user ? (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', background: '#fff', borderRadius: '16px', padding: '12px 16px', boxShadow: '0 2px 8px #FFB99733' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -137,7 +147,6 @@ function App() {
 
         {screen === 'home' && (
           <>
-            {/* 버튼 */}
             <div style={{ display: 'flex', gap: '10px', marginBottom: '24px' }}>
               <button onClick={() => setScreen('create')} style={mainBtn(theme.accent)}>
                 ✨ 새 약속
@@ -147,7 +156,6 @@ function App() {
               </button>
             </div>
 
-            {/* 약속 목록 - 로그인한 경우만 */}
             {user && (
               <>
                 <h3 style={{ color: theme.text, margin: '0 0 12px', fontSize: '16px' }}>📋 내 약속 목록</h3>
@@ -213,6 +221,7 @@ function App() {
           <JoinRoom
             onJoined={(data) => { saveRoom(data); setRoomData(data); setScreen('room'); }}
             onBack={() => setScreen('home')}
+            initialRoomId={new URLSearchParams(window.location.search).get('room') || ''}
           />
         )}
       </div>
