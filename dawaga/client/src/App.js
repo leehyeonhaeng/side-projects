@@ -25,13 +25,11 @@ function App() {
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
-    // 현재 로그인 상태 확인
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       setAuthLoading(false);
     });
 
-    // 로그인 상태 변경 감지
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
@@ -104,44 +102,41 @@ function App() {
           </p>
         </div>
 
-        {/* 로그인 안 된 상태 */}
-        {!user ? (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ background: '#fff', borderRadius: '24px', padding: '32px', boxShadow: '0 4px 20px #FFB99744', marginBottom: '16px' }}>
-              <p style={{ color: theme.subtext, fontSize: '15px', marginBottom: '24px', margin: '0 0 24px' }}>
-                구글 계정으로 로그인하고<br />약속을 만들어보세요 🎉
-              </p>
-              <button onClick={handleLogin} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                gap: '10px', width: '100%', padding: '14px',
-                background: '#fff', border: '2px solid #FFD6C0',
-                borderRadius: '16px', fontSize: '16px', fontWeight: '700',
-                cursor: 'pointer', color: theme.text,
-                boxShadow: '0 2px 8px #FFB99733'
-              }}>
-                <img src="https://www.google.com/favicon.ico" alt="google" width="20" height="20" />
-                Google로 로그인
-              </button>
+        {/* 로그인 상태 표시 */}
+        {user ? (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', background: '#fff', borderRadius: '16px', padding: '12px 16px', boxShadow: '0 2px 8px #FFB99733' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {user.user_metadata?.avatar_url && (
+                <img src={user.user_metadata.avatar_url} alt="profile" width="32" height="32" style={{ borderRadius: '50%' }} />
+              )}
+              <span style={{ fontSize: '14px', fontWeight: '700', color: theme.text }}>
+                {user.user_metadata?.full_name || user.email}
+              </span>
             </div>
+            <button onClick={handleLogout} style={{
+              background: 'none', border: '1px solid #FFD6C0', borderRadius: '10px',
+              padding: '4px 10px', fontSize: '12px', color: theme.subtext, cursor: 'pointer'
+            }}>로그아웃</button>
           </div>
         ) : (
-          <>
-            {/* 유저 정보 */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', background: '#fff', borderRadius: '16px', padding: '12px 16px', boxShadow: '0 2px 8px #FFB99733' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                {user.user_metadata?.avatar_url && (
-                  <img src={user.user_metadata.avatar_url} alt="profile" width="32" height="32" style={{ borderRadius: '50%' }} />
-                )}
-                <span style={{ fontSize: '14px', fontWeight: '700', color: theme.text }}>
-                  {user.user_metadata?.full_name || user.email}
-                </span>
-              </div>
-              <button onClick={handleLogout} style={{
-                background: 'none', border: '1px solid #FFD6C0', borderRadius: '10px',
-                padding: '4px 10px', fontSize: '12px', color: theme.subtext, cursor: 'pointer'
-              }}>로그아웃</button>
-            </div>
+          <div style={{ marginBottom: '20px', background: '#fff', borderRadius: '16px', padding: '12px 16px', boxShadow: '0 2px 8px #FFB99733', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <p style={{ margin: 0, fontSize: '13px', color: theme.subtext }}>
+              로그인하면 약속 목록이 저장돼요 🗓️
+            </p>
+            <button onClick={handleLogin} style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              background: theme.accent, color: '#fff', border: 'none',
+              borderRadius: '10px', padding: '6px 12px', fontSize: '12px',
+              fontWeight: '700', cursor: 'pointer'
+            }}>
+              <img src="https://www.google.com/favicon.ico" alt="google" width="14" height="14" />
+              로그인
+            </button>
+          </div>
+        )}
 
+        {screen === 'home' && (
+          <>
             {/* 버튼 */}
             <div style={{ display: 'flex', gap: '10px', marginBottom: '24px' }}>
               <button onClick={() => setScreen('create')} style={mainBtn(theme.accent)}>
@@ -152,53 +147,57 @@ function App() {
               </button>
             </div>
 
-            {/* 약속 목록 */}
-            <h3 style={{ color: theme.text, margin: '0 0 12px', fontSize: '16px' }}>📋 내 약속 목록</h3>
-            {myRooms.length === 0 ? (
-              <div style={emptyCard}>
-                <p style={{ margin: 0, color: theme.subtext, fontSize: '14px', textAlign: 'center' }}>
-                  아직 약속이 없어요 🥲<br />새 약속을 만들어보세요!
-                </p>
-              </div>
-            ) : (
-              myRooms.map((room) => {
-                const meeting = new Date(room.meetingTime);
-                const now = new Date();
-                const diff = meeting - now;
-                const isPast = diff < -60 * 60 * 1000;
-                const isActive = diff <= 60 * 60 * 1000 && diff >= -60 * 60 * 1000;
-
-                return (
-                  <div key={room.roomId} style={roomCard(isActive)}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div style={{ flex: 1 }} onClick={() => { setRoomData(room); setScreen('room'); }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                          <span style={{
-                            fontSize: '11px', fontWeight: '700', padding: '2px 8px',
-                            borderRadius: '20px', background: isActive ? '#FFE89A' : isPast ? '#eee' : '#FFD6C0',
-                            color: theme.text
-                          }}>
-                            {isActive ? '🟢 진행중' : isPast ? '⚫ 종료' : '⏸ 대기중'}
-                          </span>
-                          <span style={{ fontSize: '12px', color: theme.subtext, fontWeight: '700', letterSpacing: '2px' }}>
-                            {room.roomId}
-                          </span>
-                        </div>
-                        <p style={{ margin: '4px 0 0', fontWeight: '700', color: theme.text, fontSize: '15px' }}>
-                          📍 {room.destination?.name || '약속 장소'}
-                        </p>
-                        <p style={{ margin: '4px 0 0', color: theme.subtext, fontSize: '13px' }}>
-                          {meeting.toLocaleString('ko-KR')}
-                        </p>
-                      </div>
-                      <button onClick={() => deleteRoom(room.roomId)} style={{
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        fontSize: '16px', color: '#ccc', padding: '0 0 0 8px'
-                      }}>✕</button>
-                    </div>
+            {/* 약속 목록 - 로그인한 경우만 */}
+            {user && (
+              <>
+                <h3 style={{ color: theme.text, margin: '0 0 12px', fontSize: '16px' }}>📋 내 약속 목록</h3>
+                {myRooms.length === 0 ? (
+                  <div style={emptyCard}>
+                    <p style={{ margin: 0, color: theme.subtext, fontSize: '14px', textAlign: 'center' }}>
+                      아직 약속이 없어요 🥲<br />새 약속을 만들어보세요!
+                    </p>
                   </div>
-                );
-              })
+                ) : (
+                  myRooms.map((room) => {
+                    const meeting = new Date(room.meetingTime);
+                    const now = new Date();
+                    const diff = meeting - now;
+                    const isPast = diff < -60 * 60 * 1000;
+                    const isActive = diff <= 60 * 60 * 1000 && diff >= -60 * 60 * 1000;
+
+                    return (
+                      <div key={room.roomId} style={roomCard(isActive)}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ flex: 1 }} onClick={() => { setRoomData(room); setScreen('room'); }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                              <span style={{
+                                fontSize: '11px', fontWeight: '700', padding: '2px 8px',
+                                borderRadius: '20px', background: isActive ? '#FFE89A' : isPast ? '#eee' : '#FFD6C0',
+                                color: theme.text
+                              }}>
+                                {isActive ? '🟢 진행중' : isPast ? '⚫ 종료' : '⏸ 대기중'}
+                              </span>
+                              <span style={{ fontSize: '12px', color: theme.subtext, fontWeight: '700', letterSpacing: '2px' }}>
+                                {room.roomId}
+                              </span>
+                            </div>
+                            <p style={{ margin: '4px 0 0', fontWeight: '700', color: theme.text, fontSize: '15px' }}>
+                              📍 {room.destination?.name || '약속 장소'}
+                            </p>
+                            <p style={{ margin: '4px 0 0', color: theme.subtext, fontSize: '13px' }}>
+                              {meeting.toLocaleString('ko-KR')}
+                            </p>
+                          </div>
+                          <button onClick={() => deleteRoom(room.roomId)} style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            fontSize: '16px', color: '#ccc', padding: '0 0 0 8px'
+                          }}>✕</button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </>
             )}
           </>
         )}
