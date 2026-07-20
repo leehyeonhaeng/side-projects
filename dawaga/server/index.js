@@ -68,10 +68,10 @@ function getDistance(lat1, lon1, lat2, lon2) {
   const R = 6371000;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function getBearing(lat1, lon1, lat2, lon2) {
@@ -109,7 +109,7 @@ app.post('/room', async (req, res) => {
       destination_name: destination.name,
       destination_lat: destination.lat,
       destination_lon: destination.lon,
-      meeting_time: meetingTime
+      meeting_time: new Date(meetingTime).toISOString()
     });
     if (error) throw error;
 
@@ -139,7 +139,7 @@ app.get('/room/:roomId', async (req, res) => {
         lat: data.destination_lat,
         lon: data.destination_lon
       },
-      meetingTime: data.meeting_time
+      meetingTime: new Date(data.meeting_time).toISOString()
     });
   } catch (err) {
     console.error('방 조회 오류:', err.message);
@@ -315,14 +315,14 @@ io.on('connection', (socket) => {
           startX: lon, startY: lat, endX: dest.lon, endY: dest.lat
         });
         if (result.data.success) etaMinutes = result.data.totalTime;
-      } catch (e) {}
+      } catch (e) { }
     } else if (transport === 'car') {
       try {
         const result = await axios.post(`http://localhost:${process.env.PORT || 4000}/route/car`, {
           startX: lon, startY: lat, endX: dest.lon, endY: dest.at
         });
         if (result.data.success) etaMinutes = result.data.totalTime;
-      } catch (e) {}
+      } catch (e) { }
     }
 
     member.etaMinutes = etaMinutes;
