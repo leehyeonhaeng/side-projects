@@ -23,6 +23,7 @@ function App() {
   const [myRooms, setMyRooms] = useState([]);
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [initialRoomId, setInitialRoomId] = useState('');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -37,14 +38,13 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // URL에 방 코드 있으면 바로 참가 화면으로
   useEffect(() => {
     if (authLoading) return;
     const params = new URLSearchParams(window.location.search);
     const roomCode = params.get('room');
     if (roomCode) {
+      setInitialRoomId(roomCode.toUpperCase());
       setScreen('join');
-      // URL 파라미터 제거
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [authLoading]);
@@ -221,7 +221,7 @@ function App() {
           <JoinRoom
             onJoined={(data) => { saveRoom(data); setRoomData(data); setScreen('room'); }}
             onBack={() => setScreen('home')}
-            initialRoomId={new URLSearchParams(window.location.search).get('room') || ''}
+            initialRoomId={initialRoomId}
           />
         )}
       </div>
