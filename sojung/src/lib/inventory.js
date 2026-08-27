@@ -103,15 +103,19 @@ export function listMovements(itemId) {
   return db
     .prepare(
       `
-      SELECT * FROM stock_movements
-      WHERE item_id = ?
-      ORDER BY moved_at DESC, id DESC
+      SELECT
+        m.*,
+        p.name AS partner_name
+      FROM stock_movements m
+      LEFT JOIN partners p ON p.id = m.partner_id
+      WHERE m.item_id = ?
+      ORDER BY m.moved_at DESC, m.id DESC
       `
     )
     .all(itemId);
 }
 
-export function addMovement({ itemId, type, quantity, unitPrice, memo, movedAt }) {
+export function addMovement({ itemId, type, quantity, unitPrice, memo, movedAt, partnerId }) {
   if (!["in", "out", "adjust"].includes(type)) {
     throw new Error("올바르지 않은 입출고 유형입니다.");
   }
@@ -124,8 +128,8 @@ export function addMovement({ itemId, type, quantity, unitPrice, memo, movedAt }
 
   db.prepare(
     `
-    INSERT INTO stock_movements (item_id, type, quantity, unit_price, memo, moved_at)
-    VALUES (@itemId, @type, @quantity, @unitPrice, @memo, @movedAt)
+    INSERT INTO stock_movements (item_id, type, quantity, unit_price, memo, moved_at, partner_id)
+    VALUES (@itemId, @type, @quantity, @unitPrice, @memo, @movedAt, @partnerId)
     `
   ).run({
     itemId,
@@ -134,5 +138,6 @@ export function addMovement({ itemId, type, quantity, unitPrice, memo, movedAt }
     unitPrice: unitPrice ?? null,
     memo: memo || null,
     movedAt,
+    partnerId: partnerId ?? null,
   });
 }

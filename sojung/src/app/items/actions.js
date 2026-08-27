@@ -62,9 +62,11 @@ export async function addMovementAction(itemId, formData) {
   const unitPrice = unitPriceRaw ? Number(unitPriceRaw) : null;
   const memo = String(formData.get("memo") || "").trim();
   const movedAt = String(formData.get("movedAt") || "");
+  const partnerIdRaw = formData.get("partnerId");
+  const partnerId = partnerIdRaw ? Number(partnerIdRaw) : null;
 
   try {
-    addMovement({ itemId, type, quantity, unitPrice, memo, movedAt });
+    addMovement({ itemId, type, quantity, unitPrice, memo, movedAt, partnerId });
   } catch (error) {
     redirect(`/items/${itemId}?error=${encodeURIComponent(error.message)}`);
   }

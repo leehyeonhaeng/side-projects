@@ -8,6 +8,14 @@ export default async function ItemsPage({ searchParams }) {
   return (
     <div className="flex flex-1 flex-col bg-zinc-50 dark:bg-black">
       <div className="mx-auto w-full max-w-5xl px-6 py-10">
+        <div className="mb-2">
+          <Link
+            href="/partners"
+            className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
+          >
+            거래처관리 바로가기 →
+          </Link>
+        </div>
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
             재고관리

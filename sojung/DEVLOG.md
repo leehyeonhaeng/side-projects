@@ -87,3 +87,27 @@ Next.js 16.3.3부터 `middleware.js`가 `proxy.js`로 대체된 점을 확인 (�
 
 ### 다음 단계
 - 2단계: 거래처관리 (거래처 테이블 하나로 매입처/매출처 구분, 재고 입출고와 연동)
+
+## 2026-08-27 (계속) — 2단계: 거래처관리 구현
+
+거래처 등록/수정/삭제, 매입처·매출처·둘다 구분, 거래처별 연동 거래 내역 조회를 구현하고
+1단계 재고관리의 입출고 등록에 거래처 선택(선택 사항)을 연결함.
+
+- `src/lib/db.js` — `partners` 테이블 추가, 기존 `stock_movements`에 `partner_id` 컬럼을 마이그레이션으로
+  추가 (`PRAGMA table_info`로 존재 여부 확인 후 `ALTER TABLE`). 병렬 빌드 워커가 동시에 마이그레이션을
+  시도할 수 있어 "duplicate column name" 에러는 무시하도록 처리.
+- `src/lib/partners.js` — 거래처 DAL. 연결된 `stock_movements`가 있으면 삭제 거부(1단계 품목 삭제와 동일 패턴).
+- `src/lib/inventory.js` — `addMovement`에 `partnerId` 추가, `listMovements`가 거래처명을 LEFT JOIN.
+- `src/app/partners/` — 목록/등록/상세/수정 화면 + Server Actions. `src/app/items/` 패턴 그대로 재사용.
+- `src/app/items/[id]/page.js`, `actions.js` — 입출고 등록 폼에 거래처 선택 추가, 이력에 거래처명 표시.
+
+브라우저로 거래처 등록(매입처) → 품목 등록 → 거래처를 지정해 입고 등록 → 품목 이력과 거래처 상세
+양쪽에서 거래 내역 확인 → 거래 내역이 있는 거래처 삭제 시도 시 차단까지 전체 흐름 확인.
+`npm run build` 통과 확인.
+
+메모: 브라우저 자동화 클릭이 이 세션에서 간헐적으로 씹히는 현상이 있었음(코드 문제 아님, 자동화 툴의
+클릭 이벤트 디스패치 이슈로 추정 — `element.click()` JS 호출로는 항상 정상 동작). 실제 사용자 클릭에는
+영향 없음.
+
+### 다음 단계
+- 3단계: 입출금 · 잔액 · 알림

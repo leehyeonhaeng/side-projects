@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getItemWithStock, listMovements } from "@/lib/inventory";
+import { listPartners } from "@/lib/partners";
 import { addMovementAction, deleteItemAction } from "@/app/items/actions";
 
 const TYPE_LABEL = {
@@ -23,6 +24,7 @@ export default async function ItemDetailPage({ params, searchParams }) {
   }
 
   const movements = listMovements(item.id);
+  const partners = listPartners();
   const addMovement = addMovementAction.bind(null, item.id);
   const deleteItem = deleteItemAction.bind(null, item.id);
   const isLow = item.current_stock < item.min_stock;
@@ -105,7 +107,7 @@ export default async function ItemDetailPage({ params, searchParams }) {
           </h2>
           <form
             action={addMovement}
-            className="grid grid-cols-2 gap-3 sm:grid-cols-5"
+            className="grid grid-cols-2 gap-3 sm:grid-cols-6"
           >
             <select
               name="type"
@@ -115,6 +117,18 @@ export default async function ItemDetailPage({ params, searchParams }) {
               <option value="in">입고</option>
               <option value="out">출고</option>
               <option value="adjust">조정</option>
+            </select>
+            <select
+              name="partnerId"
+              defaultValue=""
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+            >
+              <option value="">거래처 없음</option>
+              {partners.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
             </select>
             <input
               type="number"
@@ -146,7 +160,7 @@ export default async function ItemDetailPage({ params, searchParams }) {
             />
             <button
               type="submit"
-              className="col-span-2 rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 sm:col-span-5 sm:w-fit dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+              className="col-span-2 rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 sm:col-span-6 sm:w-fit dark:bg-white dark:text-black dark:hover:bg-zinc-200"
             >
               등록
             </button>
@@ -168,6 +182,7 @@ export default async function ItemDetailPage({ params, searchParams }) {
                   <th className="px-4 py-3 font-medium">구분</th>
                   <th className="px-4 py-3 text-right font-medium">수량</th>
                   <th className="px-4 py-3 text-right font-medium">단가</th>
+                  <th className="px-4 py-3 font-medium">거래처</th>
                   <th className="px-4 py-3 font-medium">메모</th>
                 </tr>
               </thead>
@@ -175,7 +190,7 @@ export default async function ItemDetailPage({ params, searchParams }) {
                 {movements.length === 0 && (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={6}
                       className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-500"
                     >
                       입출고 이력이 없습니다.
@@ -194,6 +209,18 @@ export default async function ItemDetailPage({ params, searchParams }) {
                     <td className="px-4 py-3 text-right">{m.quantity}</td>
                     <td className="px-4 py-3 text-right text-zinc-600 dark:text-zinc-400">
                       {m.unit_price != null ? m.unit_price.toLocaleString() : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                      {m.partner_id ? (
+                        <Link
+                          href={`/partners/${m.partner_id}`}
+                          className="hover:underline"
+                        >
+                          {m.partner_name}
+                        </Link>
+                      ) : (
+                        "-"
+                      )}
                     </td>
                     <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
                       {m.memo || "-"}
