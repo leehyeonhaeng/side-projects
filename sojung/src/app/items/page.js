@@ -1,19 +1,39 @@
 import Link from "next/link";
 import { listItemsWithStock } from "@/lib/inventory";
+import { countUnread } from "@/lib/notifications";
 
 export default async function ItemsPage({ searchParams }) {
   const { q } = await searchParams;
   const items = listItemsWithStock({ query: q });
+  const unread = countUnread();
 
   return (
     <div className="flex flex-1 flex-col bg-zinc-50 dark:bg-black">
       <div className="mx-auto w-full max-w-5xl px-6 py-10">
-        <div className="mb-2">
+        <div className="mb-2 flex gap-4">
           <Link
             href="/partners"
             className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
           >
-            거래처관리 바로가기 →
+            거래처관리
+          </Link>
+          <Link
+            href="/payments"
+            className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
+          >
+            입출금관리
+          </Link>
+          <Link
+            href="/notifications"
+            className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
+          >
+            알림{unread > 0 ? ` (${unread})` : ""}
+          </Link>
+          <Link
+            href="/settings"
+            className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
+          >
+            설정
           </Link>
         </div>
         <div className="mb-6 flex items-center justify-between">

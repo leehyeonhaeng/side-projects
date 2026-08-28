@@ -57,13 +57,88 @@ export function updatePartner(id, { name, type, contactName, phone, businessNo, 
 }
 
 export function deletePartner(id) {
-  const { count } = db
-    .prepare("SELECT COUNT(*) AS count FROM stock_movements WHERE partner_id = ?")
+  const { movementCount } = db
+    .prepare("SELECT COUNT(*) AS movementCount FROM stock_movements WHERE partner_id = ?")
     .get(id);
-  if (count > 0) {
+  const { paymentCount } = db
+    .prepare("SELECT COUNT(*) AS paymentCount FROM payments WHERE partner_id = ?")
+    .get(id);
+  if (movementCount > 0 || paymentCount > 0) {
     throw new Error("연결된 거래 내역이 있는 거래처는 삭제할 수 없습니다.");
   }
   db.prepare("DELETE FROM partners WHERE id = ?").run(id);
+}
+
+// 양수 = 미수금(거래처가 우리에게 줄 돈), 음수 = 미지급금(우리가 거래처에게 줄 돈)
+export function getPartnerBalance(partnerId) {
+  const { movementNet } = db
+    .prepare(
+      `
+      SELECT COALESCE(SUM(
+        CASE
+          WHEN type = 'out' THEN quantity * unit_price
+          WHEN type = 'in' THEN -(quantity * unit_price)
+          ELSE 0
+        END
+      ), 0) AS movementNet
+      FROM stock_movements
+      WHERE partner_id = ? AND unit_price IS NOT NULL
+      `
+    )
+    .get(partnerId);
+
+  const { paymentNet } = db
+    .prepare(
+      `
+      SELECT COALESCE(SUM(
+        CASE
+          WHEN direction = 'in' THEN -amount
+          WHEN direction = 'out' THEN amount
+          ELSE 0
+        END
+      ), 0) AS paymentNet
+      FROM payments
+      WHERE partner_id = ?
+      `
+    )
+    .get(partnerId);
+
+  return movementNet + paymentNet;
+}
+
+const DUE_SOON_DAYS = 3;
+
+// 미수금이 있는 거래처에 대해, 결제기한이 걸린 출고 건 중 가장 이른 것을 기준으로
+// 임박/초과를 근사 판단한다 (건별 정밀 정산 상태 추적은 하지 않음).
+export function getPartnerDueStatus(partnerId, today = new Date().toISOString().slice(0, 10)) {
+  const balance = getPartnerBalance(partnerId);
+  if (balance <= 0) return null;
+
+  const nearest = db
+    .prepare(
+      `
+      SELECT id, due_date
+      FROM stock_movements
+      WHERE partner_id = ? AND type = 'out' AND due_date IS NOT NULL
+      ORDER BY due_date ASC
+      LIMIT 1
+      `
+    )
+    .get(partnerId);
+
+  if (!nearest) return null;
+
+  const dueDate = new Date(nearest.due_date);
+  const todayDate = new Date(today);
+  const diffDays = Math.ceil((dueDate - todayDate) / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) {
+    return { status: "overdue", dueDate: nearest.due_date, stockMovementId: nearest.id };
+  }
+  if (diffDays <= DUE_SOON_DAYS) {
+    return { status: "due_soon", dueDate: nearest.due_date, stockMovementId: nearest.id };
+  }
+  return { status: "ok", dueDate: nearest.due_date, stockMovementId: nearest.id };
 }
 
 export function listMovementsByPartner(partnerId) {

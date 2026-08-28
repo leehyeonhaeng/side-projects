@@ -107,7 +107,7 @@ export default async function ItemDetailPage({ params, searchParams }) {
           </h2>
           <form
             action={addMovement}
-            className="grid grid-cols-2 gap-3 sm:grid-cols-6"
+            className="grid grid-cols-2 gap-3 sm:grid-cols-7"
           >
             <select
               name="type"
@@ -158,15 +158,22 @@ export default async function ItemDetailPage({ params, searchParams }) {
               placeholder="메모"
               className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
             />
+            <input
+              type="date"
+              name="dueDate"
+              title="결제기한 (출고 시)"
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+            />
             <button
               type="submit"
-              className="col-span-2 rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 sm:col-span-6 sm:w-fit dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+              className="col-span-2 rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 sm:col-span-7 sm:w-fit dark:bg-white dark:text-black dark:hover:bg-zinc-200"
             >
               등록
             </button>
           </form>
           <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-            조정은 실사 보정용으로, 수량에 증가는 양수, 감소는 음수를 입력하세요.
+            조정은 실사 보정용으로, 수량에 증가는 양수, 감소는 음수를 입력하세요. 결제기한은
+            출고(매출) 건에서만 사용합니다.
           </p>
         </section>
 

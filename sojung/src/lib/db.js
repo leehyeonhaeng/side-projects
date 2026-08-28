@@ -52,15 +52,47 @@ if (!db) {
     );
 
     CREATE INDEX IF NOT EXISTS idx_stock_movements_item_id ON stock_movements(item_id);
+
+    CREATE TABLE IF NOT EXISTS payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      partner_id INTEGER REFERENCES partners(id) ON DELETE RESTRICT,
+      direction TEXT NOT NULL CHECK (direction IN ('in', 'out')),
+      amount INTEGER NOT NULL,
+      paid_at TEXT NOT NULL,
+      depositor_name TEXT,
+      source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual', 'bank_import')),
+      memo TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_payments_partner_id ON payments(partner_id);
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL CHECK (type IN ('payment_matched', 'payment_unmatched', 'due_soon', 'overdue')),
+      partner_id INTEGER REFERENCES partners(id) ON DELETE CASCADE,
+      payment_id INTEGER REFERENCES payments(id) ON DELETE CASCADE,
+      stock_movement_id INTEGER REFERENCES stock_movements(id) ON DELETE CASCADE,
+      message TEXT NOT NULL,
+      is_read INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS company_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      name TEXT,
+      business_no TEXT,
+      address TEXT,
+      phone TEXT
+    );
+    INSERT OR IGNORE INTO company_settings (id) VALUES (1);
   `);
 
-  const stockMovementColumns = db.prepare("PRAGMA table_info(stock_movements)").all();
-  const hasPartnerId = stockMovementColumns.some((col) => col.name === "partner_id");
-  if (!hasPartnerId) {
+  function addColumnIfMissing(table, column, definition) {
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+    if (columns.some((col) => col.name === column)) return;
     try {
-      db.exec(
-        "ALTER TABLE stock_movements ADD COLUMN partner_id INTEGER REFERENCES partners(id) ON DELETE RESTRICT"
-      );
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
     } catch (error) {
       // Another process (e.g. a parallel build worker) may have already
       // added the column between the check above and this statement.
@@ -69,6 +101,14 @@ if (!db) {
       }
     }
   }
+
+  addColumnIfMissing(
+    "stock_movements",
+    "partner_id",
+    "INTEGER REFERENCES partners(id) ON DELETE RESTRICT"
+  );
+  addColumnIfMissing("stock_movements", "due_date", "TEXT");
+
   db.exec(
     "CREATE INDEX IF NOT EXISTS idx_stock_movements_partner_id ON stock_movements(partner_id)"
   );

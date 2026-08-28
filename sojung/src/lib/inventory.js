@@ -115,7 +115,16 @@ export function listMovements(itemId) {
     .all(itemId);
 }
 
-export function addMovement({ itemId, type, quantity, unitPrice, memo, movedAt, partnerId }) {
+export function addMovement({
+  itemId,
+  type,
+  quantity,
+  unitPrice,
+  memo,
+  movedAt,
+  partnerId,
+  dueDate,
+}) {
   if (!["in", "out", "adjust"].includes(type)) {
     throw new Error("올바르지 않은 입출고 유형입니다.");
   }
@@ -128,8 +137,8 @@ export function addMovement({ itemId, type, quantity, unitPrice, memo, movedAt, 
 
   db.prepare(
     `
-    INSERT INTO stock_movements (item_id, type, quantity, unit_price, memo, moved_at, partner_id)
-    VALUES (@itemId, @type, @quantity, @unitPrice, @memo, @movedAt, @partnerId)
+    INSERT INTO stock_movements (item_id, type, quantity, unit_price, memo, moved_at, partner_id, due_date)
+    VALUES (@itemId, @type, @quantity, @unitPrice, @memo, @movedAt, @partnerId, @dueDate)
     `
   ).run({
     itemId,
@@ -137,6 +146,7 @@ export function addMovement({ itemId, type, quantity, unitPrice, memo, movedAt, 
     quantity,
     unitPrice: unitPrice ?? null,
     memo: memo || null,
+    dueDate: dueDate ?? null,
     movedAt,
     partnerId: partnerId ?? null,
   });

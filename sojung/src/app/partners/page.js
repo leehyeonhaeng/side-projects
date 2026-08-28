@@ -1,22 +1,42 @@
 import Link from "next/link";
 import { listPartners } from "@/lib/partners";
 import { TYPE_OPTIONS } from "@/app/partners/PartnerForm";
+import { countUnread } from "@/lib/notifications";
 
 const TYPE_LABEL = Object.fromEntries(TYPE_OPTIONS.map((o) => [o.value, o.label]));
 
 export default async function PartnersPage({ searchParams }) {
   const { q } = await searchParams;
   const partners = listPartners({ query: q });
+  const unread = countUnread();
 
   return (
     <div className="flex flex-1 flex-col bg-zinc-50 dark:bg-black">
       <div className="mx-auto w-full max-w-5xl px-6 py-10">
-        <div className="mb-2">
+        <div className="mb-2 flex gap-4">
           <Link
             href="/items"
             className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
           >
-            재고관리 바로가기 →
+            재고관리
+          </Link>
+          <Link
+            href="/payments"
+            className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
+          >
+            입출금관리
+          </Link>
+          <Link
+            href="/notifications"
+            className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
+          >
+            알림{unread > 0 ? ` (${unread})` : ""}
+          </Link>
+          <Link
+            href="/settings"
+            className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
+          >
+            설정
           </Link>
         </div>
         <div className="mb-6 flex items-center justify-between">
