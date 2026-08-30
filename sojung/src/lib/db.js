@@ -108,6 +108,7 @@ if (!db) {
     "INTEGER REFERENCES partners(id) ON DELETE RESTRICT"
   );
   addColumnIfMissing("stock_movements", "due_date", "TEXT");
+  addColumnIfMissing("company_settings", "login_password", "TEXT");
 
   db.exec(
     "CREATE INDEX IF NOT EXISTS idx_stock_movements_partner_id ON stock_movements(partner_id)"

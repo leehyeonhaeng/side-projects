@@ -30,6 +30,23 @@ export function listItemsWithStock({ query } = {}) {
   return rows;
 }
 
+export function countLowStockItems() {
+  const { count } = db
+    .prepare(
+      `
+      SELECT COUNT(*) AS count FROM (
+        SELECT i.id, ${STOCK_DELTA_SQL} AS current_stock, i.min_stock
+        FROM items i
+        LEFT JOIN stock_movements m ON m.item_id = i.id
+        GROUP BY i.id
+        HAVING current_stock < i.min_stock
+      )
+      `
+    )
+    .get();
+  return count;
+}
+
 export function getItemWithStock(id) {
   return db
     .prepare(

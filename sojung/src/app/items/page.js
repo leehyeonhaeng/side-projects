@@ -1,51 +1,33 @@
 import Link from "next/link";
 import { listItemsWithStock } from "@/lib/inventory";
-import { countUnread } from "@/lib/notifications";
+import NavBar from "@/app/NavBar";
 
 export default async function ItemsPage({ searchParams }) {
   const { q } = await searchParams;
   const items = listItemsWithStock({ query: q });
-  const unread = countUnread();
 
   return (
     <div className="flex flex-1 flex-col bg-zinc-50 dark:bg-black">
       <div className="mx-auto w-full max-w-5xl px-6 py-10">
-        <div className="mb-2 flex gap-4">
-          <Link
-            href="/partners"
-            className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
-          >
-            거래처관리
-          </Link>
-          <Link
-            href="/payments"
-            className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
-          >
-            입출금관리
-          </Link>
-          <Link
-            href="/notifications"
-            className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
-          >
-            알림{unread > 0 ? ` (${unread})` : ""}
-          </Link>
-          <Link
-            href="/settings"
-            className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
-          >
-            설정
-          </Link>
-        </div>
+        <NavBar active="items" />
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
             재고관리
           </h1>
-          <Link
-            href="/items/new"
-            className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
-          >
-            품목 등록
-          </Link>
+          <div className="flex items-center gap-2">
+            <a
+              href={`/api/export/items${q ? `?q=${encodeURIComponent(q)}` : ""}`}
+              className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+            >
+              CSV 내보내기
+            </a>
+            <Link
+              href="/items/new"
+              className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+            >
+              품목 등록
+            </Link>
+          </div>
         </div>
 
         <form className="mb-6" method="get">

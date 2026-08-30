@@ -141,6 +141,29 @@ export function getPartnerDueStatus(partnerId, today = new Date().toISOString().
   return { status: "ok", dueDate: nearest.due_date, stockMovementId: nearest.id };
 }
 
+export function listPartnersWithStatus({ query, onlyOutstanding } = {}) {
+  const partners = listPartners({ query }).map((p) => ({
+    ...p,
+    balance: getPartnerBalance(p.id),
+    dueStatus: getPartnerDueStatus(p.id),
+  }));
+  return onlyOutstanding ? partners.filter((p) => p.balance !== 0) : partners;
+}
+
+export function getOutstandingSummary() {
+  const outstanding = listPartnersWithStatus({ onlyOutstanding: true });
+  return outstanding.reduce(
+    (acc, p) => {
+      if (p.balance > 0) acc.receivableTotal += p.balance;
+      if (p.balance < 0) acc.payableTotal += -p.balance;
+      if (p.dueStatus?.status === "due_soon") acc.dueSoonCount += 1;
+      if (p.dueStatus?.status === "overdue") acc.overdueCount += 1;
+      return acc;
+    },
+    { receivableTotal: 0, payableTotal: 0, dueSoonCount: 0, overdueCount: 0 }
+  );
+}
+
 export function listMovementsByPartner(partnerId) {
   return db
     .prepare(

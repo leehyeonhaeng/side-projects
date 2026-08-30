@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { listNotifications, ensureDueSoonAndOverdueNotifications } from "@/lib/notifications";
 import { markReadAction } from "@/app/notifications/actions";
+import NavBar from "@/app/NavBar";
 
 // 방문할 때마다 임박/초과 알림을 다시 계산해서 DB에 반영하므로, 빌드 시점에
 // 정적 생성되며 실행되지 않도록 강제로 동적 렌더링한다.
@@ -27,20 +27,7 @@ export default async function NotificationsPage() {
   return (
     <div className="flex flex-1 flex-col bg-zinc-50 dark:bg-black">
       <div className="mx-auto w-full max-w-3xl px-6 py-10">
-        <div className="mb-2 flex gap-4">
-          <Link
-            href="/payments"
-            className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
-          >
-            입출금관리
-          </Link>
-          <Link
-            href="/partners"
-            className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
-          >
-            거래처관리
-          </Link>
-        </div>
+        <NavBar active="notifications" />
         <h1 className="mb-6 text-2xl font-semibold text-black dark:text-zinc-50">
           알림
         </h1>

@@ -21,3 +21,16 @@ export function updateCompanySettings({ name, businessNo, address, phone }) {
     phone: phone || null,
   });
 }
+
+export function getLoginPasswordHash() {
+  const row = db.prepare("SELECT login_password FROM company_settings WHERE id = 1").get();
+  return row?.login_password || null;
+}
+
+export function setLoginPasswordHash(hash) {
+  db.prepare("UPDATE company_settings SET login_password = ? WHERE id = 1").run(hash);
+}
+
+export function clearLoginPassword() {
+  db.prepare("UPDATE company_settings SET login_password = NULL WHERE id = 1").run();
+}

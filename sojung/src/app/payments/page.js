@@ -2,6 +2,7 @@ import Link from "next/link";
 import { listPayments } from "@/lib/payments";
 import { listPartners } from "@/lib/partners";
 import { createPaymentAction, matchPaymentAction } from "@/app/payments/actions";
+import NavBar from "@/app/NavBar";
 
 const DIRECTION_LABEL = { in: "입금", out: "출금" };
 
@@ -14,43 +15,26 @@ export default async function PaymentsPage({ searchParams }) {
   return (
     <div className="flex flex-1 flex-col bg-zinc-50 dark:bg-black">
       <div className="mx-auto w-full max-w-4xl px-6 py-10">
-        <div className="mb-2 flex gap-4">
-          <Link
-            href="/items"
-            className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
-          >
-            재고관리
-          </Link>
-          <Link
-            href="/partners"
-            className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
-          >
-            거래처관리
-          </Link>
-          <Link
-            href="/notifications"
-            className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
-          >
-            알림
-          </Link>
-          <Link
-            href="/settings"
-            className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
-          >
-            설정
-          </Link>
-        </div>
+        <NavBar active="payments" />
 
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
             입출금관리
           </h1>
-          <Link
-            href="/payments/import"
-            className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
-          >
-            거래내역 파일 업로드
-          </Link>
+          <div className="flex items-center gap-2">
+            <a
+              href="/api/export/payments"
+              className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+            >
+              CSV 내보내기
+            </a>
+            <Link
+              href="/payments/import"
+              className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+            >
+              거래내역 파일 업로드
+            </Link>
+          </div>
         </div>
 
         {error && (
