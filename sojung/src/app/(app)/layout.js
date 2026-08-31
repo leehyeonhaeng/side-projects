@@ -2,11 +2,11 @@ import NavBar from "@/app/NavBar";
 
 export default function AppLayout({ children }) {
   return (
-    <div className="flex flex-1 flex-col bg-zinc-50 dark:bg-black print:bg-white">
-      <div className="mx-auto w-full max-w-5xl px-6 pt-10 print:hidden">
+    <div className="flex flex-1 bg-white print:bg-white">
+      <aside className="w-60 shrink-0 border-r border-zinc-200 bg-white px-4 py-6 print:hidden">
         <NavBar />
-      </div>
-      {children}
+      </aside>
+      <main className="min-w-0 flex-1 pt-10">{children}</main>
     </div>
   );
 }

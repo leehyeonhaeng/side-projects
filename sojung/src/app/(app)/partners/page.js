@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Users } from "lucide-react";
 import { listPartnersWithStatus, BALANCE_CATEGORY_LABEL } from "@/lib/partners";
 import { TYPE_OPTIONS } from "@/app/(app)/partners/PartnerForm";
 
@@ -13,9 +14,14 @@ export default async function PartnersPage({ searchParams }) {
   return (
     <div className="mx-auto w-full max-w-5xl px-6 pb-10">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
-          거래처관리
-        </h1>
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500 text-white">
+            <Users size={18} />
+          </span>
+          <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
+            거래처관리
+          </h1>
+        </div>
         <div className="flex items-center gap-2">
           <a
             href={`/api/export/partners${q ? `?q=${encodeURIComponent(q)}` : ""}`}

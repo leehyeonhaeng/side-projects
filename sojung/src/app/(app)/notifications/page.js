@@ -1,3 +1,4 @@
+import { Bell } from "lucide-react";
 import { listNotifications, ensureDueSoonAndOverdueNotifications } from "@/lib/notifications";
 import { markReadAction } from "@/app/(app)/notifications/actions";
 
@@ -25,9 +26,14 @@ export default async function NotificationsPage() {
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 pb-10">
-      <h1 className="mb-6 text-2xl font-semibold text-black dark:text-zinc-50">
-        알림
-      </h1>
+      <div className="mb-6 flex items-center gap-3">
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-500 text-white">
+          <Bell size={18} />
+        </span>
+        <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
+          알림
+        </h1>
+      </div>
 
       <div className="flex flex-col gap-2">
         {notifications.length === 0 && (

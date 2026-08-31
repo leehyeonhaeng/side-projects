@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Package } from "lucide-react";
 import { listItemsWithStock } from "@/lib/inventory";
 
 export default async function ItemsPage({ searchParams }) {
@@ -8,9 +9,14 @@ export default async function ItemsPage({ searchParams }) {
   return (
     <div className="mx-auto w-full max-w-5xl px-6 pb-10">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
-          재고관리
-        </h1>
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500 text-white">
+            <Package size={18} />
+          </span>
+          <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
+            재고관리
+          </h1>
+        </div>
         <div className="flex items-center gap-2">
           <a
             href={`/api/export/items${q ? `?q=${encodeURIComponent(q)}` : ""}`}

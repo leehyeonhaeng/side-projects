@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeftRight } from "lucide-react";
 import { listPayments } from "@/lib/payments";
 import { listPartners } from "@/lib/partners";
 import { createPaymentAction, matchPaymentAction } from "@/app/(app)/payments/actions";
@@ -14,9 +15,14 @@ export default async function PaymentsPage({ searchParams }) {
   return (
     <div className="mx-auto w-full max-w-5xl px-6 pb-10">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
-          입출금관리
-        </h1>
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500 text-white">
+            <ArrowLeftRight size={18} />
+          </span>
+          <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
+            입출금관리
+          </h1>
+        </div>
         <div className="flex items-center gap-2">
           <a
             href="/api/export/payments"

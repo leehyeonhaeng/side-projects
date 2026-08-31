@@ -1,3 +1,4 @@
+import { Settings } from "lucide-react";
 import { getCompanySettings, getLoginPasswordHash } from "@/lib/settings";
 import {
   updateSettingsAction,
@@ -38,9 +39,14 @@ export default async function SettingsPage({ searchParams }) {
 
   return (
     <div className="mx-auto w-full max-w-lg px-6 pb-10">
-      <h1 className="mb-2 text-2xl font-semibold text-black dark:text-zinc-50">
-        설정
-      </h1>
+      <div className="mb-2 flex items-center gap-3">
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-700 text-white dark:bg-zinc-600">
+          <Settings size={18} />
+        </span>
+        <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
+          설정
+        </h1>
+      </div>
       <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">
         영수증 등에 표시되는 발급자(회사) 정보입니다.
       </p>
