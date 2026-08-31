@@ -14,7 +14,7 @@ export default async function PaymentsPage({ searchParams }) {
 
   return (
     <div className="flex flex-1 flex-col bg-zinc-50 dark:bg-black">
-      <div className="mx-auto w-full max-w-4xl px-6 py-10">
+      <div className="mx-auto w-full max-w-5xl px-6 py-10">
         <NavBar active="payments" />
 
         <div className="mb-6 flex items-center justify-between">
@@ -95,7 +95,7 @@ export default async function PaymentsPage({ searchParams }) {
             />
             <button
               type="submit"
-              className="col-span-2 rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 sm:col-span-5 sm:w-fit dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+              className="col-span-2 rounded-full bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 sm:col-span-5 sm:w-fit dark:bg-white dark:text-black dark:hover:bg-zinc-200"
             >
               등록
             </button>
@@ -189,7 +189,7 @@ export default async function PaymentsPage({ searchParams }) {
                           </select>
                           <button
                             type="submit"
-                            className="rounded-md bg-black px-2 py-1 text-xs font-medium text-white dark:bg-white dark:text-black"
+                            className="rounded-full bg-black px-2 py-1 text-xs font-medium text-white dark:bg-white dark:text-black"
                           >
                             매칭
                           </button>

@@ -17,12 +17,12 @@ export default function NavBar({ active }) {
   const unread = countUnread();
   const hasPassword = !!getLoginPasswordHash();
   return (
-    <div className="mb-2 flex items-center gap-4">
+    <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1">
       {NAV_ITEMS.filter((item) => item.key !== active).map((item) => (
         <Link
           key={item.key}
           href={item.href}
-          className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
+          className="whitespace-nowrap text-sm text-zinc-500 hover:underline dark:text-zinc-400"
         >
           {item.label}
           {item.key === "notifications" && unread > 0 ? ` (${unread})` : ""}
@@ -32,7 +32,7 @@ export default function NavBar({ active }) {
         <form action={logoutAction}>
           <button
             type="submit"
-            className="text-sm text-zinc-500 hover:underline dark:text-zinc-400"
+            className="whitespace-nowrap text-sm text-zinc-500 hover:underline dark:text-zinc-400"
           >
             로그아웃
           </button>

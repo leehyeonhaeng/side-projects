@@ -3,7 +3,8 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getLoginPasswordHash } from "@/lib/settings";
-import { verifyPassword, createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE_SECONDS } from "@/lib/auth";
+import { verifyPassword, SESSION_COOKIE } from "@/lib/auth";
+import { setSessionCookie } from "@/lib/session";
 
 export async function loginAction(formData) {
   const password = formData.get("password") || "";
@@ -13,14 +14,7 @@ export async function loginAction(formData) {
     redirect("/login?error=1");
   }
 
-  const token = createSessionToken(hash);
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_MAX_AGE_SECONDS,
-  });
+  await setSessionCookie(hash);
   redirect("/");
 }
 

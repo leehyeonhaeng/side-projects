@@ -166,7 +166,7 @@ export default async function ItemDetailPage({ params, searchParams }) {
             />
             <button
               type="submit"
-              className="col-span-2 rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 sm:col-span-7 sm:w-fit dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+              className="col-span-2 rounded-full bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 sm:col-span-7 sm:w-fit dark:bg-white dark:text-black dark:hover:bg-zinc-200"
             >
               등록
             </button>
