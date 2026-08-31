@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPayment } from "@/lib/payments";
 import { getCompanySettings } from "@/lib/settings";
-import PrintButton from "@/app/(app)/payments/PrintButton";
+import PrintButton from "@/app/PrintButton";
 
 function todayString() {
   return new Date().toISOString().slice(0, 10);

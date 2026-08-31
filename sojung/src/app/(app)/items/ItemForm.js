@@ -21,10 +21,55 @@ function Field({ label, name, type = "text", required, defaultValue, ...rest }) 
   );
 }
 
+export const TRACKING_TYPE_LABEL = {
+  quantity: "수량 관리",
+  asset: "개체(자산) 관리",
+};
+
 export default function ItemForm({ action, item, submitLabel }) {
   return (
     <form action={action} className="flex flex-col gap-4">
       <Field label="품목명" name="name" required defaultValue={item?.name} />
+
+      {item ? (
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            관리 방식
+          </span>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            {TRACKING_TYPE_LABEL[item.tracking_type] || TRACKING_TYPE_LABEL.quantity}
+            {" "}(등록 후에는 변경할 수 없습니다)
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            관리 방식
+          </span>
+          <div className="flex flex-col gap-2 rounded-md border border-zinc-300 p-3 dark:border-zinc-700">
+            <label className="flex items-start gap-2 text-sm">
+              <input type="radio" name="trackingType" value="quantity" defaultChecked className="mt-0.5" />
+              <span>
+                <span className="font-medium text-black dark:text-zinc-50">수량 관리</span>
+                <span className="block text-xs text-zinc-500 dark:text-zinc-400">
+                  토너, 종이 등 소모품처럼 입출고 수량으로만 관리
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-sm">
+              <input type="radio" name="trackingType" value="asset" className="mt-0.5" />
+              <span>
+                <span className="font-medium text-black dark:text-zinc-50">개체(자산) 관리</span>
+                <span className="block text-xs text-zinc-500 dark:text-zinc-400">
+                  복사기, 프린터 등 임대 장비처럼 낱개마다 고유 ID를 부여해 거래처별
+                  배치·수거를 추적
+                </span>
+              </span>
+            </label>
+          </div>
+        </div>
+      )}
+
       <Field label="규격" name="spec" defaultValue={item?.spec} />
       <Field
         label="단위"

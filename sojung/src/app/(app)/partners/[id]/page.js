@@ -9,13 +9,19 @@ import {
   BALANCE_CATEGORY_LABEL,
 } from "@/lib/partners";
 import { listPaymentsByPartner } from "@/lib/payments";
+import { listDeployedAssetsByPartner } from "@/lib/assets";
 import { deletePartnerAction } from "@/app/(app)/partners/actions";
+import { collectAssetAction } from "@/app/(app)/items/actions";
 import { TYPE_OPTIONS } from "@/app/(app)/partners/PartnerForm";
 
 const TYPE_LABEL = Object.fromEntries(TYPE_OPTIONS.map((o) => [o.value, o.label]));
 const MOVEMENT_TYPE_LABEL = { in: "입고", out: "출고", adjust: "조정" };
 const PAYMENT_DIRECTION_LABEL = { in: "입금", out: "출금" };
 const DUE_STATUS_LABEL = { due_soon: "결제기한 임박", overdue: "결제기한 초과" };
+
+function todayString() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export default async function PartnerDetailPage({ params, searchParams }) {
   const { id } = await params;
@@ -28,6 +34,7 @@ export default async function PartnerDetailPage({ params, searchParams }) {
 
   const movements = listMovementsByPartner(partner.id);
   const payments = listPaymentsByPartner(partner.id);
+  const deployedAssets = listDeployedAssetsByPartner(partner.id);
   const balance = getPartnerBalance(partner.id);
   const dueStatus = getPartnerDueStatus(partner.id);
   const category = getBalanceCategory(partner.type, balance);
@@ -101,6 +108,79 @@ export default async function PartnerDetailPage({ params, searchParams }) {
           )}
         </p>
       </div>
+
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold text-black dark:text-zinc-50">
+          보유 중인 기기
+        </h2>
+        <div className="overflow-x-auto rounded-md border border-zinc-200 dark:border-zinc-800">
+          <table className="w-full min-w-[480px] border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-zinc-200 bg-zinc-100 text-left text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+                <th className="px-4 py-3 font-medium">코드</th>
+                <th className="px-4 py-3 font-medium">품목</th>
+                <th className="px-4 py-3 font-medium">배치일</th>
+                <th className="px-4 py-3 font-medium">수거</th>
+              </tr>
+            </thead>
+            <tbody>
+              {deployedAssets.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-500"
+                  >
+                    보유 중인 기기가 없습니다.
+                  </td>
+                </tr>
+              )}
+              {deployedAssets.map((a) => {
+                const collect = collectAssetAction.bind(
+                  null,
+                  a.item_id,
+                  a.id,
+                  `/partners/${partner.id}`
+                );
+                return (
+                  <tr
+                    key={a.id}
+                    className="border-b border-zinc-100 last:border-b-0 dark:border-zinc-900"
+                  >
+                    <td className="px-4 py-3 font-medium text-black dark:text-zinc-50">
+                      {a.asset_code}
+                    </td>
+                    <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                      <Link href={`/items/${a.item_id}`} className="hover:underline">
+                        {a.item_name}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                      {a.assigned_at || "-"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <form action={collect} className="flex flex-wrap items-center gap-1">
+                        <input
+                          type="date"
+                          name="returnedAt"
+                          defaultValue={todayString()}
+                          required
+                          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+                        />
+                        <button
+                          type="submit"
+                          className="rounded-full border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                        >
+                          수거
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold text-black dark:text-zinc-50">

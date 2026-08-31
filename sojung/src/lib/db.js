@@ -86,6 +86,32 @@ if (!db) {
       phone TEXT
     );
     INSERT OR IGNORE INTO company_settings (id) VALUES (1);
+
+    CREATE TABLE IF NOT EXISTS assets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE RESTRICT,
+      asset_code TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'in_stock' CHECK (status IN ('in_stock', 'deployed')),
+      current_partner_id INTEGER REFERENCES partners(id) ON DELETE SET NULL,
+      memo TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_assets_item_id ON assets(item_id);
+    CREATE INDEX IF NOT EXISTS idx_assets_current_partner_id ON assets(current_partner_id);
+
+    CREATE TABLE IF NOT EXISTS asset_assignments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+      partner_id INTEGER NOT NULL REFERENCES partners(id) ON DELETE RESTRICT,
+      assigned_at TEXT NOT NULL,
+      returned_at TEXT,
+      memo TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_asset_assignments_asset_id ON asset_assignments(asset_id);
+    CREATE INDEX IF NOT EXISTS idx_asset_assignments_partner_id ON asset_assignments(partner_id);
   `);
 
   function addColumnIfMissing(table, column, definition) {
@@ -109,6 +135,7 @@ if (!db) {
   );
   addColumnIfMissing("stock_movements", "due_date", "TEXT");
   addColumnIfMissing("company_settings", "login_password", "TEXT");
+  addColumnIfMissing("items", "tracking_type", "TEXT NOT NULL DEFAULT 'quantity'");
 
   db.exec(
     "CREATE INDEX IF NOT EXISTS idx_stock_movements_partner_id ON stock_movements(partner_id)"

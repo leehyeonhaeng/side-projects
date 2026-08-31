@@ -8,6 +8,7 @@ import {
   deleteItem,
   addMovement,
 } from "@/lib/inventory";
+import { createAsset, assignAsset, collectAsset } from "@/lib/assets";
 
 function parseItemForm(formData) {
   const name = String(formData.get("name") || "").trim();
@@ -24,11 +25,12 @@ function parseItemForm(formData) {
 
 export async function createItemAction(formData) {
   const data = parseItemForm(formData);
+  const trackingType = String(formData.get("trackingType") || "quantity");
   if (!data.name) {
     redirect(`/items/new?error=${encodeURIComponent("품목명을 입력해주세요.")}`);
   }
 
-  const id = createItem(data);
+  const id = createItem({ ...data, trackingType });
   revalidatePath("/items");
   redirect(`/items/${id}`);
 }
@@ -75,4 +77,43 @@ export async function addMovementAction(itemId, formData) {
   revalidatePath(`/items/${itemId}`);
   revalidatePath("/items");
   redirect(`/items/${itemId}`);
+}
+
+export async function createAssetAction(itemId, formData) {
+  const memo = String(formData.get("memo") || "").trim();
+  createAsset({ itemId, memo });
+  revalidatePath(`/items/${itemId}`);
+  revalidatePath("/items");
+  redirect(`/items/${itemId}`);
+}
+
+export async function assignAssetAction(itemId, assetId, formData) {
+  const partnerIdRaw = formData.get("partnerId");
+  const partnerId = partnerIdRaw ? Number(partnerIdRaw) : null;
+  const assignedAt = String(formData.get("assignedAt") || "");
+
+  try {
+    if (!partnerId) throw new Error("거래처를 선택해주세요.");
+    assignAsset({ assetId, partnerId, assignedAt });
+  } catch (error) {
+    redirect(`/items/${itemId}?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath(`/items/${itemId}`);
+  revalidatePath(`/partners/${partnerId}`);
+  redirect(`/items/${itemId}`);
+}
+
+export async function collectAssetAction(itemId, assetId, returnPath, formData) {
+  const returnedAt = String(formData.get("returnedAt") || "");
+
+  try {
+    collectAsset({ assetId, returnedAt });
+  } catch (error) {
+    redirect(`${returnPath}?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath(`/items/${itemId}`);
+  revalidatePath(returnPath);
+  redirect(returnPath);
 }

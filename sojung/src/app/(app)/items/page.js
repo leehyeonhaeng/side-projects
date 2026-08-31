@@ -48,6 +48,7 @@ export default async function ItemsPage({ searchParams }) {
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-100 text-left text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
               <th className="px-4 py-3 font-medium">품목명</th>
+              <th className="px-4 py-3 font-medium">관리방식</th>
               <th className="px-4 py-3 font-medium">규격</th>
               <th className="px-4 py-3 font-medium">분류</th>
               <th className="px-4 py-3 font-medium">단위</th>
@@ -59,7 +60,7 @@ export default async function ItemsPage({ searchParams }) {
             {items.length === 0 && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-500"
                 >
                   등록된 품목이 없습니다.
@@ -80,6 +81,17 @@ export default async function ItemsPage({ searchParams }) {
                     >
                       {item.name}
                     </Link>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        item.tracking_type === "asset"
+                          ? "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-400"
+                          : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                      }`}
+                    >
+                      {item.tracking_type === "asset" ? "개체" : "수량"}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
                     {item.spec || "-"}

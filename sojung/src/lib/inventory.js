@@ -11,6 +11,15 @@ const STOCK_DELTA_SQL = `
   ), 0)
 `;
 
+// 개체(자산) 관리 품목은 입출고 수량이 아니라 assets 테이블의 재고 상태
+// 개수로 현재 재고를 계산한다.
+const CURRENT_STOCK_SQL = `
+  CASE WHEN i.tracking_type = 'asset'
+    THEN (SELECT COUNT(*) FROM assets a WHERE a.item_id = i.id AND a.status = 'in_stock')
+    ELSE ${STOCK_DELTA_SQL}
+  END
+`;
+
 export function listItemsWithStock({ query } = {}) {
   const where = query ? "WHERE i.name LIKE @q OR i.category LIKE @q OR i.spec LIKE @q" : "";
   const rows = db
@@ -18,7 +27,7 @@ export function listItemsWithStock({ query } = {}) {
       `
       SELECT
         i.*,
-        ${STOCK_DELTA_SQL} AS current_stock
+        ${CURRENT_STOCK_SQL} AS current_stock
       FROM items i
       LEFT JOIN stock_movements m ON m.item_id = i.id
       ${where}
@@ -35,7 +44,7 @@ export function countLowStockItems() {
     .prepare(
       `
       SELECT COUNT(*) AS count FROM (
-        SELECT i.id, ${STOCK_DELTA_SQL} AS current_stock, i.min_stock
+        SELECT i.id, ${CURRENT_STOCK_SQL} AS current_stock, i.min_stock
         FROM items i
         LEFT JOIN stock_movements m ON m.item_id = i.id
         GROUP BY i.id
@@ -53,7 +62,7 @@ export function getItemWithStock(id) {
       `
       SELECT
         i.*,
-        ${STOCK_DELTA_SQL} AS current_stock
+        ${CURRENT_STOCK_SQL} AS current_stock
       FROM items i
       LEFT JOIN stock_movements m ON m.item_id = i.id
       WHERE i.id = @id
@@ -63,12 +72,12 @@ export function getItemWithStock(id) {
     .get({ id });
 }
 
-export function createItem({ name, spec, unit, category, minStock, memo }) {
+export function createItem({ name, spec, unit, category, minStock, memo, trackingType }) {
   const result = db
     .prepare(
       `
-      INSERT INTO items (name, spec, unit, category, min_stock, memo)
-      VALUES (@name, @spec, @unit, @category, @minStock, @memo)
+      INSERT INTO items (name, spec, unit, category, min_stock, memo, tracking_type)
+      VALUES (@name, @spec, @unit, @category, @minStock, @memo, @trackingType)
       `
     )
     .run({
@@ -78,6 +87,7 @@ export function createItem({ name, spec, unit, category, minStock, memo }) {
       category: category || null,
       minStock: minStock ?? 0,
       memo: memo || null,
+      trackingType: trackingType === "asset" ? "asset" : "quantity",
     });
   return result.lastInsertRowid;
 }
@@ -107,11 +117,14 @@ export function updateItem(id, { name, spec, unit, category, minStock, memo }) {
 }
 
 export function deleteItem(id) {
-  const { count } = db
-    .prepare("SELECT COUNT(*) AS count FROM stock_movements WHERE item_id = ?")
+  const { movementCount } = db
+    .prepare("SELECT COUNT(*) AS movementCount FROM stock_movements WHERE item_id = ?")
     .get(id);
-  if (count > 0) {
-    throw new Error("입출고 이력이 있는 품목은 삭제할 수 없습니다.");
+  const { assetCount } = db
+    .prepare("SELECT COUNT(*) AS assetCount FROM assets WHERE item_id = ?")
+    .get(id);
+  if (movementCount > 0 || assetCount > 0) {
+    throw new Error("입출고·개체 이력이 있는 품목은 삭제할 수 없습니다.");
   }
   db.prepare("DELETE FROM items WHERE id = ?").run(id);
 }
