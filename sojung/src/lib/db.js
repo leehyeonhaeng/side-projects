@@ -69,10 +69,11 @@ if (!db) {
 
     CREATE TABLE IF NOT EXISTS notifications (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      type TEXT NOT NULL CHECK (type IN ('payment_matched', 'payment_unmatched', 'due_soon', 'overdue')),
+      type TEXT NOT NULL CHECK (type IN ('payment_matched', 'payment_unmatched', 'due_soon', 'overdue', 'return_due_soon', 'return_overdue')),
       partner_id INTEGER REFERENCES partners(id) ON DELETE CASCADE,
       payment_id INTEGER REFERENCES payments(id) ON DELETE CASCADE,
       stock_movement_id INTEGER REFERENCES stock_movements(id) ON DELETE CASCADE,
+      asset_id INTEGER REFERENCES assets(id) ON DELETE CASCADE,
       message TEXT NOT NULL,
       is_read INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -105,6 +106,7 @@ if (!db) {
       asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
       partner_id INTEGER NOT NULL REFERENCES partners(id) ON DELETE RESTRICT,
       assigned_at TEXT NOT NULL,
+      scheduled_return_at TEXT,
       returned_at TEXT,
       memo TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -136,6 +138,32 @@ if (!db) {
   addColumnIfMissing("stock_movements", "due_date", "TEXT");
   addColumnIfMissing("company_settings", "login_password", "TEXT");
   addColumnIfMissing("items", "tracking_type", "TEXT NOT NULL DEFAULT 'quantity'");
+  addColumnIfMissing("asset_assignments", "scheduled_return_at", "TEXT");
+
+  // notifications.type의 CHECK 제약은 ALTER TABLE로 바꿀 수 없으므로,
+  // 이미 만들어진(구버전) 테이블이면 새 제약으로 통째로 다시 만든다.
+  function migrateNotificationsForAssetReturns() {
+    const columns = db.prepare("PRAGMA table_info(notifications)").all();
+    if (columns.some((col) => col.name === "asset_id")) return;
+    db.exec(`
+      ALTER TABLE notifications RENAME TO notifications_old;
+      CREATE TABLE notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT NOT NULL CHECK (type IN ('payment_matched', 'payment_unmatched', 'due_soon', 'overdue', 'return_due_soon', 'return_overdue')),
+        partner_id INTEGER REFERENCES partners(id) ON DELETE CASCADE,
+        payment_id INTEGER REFERENCES payments(id) ON DELETE CASCADE,
+        stock_movement_id INTEGER REFERENCES stock_movements(id) ON DELETE CASCADE,
+        asset_id INTEGER REFERENCES assets(id) ON DELETE CASCADE,
+        message TEXT NOT NULL,
+        is_read INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT INTO notifications (id, type, partner_id, payment_id, stock_movement_id, message, is_read, created_at)
+        SELECT id, type, partner_id, payment_id, stock_movement_id, message, is_read, created_at FROM notifications_old;
+      DROP TABLE notifications_old;
+    `);
+  }
+  migrateNotificationsForAssetReturns();
 
   db.exec(
     "CREATE INDEX IF NOT EXISTS idx_stock_movements_partner_id ON stock_movements(partner_id)"

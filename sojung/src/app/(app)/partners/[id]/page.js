@@ -9,15 +9,16 @@ import {
   BALANCE_CATEGORY_LABEL,
 } from "@/lib/partners";
 import { listPaymentsByPartner } from "@/lib/payments";
-import { listDeployedAssetsByPartner } from "@/lib/assets";
+import { listDeployedAssetsByPartner, getAssetReturnStatus } from "@/lib/assets";
 import { deletePartnerAction } from "@/app/(app)/partners/actions";
-import { collectAssetAction } from "@/app/(app)/items/actions";
+import { collectAssetAction, updateScheduledReturnAction } from "@/app/(app)/items/actions";
 import { TYPE_OPTIONS } from "@/app/(app)/partners/PartnerForm";
 
 const TYPE_LABEL = Object.fromEntries(TYPE_OPTIONS.map((o) => [o.value, o.label]));
 const MOVEMENT_TYPE_LABEL = { in: "입고", out: "출고", adjust: "조정" };
 const PAYMENT_DIRECTION_LABEL = { in: "입금", out: "출금" };
 const DUE_STATUS_LABEL = { due_soon: "결제기한 임박", overdue: "결제기한 초과" };
+const RETURN_STATUS_LABEL = { due_soon: "수거 임박", overdue: "수거 지남" };
 
 function todayString() {
   return new Date().toISOString().slice(0, 10);
@@ -113,73 +114,117 @@ export default async function PartnerDetailPage({ params, searchParams }) {
         <h2 className="mb-3 text-sm font-semibold text-black dark:text-zinc-50">
           보유 중인 기기
         </h2>
-        <div className="overflow-x-auto rounded-md border border-zinc-200 dark:border-zinc-800">
-          <table className="w-full min-w-[480px] border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-zinc-200 bg-zinc-100 text-left text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-                <th className="px-4 py-3 font-medium">코드</th>
-                <th className="px-4 py-3 font-medium">품목</th>
-                <th className="px-4 py-3 font-medium">배치일</th>
-                <th className="px-4 py-3 font-medium">수거</th>
-              </tr>
-            </thead>
-            <tbody>
-              {deployedAssets.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-500"
-                  >
-                    보유 중인 기기가 없습니다.
-                  </td>
-                </tr>
-              )}
-              {deployedAssets.map((a) => {
-                const collect = collectAssetAction.bind(
-                  null,
-                  a.item_id,
-                  a.id,
-                  `/partners/${partner.id}`
-                );
-                return (
-                  <tr
-                    key={a.id}
-                    className="border-b border-zinc-100 last:border-b-0 dark:border-zinc-900"
-                  >
-                    <td className="px-4 py-3 font-medium text-black dark:text-zinc-50">
-                      {a.asset_code}
-                    </td>
-                    <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
-                      <Link href={`/items/${a.item_id}`} className="hover:underline">
+        {deployedAssets.length === 0 ? (
+          <p className="rounded-md border border-zinc-200 bg-white px-4 py-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-500">
+            보유 중인 기기가 없습니다.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {deployedAssets.map((a) => {
+              const updateSchedule = updateScheduledReturnAction.bind(
+                null,
+                a.item_id,
+                a.id,
+                `/partners/${partner.id}`
+              );
+              const collect = collectAssetAction.bind(
+                null,
+                a.item_id,
+                a.id,
+                `/partners/${partner.id}`
+              );
+              const returnStatus = getAssetReturnStatus(a.scheduled_return_at);
+
+              return (
+                <div
+                  key={a.id}
+                  className="flex flex-col gap-3 rounded-md border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/items/${a.item_id}`}
+                        className="font-medium text-black hover:underline dark:text-zinc-50"
+                      >
                         {a.item_name}
                       </Link>
-                    </td>
-                    <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
-                      {a.assigned_at || "-"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <form action={collect} className="flex flex-wrap items-center gap-1">
+                      <span className="font-mono text-sm text-zinc-500 dark:text-zinc-400">
+                        {a.asset_code}
+                      </span>
+                      {returnStatus && returnStatus !== "ok" && (
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                            returnStatus === "overdue"
+                              ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
+                              : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400"
+                          }`}
+                        >
+                          {RETURN_STATUS_LABEL[returnStatus]}
+                        </span>
+                      )}
+                    </div>
+                    <Link
+                      href={`/items/assets/${a.id}/card`}
+                      className="rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                    >
+                      등록카드 출력
+                    </Link>
+                  </div>
+
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                    배치일 {a.assigned_at || "-"}
+                    {a.scheduled_return_at
+                      ? ` · 예정 수거일 ${a.scheduled_return_at}`
+                      : " · 예정 수거일 미지정"}
+                  </p>
+
+                  <div className="flex flex-wrap gap-4 border-t border-zinc-100 pt-3 dark:border-zinc-900">
+                    <form action={updateSchedule} className="flex items-end gap-2">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                          예정 수거일 변경
+                        </label>
+                        <input
+                          type="date"
+                          name="scheduledReturnAt"
+                          defaultValue={a.scheduled_return_at || ""}
+                          required
+                          className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        className="rounded-full border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                      >
+                        변경
+                      </button>
+                    </form>
+                    <form action={collect} className="flex items-end gap-2">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                          실제 수거일
+                        </label>
                         <input
                           type="date"
                           name="returnedAt"
-                          defaultValue={todayString()}
+                          defaultValue={a.scheduled_return_at || todayString()}
                           required
-                          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+                          className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
                         />
-                        <button
-                          type="submit"
-                          className="rounded-full border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
-                        >
-                          수거
-                        </button>
-                      </form>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      </div>
+                      <button
+                        type="submit"
+                        className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+                      >
+                        수거 완료
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       <section className="mb-8">

@@ -8,7 +8,7 @@ import {
   deleteItem,
   addMovement,
 } from "@/lib/inventory";
-import { createAsset, assignAsset, collectAsset } from "@/lib/assets";
+import { createAsset, assignAsset, collectAsset, updateScheduledReturn } from "@/lib/assets";
 
 function parseItemForm(formData) {
   const name = String(formData.get("name") || "").trim();
@@ -91,10 +91,12 @@ export async function assignAssetAction(itemId, assetId, formData) {
   const partnerIdRaw = formData.get("partnerId");
   const partnerId = partnerIdRaw ? Number(partnerIdRaw) : null;
   const assignedAt = String(formData.get("assignedAt") || "");
+  const scheduledReturnAt = String(formData.get("scheduledReturnAt") || "").trim() || null;
 
   try {
     if (!partnerId) throw new Error("거래처를 선택해주세요.");
-    assignAsset({ assetId, partnerId, assignedAt });
+    if (!scheduledReturnAt) throw new Error("예정 수거일을 입력해주세요.");
+    assignAsset({ assetId, partnerId, assignedAt, scheduledReturnAt });
   } catch (error) {
     redirect(`/items/${itemId}?error=${encodeURIComponent(error.message)}`);
   }
@@ -102,6 +104,21 @@ export async function assignAssetAction(itemId, assetId, formData) {
   revalidatePath(`/items/${itemId}`);
   revalidatePath(`/partners/${partnerId}`);
   redirect(`/items/${itemId}`);
+}
+
+export async function updateScheduledReturnAction(itemId, assetId, returnPath, formData) {
+  const scheduledReturnAt = String(formData.get("scheduledReturnAt") || "").trim() || null;
+
+  try {
+    if (!scheduledReturnAt) throw new Error("예정 수거일을 입력해주세요.");
+    updateScheduledReturn({ assetId, scheduledReturnAt });
+  } catch (error) {
+    redirect(`${returnPath}?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath(`/items/${itemId}`);
+  revalidatePath(returnPath);
+  redirect(returnPath);
 }
 
 export async function collectAssetAction(itemId, assetId, returnPath, formData) {

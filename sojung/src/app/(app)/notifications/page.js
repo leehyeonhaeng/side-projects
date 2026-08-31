@@ -1,5 +1,9 @@
 import { Bell } from "lucide-react";
-import { listNotifications, ensureDueSoonAndOverdueNotifications } from "@/lib/notifications";
+import {
+  listNotifications,
+  ensureDueSoonAndOverdueNotifications,
+  ensureAssetReturnNotifications,
+} from "@/lib/notifications";
 import { markReadAction } from "@/app/(app)/notifications/actions";
 
 // 방문할 때마다 임박/초과 알림을 다시 계산해서 DB에 반영하므로, 빌드 시점에
@@ -11,6 +15,8 @@ const TYPE_LABEL = {
   payment_unmatched: "매칭 실패",
   due_soon: "결제기한 임박",
   overdue: "결제기한 초과",
+  return_due_soon: "수거 임박",
+  return_overdue: "수거 지남",
 };
 
 const TYPE_COLOR = {
@@ -18,10 +24,13 @@ const TYPE_COLOR = {
   payment_unmatched: "text-red-600 dark:text-red-400",
   due_soon: "text-amber-600 dark:text-amber-400",
   overdue: "text-red-600 dark:text-red-400",
+  return_due_soon: "text-amber-600 dark:text-amber-400",
+  return_overdue: "text-red-600 dark:text-red-400",
 };
 
 export default async function NotificationsPage() {
   ensureDueSoonAndOverdueNotifications();
+  ensureAssetReturnNotifications();
   const notifications = listNotifications();
 
   return (
