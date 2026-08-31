@@ -141,26 +141,54 @@ export function getPartnerDueStatus(partnerId, today = new Date().toISOString().
   return { status: "ok", dueDate: nearest.due_date, stockMovementId: nearest.id };
 }
 
+// 거래처 구분(매입처/매출처/둘 다)과 잔액 부호를 조합해 자금 성격을 나눈다.
+// 매출처가 잔액을 갚아야 하면 미수금, 미리 받았으면 선수금. 매입처에게 줄 돈이 남았으면
+// 미지급금, 미리 줬으면 선급금. 매입처·매출처 겸업 거래처는 방향을 특정할 수 없어
+// 미수금/미지급금 2분류로 근사한다.
+export const BALANCE_CATEGORY_LABEL = {
+  receivable: "미수금",
+  advance_received: "선수금",
+  payable: "미지급금",
+  advance_paid: "선급금",
+};
+
+export function getBalanceCategory(type, balance) {
+  if (balance === 0) return null;
+  if (type === "customer") return balance > 0 ? "receivable" : "advance_received";
+  if (type === "supplier") return balance > 0 ? "advance_paid" : "payable";
+  return balance > 0 ? "receivable" : "payable";
+}
+
 export function listPartnersWithStatus({ query, onlyOutstanding } = {}) {
-  const partners = listPartners({ query }).map((p) => ({
-    ...p,
-    balance: getPartnerBalance(p.id),
-    dueStatus: getPartnerDueStatus(p.id),
-  }));
+  const partners = listPartners({ query }).map((p) => {
+    const balance = getPartnerBalance(p.id);
+    return {
+      ...p,
+      balance,
+      category: getBalanceCategory(p.type, balance),
+      dueStatus: getPartnerDueStatus(p.id),
+    };
+  });
   return onlyOutstanding ? partners.filter((p) => p.balance !== 0) : partners;
 }
 
-export function getOutstandingSummary() {
+export function getBalanceBreakdown() {
   const outstanding = listPartnersWithStatus({ onlyOutstanding: true });
   return outstanding.reduce(
     (acc, p) => {
-      if (p.balance > 0) acc.receivableTotal += p.balance;
-      if (p.balance < 0) acc.payableTotal += -p.balance;
+      acc[p.category].total += Math.abs(p.balance);
       if (p.dueStatus?.status === "due_soon") acc.dueSoonCount += 1;
       if (p.dueStatus?.status === "overdue") acc.overdueCount += 1;
       return acc;
     },
-    { receivableTotal: 0, payableTotal: 0, dueSoonCount: 0, overdueCount: 0 }
+    {
+      receivable: { total: 0 },
+      advance_received: { total: 0 },
+      payable: { total: 0 },
+      advance_paid: { total: 0 },
+      dueSoonCount: 0,
+      overdueCount: 0,
+    }
   );
 }
 

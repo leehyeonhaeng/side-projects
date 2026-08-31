@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { key: "items", href: "/items", label: "재고관리" },
   { key: "partners", href: "/partners", label: "거래처관리" },
   { key: "payments", href: "/payments", label: "입출금관리" },
+  { key: "receivables", href: "/receivables", label: "미수금·선납금" },
   { key: "notifications", href: "/notifications", label: "알림" },
   { key: "settings", href: "/settings", label: "설정" },
 ];

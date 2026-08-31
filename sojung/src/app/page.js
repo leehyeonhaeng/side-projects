@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { countLowStockItems } from "@/lib/inventory";
-import { getOutstandingSummary } from "@/lib/partners";
+import { getBalanceBreakdown } from "@/lib/partners";
 import { listPayments } from "@/lib/payments";
 import { listNotifications } from "@/lib/notifications";
 import NavBar from "@/app/NavBar";
@@ -29,7 +29,7 @@ function StatCard({ label, value, href, tone }) {
 
 export default async function DashboardPage() {
   const lowStockCount = countLowStockItems();
-  const summary = getOutstandingSummary();
+  const breakdown = getBalanceBreakdown();
   const recentPayments = listPayments().slice(0, 5);
   const recentNotifications = listNotifications().slice(0, 5);
 
@@ -50,19 +50,19 @@ export default async function DashboardPage() {
           />
           <StatCard
             label="미수금 합계"
-            value={`${summary.receivableTotal.toLocaleString()}원`}
-            href="/partners?filter=outstanding"
+            value={`${breakdown.receivable.total.toLocaleString()}원`}
+            href="/receivables?category=receivable"
           />
           <StatCard
             label="미지급금 합계"
-            value={`${summary.payableTotal.toLocaleString()}원`}
-            href="/partners?filter=outstanding"
+            value={`${breakdown.payable.total.toLocaleString()}원`}
+            href="/receivables?category=payable"
           />
           <StatCard
             label="결제기한 임박/초과"
-            value={`${summary.dueSoonCount + summary.overdueCount}건`}
-            href="/partners?filter=outstanding"
-            tone={summary.overdueCount > 0 ? "danger" : summary.dueSoonCount > 0 ? "warn" : undefined}
+            value={`${breakdown.dueSoonCount + breakdown.overdueCount}건`}
+            href="/receivables"
+            tone={breakdown.overdueCount > 0 ? "danger" : breakdown.dueSoonCount > 0 ? "warn" : undefined}
           />
         </div>
 

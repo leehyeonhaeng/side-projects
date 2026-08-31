@@ -5,6 +5,8 @@ import {
   listMovementsByPartner,
   getPartnerBalance,
   getPartnerDueStatus,
+  getBalanceCategory,
+  BALANCE_CATEGORY_LABEL,
 } from "@/lib/partners";
 import { listPaymentsByPartner } from "@/lib/payments";
 import { deletePartnerAction } from "@/app/partners/actions";
@@ -28,6 +30,7 @@ export default async function PartnerDetailPage({ params, searchParams }) {
   const payments = listPaymentsByPartner(partner.id);
   const balance = getPartnerBalance(partner.id);
   const dueStatus = getPartnerDueStatus(partner.id);
+  const category = getBalanceCategory(partner.type, balance);
   const deletePartner = deletePartnerAction.bind(null, partner.id);
 
   return (
@@ -82,7 +85,7 @@ export default async function PartnerDetailPage({ params, searchParams }) {
 
         <div className="mb-8 rounded-md border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            {balance >= 0 ? "미수금 (거래처가 줄 돈)" : "미지급금 (우리가 줄 돈)"}
+            {category ? BALANCE_CATEGORY_LABEL[category] : "잔액 없음"}
           </p>
           <p className="mt-1 text-xl font-semibold text-black dark:text-zinc-50">
             {Math.abs(balance).toLocaleString()}원

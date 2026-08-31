@@ -1,71 +1,77 @@
 import Link from "next/link";
-import { listPartnersWithStatus, BALANCE_CATEGORY_LABEL } from "@/lib/partners";
+import { listPartnersWithStatus, getBalanceBreakdown, BALANCE_CATEGORY_LABEL } from "@/lib/partners";
 import { TYPE_OPTIONS } from "@/app/partners/PartnerForm";
 import NavBar from "@/app/NavBar";
 
 const TYPE_LABEL = Object.fromEntries(TYPE_OPTIONS.map((o) => [o.value, o.label]));
 const DUE_STATUS_LABEL = { due_soon: "결제기한 임박", overdue: "결제기한 초과" };
 
-export default async function PartnersPage({ searchParams }) {
-  const { q, filter } = await searchParams;
-  const onlyOutstanding = filter === "outstanding";
-  const partners = listPartnersWithStatus({ query: q, onlyOutstanding });
+const CATEGORY_FILTERS = [
+  { value: "", label: "전체" },
+  { value: "receivable", label: "미수금" },
+  { value: "advance_received", label: "선수금" },
+  { value: "payable", label: "미지급금" },
+  { value: "advance_paid", label: "선급금" },
+];
+
+// 잔액이 바뀔 때마다 다시 계산되므로 정적 생성되지 않도록 강제로 동적 렌더링한다.
+export const dynamic = "force-dynamic";
+
+function SummaryCard({ label, value }) {
+  return (
+    <div className="flex flex-col gap-1 rounded-md border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+      <span className="text-xs text-zinc-500 dark:text-zinc-400">{label}</span>
+      <span className="text-xl font-semibold text-black dark:text-zinc-50">
+        {value.toLocaleString()}원
+      </span>
+    </div>
+  );
+}
+
+export default async function ReceivablesPage({ searchParams }) {
+  const { category } = await searchParams;
+  const breakdown = getBalanceBreakdown();
+  const partners = listPartnersWithStatus({ onlyOutstanding: true }).filter(
+    (p) => !category || p.category === category
+  );
 
   return (
     <div className="flex flex-1 flex-col bg-zinc-50 dark:bg-black">
       <div className="mx-auto w-full max-w-5xl px-6 py-10">
-        <NavBar active="partners" />
+        <NavBar active="receivables" />
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
-            거래처관리
+            미수금·선납금 관리
           </h1>
-          <div className="flex items-center gap-2">
-            <a
-              href={`/api/export/partners${q ? `?q=${encodeURIComponent(q)}` : ""}`}
-              className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
-            >
-              CSV 내보내기
-            </a>
-            <Link
-              href="/partners/new"
-              className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
-            >
-              거래처 등록
-            </Link>
-          </div>
+          <a
+            href={`/api/export/receivables${category ? `?category=${category}` : ""}`}
+            className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+          >
+            CSV 내보내기
+          </a>
         </div>
 
-        <form className="mb-6" method="get">
-          <input
-            type="text"
-            name="q"
-            defaultValue={q || ""}
-            placeholder="상호, 담당자, 사업자번호로 검색"
-            className="w-full max-w-sm rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-          />
-        </form>
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <SummaryCard label="미수금 합계" value={breakdown.receivable.total} />
+          <SummaryCard label="선수금 합계" value={breakdown.advance_received.total} />
+          <SummaryCard label="미지급금 합계" value={breakdown.payable.total} />
+          <SummaryCard label="선급금 합계" value={breakdown.advance_paid.total} />
+        </div>
 
-        <div className="mb-4 flex gap-2 text-sm">
-          <Link
-            href={q ? `/partners?q=${encodeURIComponent(q)}` : "/partners"}
-            className={`rounded-full px-3 py-1 ${
-              !onlyOutstanding
-                ? "bg-black text-white dark:bg-white dark:text-black"
-                : "border border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
-            }`}
-          >
-            전체
-          </Link>
-          <Link
-            href={`/partners?filter=outstanding${q ? `&q=${encodeURIComponent(q)}` : ""}`}
-            className={`rounded-full px-3 py-1 ${
-              onlyOutstanding
-                ? "bg-black text-white dark:bg-white dark:text-black"
-                : "border border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
-            }`}
-          >
-            미수금·미지급금 있음
-          </Link>
+        <div className="mb-4 flex flex-wrap gap-2 text-sm">
+          {CATEGORY_FILTERS.map((f) => (
+            <Link
+              key={f.value}
+              href={f.value ? `/receivables?category=${f.value}` : "/receivables"}
+              className={`rounded-full px-3 py-1 ${
+                (category || "") === f.value
+                  ? "bg-black text-white dark:bg-white dark:text-black"
+                  : "border border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+              }`}
+            >
+              {f.label}
+            </Link>
+          ))}
         </div>
 
         <div className="overflow-x-auto rounded-md border border-zinc-200 dark:border-zinc-800">
@@ -74,9 +80,8 @@ export default async function PartnersPage({ searchParams }) {
               <tr className="border-b border-zinc-200 bg-zinc-100 text-left text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
                 <th className="px-4 py-3 font-medium">상호</th>
                 <th className="px-4 py-3 font-medium">구분</th>
-                <th className="px-4 py-3 font-medium">담당자</th>
-                <th className="px-4 py-3 font-medium">연락처</th>
-                <th className="px-4 py-3 text-right font-medium">미수금/미지급금</th>
+                <th className="px-4 py-3 font-medium">분류</th>
+                <th className="px-4 py-3 text-right font-medium">금액</th>
                 <th className="px-4 py-3 font-medium">결제기한</th>
               </tr>
             </thead>
@@ -84,12 +89,10 @@ export default async function PartnersPage({ searchParams }) {
               {partners.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={5}
                     className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-500"
                   >
-                    {onlyOutstanding
-                      ? "미수금·미지급금이 있는 거래처가 없습니다."
-                      : "등록된 거래처가 없습니다."}
+                    해당하는 미수금·선납금 내역이 없습니다.
                   </td>
                 </tr>
               )}
@@ -110,18 +113,10 @@ export default async function PartnersPage({ searchParams }) {
                     {TYPE_LABEL[partner.type]}
                   </td>
                   <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
-                    {partner.contact_name || "-"}
-                  </td>
-                  <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
-                    {partner.phone || "-"}
+                    {BALANCE_CATEGORY_LABEL[partner.category]}
                   </td>
                   <td className="px-4 py-3 text-right font-medium text-black dark:text-zinc-50">
-                    {partner.balance !== 0 ? Math.abs(partner.balance).toLocaleString() : "-"}
-                    {partner.balance !== 0 && (
-                      <span className="ml-1 text-xs font-normal text-zinc-500 dark:text-zinc-400">
-                        ({BALANCE_CATEGORY_LABEL[partner.category]})
-                      </span>
-                    )}
+                    {Math.abs(partner.balance).toLocaleString()}원
                   </td>
                   <td className="px-4 py-3">
                     {partner.dueStatus &&
