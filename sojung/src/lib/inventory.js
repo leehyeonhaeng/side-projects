@@ -56,6 +56,20 @@ export function countLowStockItems() {
   return count;
 }
 
+export function listLowStockItems() {
+  return db
+    .prepare(
+      `
+      SELECT i.id, i.name, i.unit, ${CURRENT_STOCK_SQL} AS current_stock, i.min_stock
+      FROM items i
+      LEFT JOIN stock_movements m ON m.item_id = i.id
+      GROUP BY i.id
+      HAVING current_stock < i.min_stock
+      `
+    )
+    .all();
+}
+
 export function getItemWithStock(id) {
   return db
     .prepare(

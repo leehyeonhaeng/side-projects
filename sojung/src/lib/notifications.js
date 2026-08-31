@@ -1,6 +1,7 @@
 import db from "@/lib/db";
 import { listPartners, getPartnerDueStatus } from "@/lib/partners";
 import { listOpenAssignmentsWithScheduledReturn, getAssetReturnStatus } from "@/lib/assets";
+import { listLowStockItems } from "@/lib/inventory";
 
 export function listNotifications({ unreadOnly } = {}) {
   const where = unreadOnly ? "WHERE n.is_read = 0" : "";
@@ -36,12 +37,13 @@ export function createNotification({
   paymentId,
   stockMovementId,
   assetId,
+  itemId,
   message,
 }) {
   db.prepare(
     `
-    INSERT INTO notifications (type, partner_id, payment_id, stock_movement_id, asset_id, message)
-    VALUES (@type, @partnerId, @paymentId, @stockMovementId, @assetId, @message)
+    INSERT INTO notifications (type, partner_id, payment_id, stock_movement_id, asset_id, item_id, message)
+    VALUES (@type, @partnerId, @paymentId, @stockMovementId, @assetId, @itemId, @message)
     `
   ).run({
     type,
@@ -49,6 +51,7 @@ export function createNotification({
     paymentId: paymentId ?? null,
     stockMovementId: stockMovementId ?? null,
     assetId: assetId ?? null,
+    itemId: itemId ?? null,
     message,
   });
 }
@@ -66,6 +69,17 @@ function assetNotificationExists(type, assetId) {
   const { count } = db
     .prepare("SELECT COUNT(*) AS count FROM notifications WHERE type = ? AND asset_id = ?")
     .get(type, assetId);
+  return count > 0;
+}
+
+// 재고 부족은 품목이 계속 같은 상태를 유지할 수 있어 "읽음 처리 전까지만"
+// 중복을 막는다 — 한번 읽으면, 여전히(또는 다시) 부족할 때 새로 알림이 뜬다.
+function unreadItemNotificationExists(type, itemId) {
+  const { count } = db
+    .prepare(
+      "SELECT COUNT(*) AS count FROM notifications WHERE type = ? AND item_id = ? AND is_read = 0"
+    )
+    .get(type, itemId);
   return count > 0;
 }
 
@@ -111,6 +125,23 @@ export function ensureAssetReturnNotifications() {
       type,
       partnerId: a.partner_id,
       assetId: a.asset_id,
+      message,
+    });
+  }
+}
+
+// 최소재고 미달 품목에 대해 알림을 쌓는다.
+export function ensureLowStockNotifications() {
+  const items = listLowStockItems();
+  for (const item of items) {
+    if (unreadItemNotificationExists("low_stock", item.id)) continue;
+
+    const unit = item.unit || "";
+    const message = `${item.name} 재고가 ${item.current_stock}${unit}로 최소재고(${item.min_stock}${unit}) 미달입니다.`;
+
+    createNotification({
+      type: "low_stock",
+      itemId: item.id,
       message,
     });
   }

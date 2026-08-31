@@ -3,6 +3,7 @@ import {
   listNotifications,
   ensureDueSoonAndOverdueNotifications,
   ensureAssetReturnNotifications,
+  ensureLowStockNotifications,
 } from "@/lib/notifications";
 import { markReadAction } from "@/app/(app)/notifications/actions";
 
@@ -17,6 +18,7 @@ const TYPE_LABEL = {
   overdue: "결제기한 초과",
   return_due_soon: "수거 임박",
   return_overdue: "수거 지남",
+  low_stock: "재고 부족",
 };
 
 const TYPE_COLOR = {
@@ -26,11 +28,13 @@ const TYPE_COLOR = {
   overdue: "text-red-600 dark:text-red-400",
   return_due_soon: "text-amber-600 dark:text-amber-400",
   return_overdue: "text-red-600 dark:text-red-400",
+  low_stock: "text-amber-600 dark:text-amber-400",
 };
 
 export default async function NotificationsPage() {
   ensureDueSoonAndOverdueNotifications();
   ensureAssetReturnNotifications();
+  ensureLowStockNotifications();
   const notifications = listNotifications();
 
   return (

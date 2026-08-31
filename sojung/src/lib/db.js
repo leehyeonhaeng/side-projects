@@ -67,13 +67,18 @@ if (!db) {
 
     CREATE INDEX IF NOT EXISTS idx_payments_partner_id ON payments(partner_id);
 
+    -- type에는 CHECK 제약을 두지 않는다 — SQLite는 CHECK를 ALTER TABLE로
+    -- 못 바꿔서 새 알림 종류가 생길 때마다 테이블을 통째로 다시 만들어야
+    -- 했고, 그 과정에서 실제로 다른 테이블의 FK를 깨뜨리는 사고가 났다.
+    -- 유효한 type 값은 lib/notifications.js에서 앱 레벨로만 관리한다.
     CREATE TABLE IF NOT EXISTS notifications (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      type TEXT NOT NULL CHECK (type IN ('payment_matched', 'payment_unmatched', 'due_soon', 'overdue', 'return_due_soon', 'return_overdue')),
+      type TEXT NOT NULL,
       partner_id INTEGER REFERENCES partners(id) ON DELETE CASCADE,
       payment_id INTEGER REFERENCES payments(id) ON DELETE CASCADE,
       stock_movement_id INTEGER REFERENCES stock_movements(id) ON DELETE CASCADE,
       asset_id INTEGER REFERENCES assets(id) ON DELETE CASCADE,
+      item_id INTEGER REFERENCES items(id) ON DELETE CASCADE,
       message TEXT NOT NULL,
       is_read INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -185,6 +190,33 @@ if (!db) {
     `);
   }
   migrateNotificationsForAssetReturns();
+
+  // notifications.type의 CHECK 제약을 완전히 없애고 item_id를 추가한다.
+  // CHECK를 없애 두면 앞으로 알림 종류가 늘어나도 이런 재생성 마이그레이션이
+  // 다시는 필요 없다.
+  function migrateNotificationsDropTypeCheck() {
+    const columns = db.prepare("PRAGMA table_info(notifications)").all();
+    if (columns.some((col) => col.name === "item_id")) return;
+    renameRecreateDrop(`
+      ALTER TABLE notifications RENAME TO notifications_old;
+      CREATE TABLE notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT NOT NULL,
+        partner_id INTEGER REFERENCES partners(id) ON DELETE CASCADE,
+        payment_id INTEGER REFERENCES payments(id) ON DELETE CASCADE,
+        stock_movement_id INTEGER REFERENCES stock_movements(id) ON DELETE CASCADE,
+        asset_id INTEGER REFERENCES assets(id) ON DELETE CASCADE,
+        item_id INTEGER REFERENCES items(id) ON DELETE CASCADE,
+        message TEXT NOT NULL,
+        is_read INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT INTO notifications (id, type, partner_id, payment_id, stock_movement_id, asset_id, message, is_read, created_at)
+        SELECT id, type, partner_id, payment_id, stock_movement_id, asset_id, message, is_read, created_at FROM notifications_old;
+      DROP TABLE notifications_old;
+    `);
+  }
+  migrateNotificationsDropTypeCheck();
 
   // assets.asset_code의 NOT NULL 제약도 ALTER TABLE로 못 바꾸므로 같은 방식으로
   // 다시 만든다. asset_assignments/notifications가 assets(id)를 참조하므로
