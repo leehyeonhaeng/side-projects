@@ -8,7 +8,12 @@ import {
   deleteItem,
   addMovement,
 } from "@/lib/inventory";
-import { createAsset, assignAsset, collectAsset, updateScheduledReturn } from "@/lib/assets";
+import {
+  addAssetStock,
+  assignNextAvailableAsset,
+  collectAsset,
+  updateScheduledReturn,
+} from "@/lib/assets";
 
 function parseItemForm(formData) {
   const name = String(formData.get("name") || "").trim();
@@ -79,15 +84,25 @@ export async function addMovementAction(itemId, formData) {
   redirect(`/items/${itemId}`);
 }
 
-export async function createAssetAction(itemId, formData) {
+export async function addAssetStockAction(itemId, formData) {
+  const quantity = Number(formData.get("quantity"));
   const memo = String(formData.get("memo") || "").trim();
-  createAsset({ itemId, memo });
+
+  try {
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      throw new Error("수량을 1 이상의 정수로 입력해주세요.");
+    }
+    addAssetStock({ itemId, quantity, memo });
+  } catch (error) {
+    redirect(`/items/${itemId}?error=${encodeURIComponent(error.message)}`);
+  }
+
   revalidatePath(`/items/${itemId}`);
   revalidatePath("/items");
   redirect(`/items/${itemId}`);
 }
 
-export async function assignAssetAction(itemId, assetId, formData) {
+export async function assignAssetAction(itemId, formData) {
   const partnerIdRaw = formData.get("partnerId");
   const partnerId = partnerIdRaw ? Number(partnerIdRaw) : null;
   const assignedAt = String(formData.get("assignedAt") || "");
@@ -96,7 +111,7 @@ export async function assignAssetAction(itemId, assetId, formData) {
   try {
     if (!partnerId) throw new Error("거래처를 선택해주세요.");
     if (!scheduledReturnAt) throw new Error("예정 수거일을 입력해주세요.");
-    assignAsset({ assetId, partnerId, assignedAt, scheduledReturnAt });
+    assignNextAvailableAsset({ itemId, partnerId, assignedAt, scheduledReturnAt });
   } catch (error) {
     redirect(`/items/${itemId}?error=${encodeURIComponent(error.message)}`);
   }

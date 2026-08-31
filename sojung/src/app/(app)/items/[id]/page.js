@@ -6,7 +6,7 @@ import { listAssetsByItem, getAssetStockCounts, getAssetReturnStatus } from "@/l
 import {
   addMovementAction,
   deleteItemAction,
-  createAssetAction,
+  addAssetStockAction,
   assignAssetAction,
   updateScheduledReturnAction,
   collectAssetAction,
@@ -50,10 +50,13 @@ export default async function ItemDetailPage({ params, searchParams }) {
   const addMovement = addMovementAction.bind(null, item.id);
 
   const assets = isAssetTracked ? listAssetsByItem(item.id) : [];
+  const trackedAssets = assets.filter((a) => a.asset_code);
+  const poolCount = assets.filter((a) => a.status === "in_stock" && !a.asset_code).length;
   const assetCounts = isAssetTracked
     ? getAssetStockCounts(item.id)
     : { total: 0, inStock: 0, deployed: 0 };
-  const createAsset = createAssetAction.bind(null, item.id);
+  const addStock = addAssetStockAction.bind(null, item.id);
+  const assign = assignAssetAction.bind(null, item.id);
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 pb-10">
@@ -133,9 +136,23 @@ export default async function ItemDetailPage({ params, searchParams }) {
         <>
           <section className="mb-8 rounded-md border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
             <h2 className="mb-4 text-sm font-semibold text-black dark:text-zinc-50">
-              새 개체 등록
+              재고 추가
             </h2>
-            <form action={createAsset} className="flex flex-wrap items-end gap-3">
+            <form action={addStock} className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  수량
+                </label>
+                <input
+                  type="number"
+                  name="quantity"
+                  min="1"
+                  step="1"
+                  defaultValue="1"
+                  required
+                  className="w-28 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+                />
+              </div>
               <div className="flex min-w-[200px] flex-1 flex-col gap-1">
                 <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                   메모
@@ -143,7 +160,7 @@ export default async function ItemDetailPage({ params, searchParams }) {
                 <input
                   type="text"
                   name="memo"
-                  placeholder="예: 시리얼번호, 상태 메모"
+                  placeholder="예: 입고 출처, 상태 메모"
                   className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
                 />
               </div>
@@ -151,27 +168,95 @@ export default async function ItemDetailPage({ params, searchParams }) {
                 type="submit"
                 className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
               >
-                등록
+                추가
               </button>
             </form>
             <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-              등록하면 개체마다 고유 코드가 자동으로 부여되고, 코드로 등록카드를 출력할 수
-              있습니다.
+              재고 상태에서는 개체마다 코드를 따로 등록하지 않습니다. 거래처에 배치하는
+              순간 그 개체의 고유 코드가 자동으로 생성되고, 이후 수거해도 같은 코드가
+              유지됩니다.
             </p>
+          </section>
+
+          <section className="mb-8 rounded-md border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+            <h2 className="mb-4 text-sm font-semibold text-black dark:text-zinc-50">
+              거래처에 배치
+            </h2>
+            {assetCounts.inStock === 0 ? (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                배치할 수 있는 재고가 없습니다. 먼저 재고를 추가해주세요.
+              </p>
+            ) : (
+              <form action={assign} className="flex flex-wrap items-end gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                    거래처
+                  </label>
+                  <select
+                    name="partnerId"
+                    defaultValue=""
+                    required
+                    className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+                  >
+                    <option value="" disabled>
+                      선택
+                    </option>
+                    {partners.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                    배치일
+                  </label>
+                  <input
+                    type="date"
+                    name="assignedAt"
+                    defaultValue={todayString()}
+                    required
+                    className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                    예정 수거일
+                  </label>
+                  <input
+                    type="date"
+                    name="scheduledReturnAt"
+                    required
+                    className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+                >
+                  배치
+                </button>
+              </form>
+            )}
           </section>
 
           <section>
             <h2 className="mb-3 text-sm font-semibold text-black dark:text-zinc-50">
               개체 목록
+              {poolCount > 0 && (
+                <span className="ml-2 text-xs font-normal text-zinc-500 dark:text-zinc-400">
+                  (미배정 재고 {poolCount}개는 배치 전이라 따로 표시되지 않습니다)
+                </span>
+              )}
             </h2>
-            {assets.length === 0 ? (
+            {trackedAssets.length === 0 ? (
               <p className="rounded-md border border-zinc-200 bg-white px-4 py-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-500">
-                등록된 개체가 없습니다.
+                아직 배치된 적이 있는 개체가 없습니다.
               </p>
             ) : (
               <div className="flex flex-col gap-3">
-                {assets.map((a) => {
-                  const assign = assignAssetAction.bind(null, item.id, a.id);
+                {trackedAssets.map((a) => {
                   const updateSchedule = updateScheduledReturnAction.bind(
                     null,
                     item.id,
@@ -250,62 +335,7 @@ export default async function ItemDetailPage({ params, searchParams }) {
                         )}
                       </p>
 
-                      {a.status === "in_stock" ? (
-                        <form
-                          action={assign}
-                          className="flex flex-wrap items-end gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-900"
-                        >
-                          <div className="flex flex-col gap-1">
-                            <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                              거래처
-                            </label>
-                            <select
-                              name="partnerId"
-                              defaultValue=""
-                              required
-                              className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-                            >
-                              <option value="" disabled>
-                                선택
-                              </option>
-                              {partners.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="flex flex-col gap-1">
-                            <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                              배치일
-                            </label>
-                            <input
-                              type="date"
-                              name="assignedAt"
-                              defaultValue={todayString()}
-                              required
-                              className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1">
-                            <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                              예정 수거일
-                            </label>
-                            <input
-                              type="date"
-                              name="scheduledReturnAt"
-                              required
-                              className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-                            />
-                          </div>
-                          <button
-                            type="submit"
-                            className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
-                          >
-                            배치
-                          </button>
-                        </form>
-                      ) : (
+                      {a.status === "deployed" && (
                         <div className="flex flex-wrap gap-4 border-t border-zinc-100 pt-3 dark:border-zinc-900">
                           <form action={updateSchedule} className="flex items-end gap-2">
                             <div className="flex flex-col gap-1">

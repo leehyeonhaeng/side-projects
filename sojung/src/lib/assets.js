@@ -59,19 +59,21 @@ export function getAsset(id) {
     .get(id);
 }
 
-export function createAsset({ itemId, memo }) {
-  const result = db
-    .prepare(
-      `
-      INSERT INTO assets (item_id, asset_code, status, memo)
-      VALUES (@itemId, '', 'in_stock', @memo)
-      `
-    )
-    .run({ itemId, memo: memo || null });
-  const id = result.lastInsertRowid;
-  const assetCode = `A-${String(id).padStart(6, "0")}`;
-  db.prepare("UPDATE assets SET asset_code = ? WHERE id = ?").run(assetCode, id);
-  return id;
+// 재고에 수량만큼 "무기명" 개체를 쌓아둔다 — 코드는 아직 없고, 배치되는
+// 순간 처음 부여된다.
+export function addAssetStock({ itemId, quantity, memo }) {
+  const insert = db.prepare(
+    `
+    INSERT INTO assets (item_id, asset_code, status, memo)
+    VALUES (@itemId, NULL, 'in_stock', @memo)
+    `
+  );
+  const insertMany = db.transaction((n) => {
+    for (let i = 0; i < n; i += 1) {
+      insert.run({ itemId, memo: memo || null });
+    }
+  });
+  insertMany(quantity);
 }
 
 export function deleteAsset(id) {
@@ -84,11 +86,27 @@ export function deleteAsset(id) {
   db.prepare("DELETE FROM assets WHERE id = ?").run(id);
 }
 
-export function assignAsset({ assetId, partnerId, assignedAt, scheduledReturnAt, memo }) {
-  const asset = db.prepare("SELECT * FROM assets WHERE id = ?").get(assetId);
-  if (!asset) throw new Error("개체를 찾을 수 없습니다.");
-  if (asset.status !== "in_stock") {
-    throw new Error("재고 상태의 개체만 배치할 수 있습니다.");
+// 재고 중 하나를 골라 거래처에 배치한다. 이미 코드가 있던(예전에 배치됐다가
+// 돌아온) 개체를 먼저 쓰고, 없으면 무기명 재고 중 하나를 골라 이때 처음으로
+// 코드를 부여한다 — 그 코드는 이후 반납해도 그대로 유지된다.
+export function assignNextAvailableAsset({ itemId, partnerId, assignedAt, scheduledReturnAt, memo }) {
+  const asset = db
+    .prepare(
+      `
+      SELECT * FROM assets
+      WHERE item_id = ? AND status = 'in_stock'
+      ORDER BY (asset_code IS NULL) ASC, id ASC
+      LIMIT 1
+      `
+    )
+    .get(itemId);
+  if (!asset) {
+    throw new Error("배치할 수 있는 재고가 없습니다.");
+  }
+
+  if (!asset.asset_code) {
+    const assetCode = `A-${String(asset.id).padStart(6, "0")}`;
+    db.prepare("UPDATE assets SET asset_code = ? WHERE id = ?").run(assetCode, asset.id);
   }
 
   db.prepare(
@@ -97,7 +115,7 @@ export function assignAsset({ assetId, partnerId, assignedAt, scheduledReturnAt,
     VALUES (@assetId, @partnerId, @assignedAt, @scheduledReturnAt, @memo)
     `
   ).run({
-    assetId,
+    assetId: asset.id,
     partnerId,
     assignedAt,
     scheduledReturnAt: scheduledReturnAt || null,
@@ -106,7 +124,9 @@ export function assignAsset({ assetId, partnerId, assignedAt, scheduledReturnAt,
 
   db.prepare(
     "UPDATE assets SET status = 'deployed', current_partner_id = @partnerId WHERE id = @assetId"
-  ).run({ assetId, partnerId });
+  ).run({ assetId: asset.id, partnerId });
+
+  return asset.id;
 }
 
 // 배치 중 예정 수거일만 바꾼다 — 실제로 수거하는 것과는 별개의 동작.

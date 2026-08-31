@@ -88,10 +88,13 @@ if (!db) {
     );
     INSERT OR IGNORE INTO company_settings (id) VALUES (1);
 
+    -- asset_code는 재고로 쌓아둘 때는 비워두고(아직 특정 개체로 구분할 필요가
+    -- 없음), 실제로 거래처에 배치되는 순간 처음 코드가 부여된다. 이후 수거해도
+    -- 코드는 그대로 유지되어 그 물리적 기기의 이력을 계속 추적할 수 있다.
     CREATE TABLE IF NOT EXISTS assets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE RESTRICT,
-      asset_code TEXT NOT NULL UNIQUE,
+      asset_code TEXT UNIQUE,
       status TEXT NOT NULL DEFAULT 'in_stock' CHECK (status IN ('in_stock', 'deployed')),
       current_partner_id INTEGER REFERENCES partners(id) ON DELETE SET NULL,
       memo TEXT,
@@ -140,12 +143,30 @@ if (!db) {
   addColumnIfMissing("items", "tracking_type", "TEXT NOT NULL DEFAULT 'quantity'");
   addColumnIfMissing("asset_assignments", "scheduled_return_at", "TEXT");
 
+  // 테이블을 rename → 재생성 → drop 하는 방식으로 제약을 바꿀 때, SQLite가
+  // 기본으로 다른 테이블의 FK 참조 텍스트를 rename된 이름을 따라가도록 고쳐
+  // 버린다(예: asset_assignments.asset_id REFERENCES "assets" → "assets_old").
+  // 그 상태에서 옛 이름 테이블을 드롭하면 FK가 존재하지 않는 테이블을 가리키게
+  // 되어 이후 그 테이블에 대한 조작이 깨진다. legacy_alter_table을 켜두면
+  // rename이 다른 테이블의 참조 텍스트를 건드리지 않으므로, 원래 이름으로
+  // 다시 만든 새 테이블을 그대로 참조하게 된다.
+  function renameRecreateDrop(sql) {
+    db.pragma("foreign_keys = OFF");
+    db.pragma("legacy_alter_table = ON");
+    try {
+      db.exec(sql);
+    } finally {
+      db.pragma("legacy_alter_table = OFF");
+      db.pragma("foreign_keys = ON");
+    }
+  }
+
   // notifications.type의 CHECK 제약은 ALTER TABLE로 바꿀 수 없으므로,
   // 이미 만들어진(구버전) 테이블이면 새 제약으로 통째로 다시 만든다.
   function migrateNotificationsForAssetReturns() {
     const columns = db.prepare("PRAGMA table_info(notifications)").all();
     if (columns.some((col) => col.name === "asset_id")) return;
-    db.exec(`
+    renameRecreateDrop(`
       ALTER TABLE notifications RENAME TO notifications_old;
       CREATE TABLE notifications (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -165,9 +186,70 @@ if (!db) {
   }
   migrateNotificationsForAssetReturns();
 
-  db.exec(
-    "CREATE INDEX IF NOT EXISTS idx_stock_movements_partner_id ON stock_movements(partner_id)"
-  );
+  // assets.asset_code의 NOT NULL 제약도 ALTER TABLE로 못 바꾸므로 같은 방식으로
+  // 다시 만든다. asset_assignments/notifications가 assets(id)를 참조하므로
+  // renameRecreateDrop으로 그 참조가 깨지지 않게 처리한다.
+  function migrateAssetsCodeNullable() {
+    const columns = db.prepare("PRAGMA table_info(assets)").all();
+    const codeColumn = columns.find((col) => col.name === "asset_code");
+    if (!codeColumn || codeColumn.notnull === 0) return;
+    renameRecreateDrop(`
+      ALTER TABLE assets RENAME TO assets_old;
+      CREATE TABLE assets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE RESTRICT,
+        asset_code TEXT UNIQUE,
+        status TEXT NOT NULL DEFAULT 'in_stock' CHECK (status IN ('in_stock', 'deployed')),
+        current_partner_id INTEGER REFERENCES partners(id) ON DELETE SET NULL,
+        memo TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT INTO assets SELECT * FROM assets_old;
+      DROP TABLE assets_old;
+    `);
+  }
+  migrateAssetsCodeNullable();
+
+  // 위의 두 마이그레이션이 legacy_alter_table 없이 이미 실행된 적이 있다면
+  // asset_assignments/notifications의 FK가 "assets_old"를 가리키는 채로
+  // 남아있을 수 있다. 그런 경우를 감지해서 같은 방식으로 바로잡는다.
+  function repairDanglingAssetsOldReferences() {
+    const broken = db
+      .prepare(
+        "SELECT name, sql FROM sqlite_master WHERE type = 'table' AND sql LIKE '%\"assets_old\"%'"
+      )
+      .all();
+    if (broken.length === 0) return;
+    if (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'assets_old'").get()) {
+      // assets_old가 아직 남아있다면(드롭이 실패했던 경우) 그것부터 정리한다.
+      db.pragma("foreign_keys = OFF");
+      db.exec("DROP TABLE IF EXISTS assets_old");
+      db.pragma("foreign_keys = ON");
+    }
+    for (const table of broken) {
+      const fixedSql = table.sql.replace(/"assets_old"/g, '"assets"');
+      renameRecreateDrop(`
+        ALTER TABLE ${table.name} RENAME TO ${table.name}_repair_old;
+        ${fixedSql};
+        INSERT INTO ${table.name} SELECT * FROM ${table.name}_repair_old;
+        DROP TABLE ${table.name}_repair_old;
+      `);
+    }
+  }
+  repairDanglingAssetsOldReferences();
+
+  // rename → 재생성 → drop 방식의 마이그레이션은 그 테이블에 걸려있던 인덱스도
+  // 함께 날려버리므로(인덱스는 rename을 따라갔다가 drop과 함께 사라짐),
+  // 모든 인덱스를 여기서 한 번에 다시(이미 있으면 그대로 두고) 만든다.
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_stock_movements_partner_id ON stock_movements(partner_id);
+    CREATE INDEX IF NOT EXISTS idx_stock_movements_item_id ON stock_movements(item_id);
+    CREATE INDEX IF NOT EXISTS idx_payments_partner_id ON payments(partner_id);
+    CREATE INDEX IF NOT EXISTS idx_assets_item_id ON assets(item_id);
+    CREATE INDEX IF NOT EXISTS idx_assets_current_partner_id ON assets(current_partner_id);
+    CREATE INDEX IF NOT EXISTS idx_asset_assignments_asset_id ON asset_assignments(asset_id);
+    CREATE INDEX IF NOT EXISTS idx_asset_assignments_partner_id ON asset_assignments(partner_id);
+  `);
 
   globalThis.__sojungDb = db;
 }
