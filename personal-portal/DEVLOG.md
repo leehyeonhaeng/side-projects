@@ -42,5 +42,19 @@
   - `paths: personal-portal/**` 필터, job별 `working-directory` 지정
   - OIDC 신뢰 정책 `sub`는 `repo:leehyeonhaeng/side-projects:ref:refs/heads/main`으로 제한
 
+### 트러블슈팅
+**1. `git add .` 시 `adding embedded git repository: diet-tracker` 경고**
+- 원인: `side-projects/diet-tracker/`가 자체 `.git`을 가진 별도 레포(`leehyeonhaeng/diet-tracker`)라서 내용 없이 링크(gitlink)로만 스테이징됨
+- `git rm --cached diet-tracker`는 "staged content different from both the file and the HEAD" 에러로 실패 (add 이후 하위 레포 상태가 달라짐)
+- 해결: `git restore --staged diet-tracker`로 스테이징만 취소 + `side-projects/.gitignore` 신규 생성 후 `diet-tracker/` 추가
+- 주의: `.gitignore`는 이미 스테이징된 항목은 빼주지 않으므로 스테이징 취소를 별도로 해야 함
+
+**2. README.md, DEVLOG.md가 `docs/` 안에 잘못 배치됨**
+- 해결: `git mv`로 `personal-portal/` 루트로 이동 (DESIGN.md만 `docs/`에 둠)
+
+**3. push 전 밀린 커밋 10개 확인**
+- `git log origin/main..HEAD --oneline`, `git diff --name-only origin/main..HEAD`로 sojung 프로젝트 커밋임을 확인
+- `git grep`으로 스크립트·세션·DB 파일에 하드코딩된 비밀값 없음을 확인 후 함께 push
+
 ### 다음 할 일
 - Phase 0: Terraform 상태 버킷, GitHub OIDC 역할, AWS Budgets 알림 설정
