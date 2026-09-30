@@ -6,8 +6,13 @@ resource "aws_cognito_user_pool" "this" {
   user_pool_tier           = "LITE"
   username_attributes      = ["email"]
   auto_verified_attributes = ["email"]
-  mfa_configuration        = "OPTIONAL"
-  deletion_protection      = var.deletion_protection ? "ACTIVE" : "INACTIVE"
+
+  # 이메일 대소문자 무시. 생성 후 변경 불가(풀 교체)라 처음부터 지정한다
+  username_configuration {
+    case_sensitive = false
+  }
+  mfa_configuration   = "OPTIONAL"
+  deletion_protection = var.deletion_protection ? "ACTIVE" : "INACTIVE"
 
   software_token_mfa_configuration {
     enabled = true
@@ -39,6 +44,11 @@ resource "aws_cognito_user_pool" "this" {
 
   verification_message_template {
     default_email_option = "CONFIRM_WITH_CODE"
+  }
+
+  lambda_config {
+    post_confirmation   = var.trigger_lambda_arn
+    post_authentication = var.trigger_lambda_arn
   }
 
   schema {
@@ -103,4 +113,12 @@ resource "aws_cognito_user_group" "host" {
   user_pool_id = aws_cognito_user_pool.this.id
   description  = "최고 관리자"
   precedence   = 0
+}
+
+resource "aws_lambda_permission" "trigger" {
+  statement_id  = "AllowCognitoInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = var.trigger_lambda_arn
+  principal     = "cognito-idp.amazonaws.com"
+  source_arn    = aws_cognito_user_pool.this.arn
 }

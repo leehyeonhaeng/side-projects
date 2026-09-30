@@ -8,7 +8,8 @@
 
 - 2026-09-28: 설계 확정
 - 2026-09-30: Phase 0 완료 (상태 버킷, GitHub OIDC Role, Budgets 알림, CI 검증 워크플로우)
-- 2026-09-30: Phase 1 완료 (dev: DynamoDB, Cognito, API Gateway, Lambda 4개, S3 + CloudFront, 빈 React 앱 배포) → Phase 2 대기
+- 2026-09-30: Phase 1 완료 (dev: DynamoDB, Cognito, API Gateway, Lambda 4개, S3 + CloudFront, 빈 React 앱 배포)
+- 2026-09-30: Phase 2 구현·dev 배포 완료, 가입→승인→로그인 실사용 검증 대기
 
 ## 모듈
 
@@ -59,11 +60,13 @@ side-projects/
    ├─ docs/DESIGN.md          설계 문서 (전체 결정 사항, ADR, 데이터 모델, 로드맵)
    ├─ frontend/               React + TS + Vite + Tailwind
    │  └─ src/
-   │     ├─ api/              API 호출 단일 진입점 (client.ts)
-   │     └─ modules/<module>/ 화면
+   │     ├─ api/              API 호출 단일 진입점 (client.ts) + 도메인별 훅
+   │     ├─ auth/             Amplify 설정, 세션, 라우트 가드
+   │     ├─ components/       공통 컴포넌트 (ui/는 shadcn)
+   │     └─ modules/<module>/ 화면 (auth, home, admin, …)
    ├─ backend/                Python Lambda (한 패키지를 4개 함수가 공유)
-   │  ├─ handlers/            personal, shared, admin, ai
-   │  ├─ common/              공통 앱 골격 (Powertools resolver)
+   │  ├─ handlers/            personal, shared, admin, ai, auth_trigger(Cognito)
+   │  ├─ common/              앱 골격, 권한 미들웨어(access), 모듈·권한(perms), 사용자·활동 로그 저장소
    │  └─ tests/
    ├─ infra/
    │  ├─ bootstrap/           상태 버킷, OIDC, CI Role, Budgets (로컬에서만 apply)
@@ -86,9 +89,10 @@ aws sts get-caller-identity          # 계정 확인 후 진행
 
 | 작업 | 방법 |
 |---|---|
+| terraform 변수 | `infra/bootstrap`, `infra/envs/dev`의 `terraform.tfvars.example`을 `terraform.tfvars`로 복사해 이메일 입력 (git 제외) |
 | 백엔드 테스트 | `cd backend` → `python -m venv .venv` → `.venvScriptspip install -r requirements-dev.txt` → `.venvScriptspytest` |
-| 프론트 로컬 실행 | `frontend/.env.example`을 `.env.development.local`로 복사해 `VITE_API_BASE_URL`에 `terraform output api_endpoint` 값 입력 → `npm install` → `npm run dev` |
-| dev 배포 | main에 push하면 `portal-deploy.yml`이 자동 배포 |
+| 프론트 로컬 실행 | `frontend/.env.example`을 `.env.development.local`로 복사해 `terraform output`의 `api_endpoint`, `user_pool_id`, `user_pool_client_id` 입력 → `npm install` → `npm run dev` |
+| dev 배포 | main에 push하면 `portal-deploy.yml`이 자동 배포 (GitHub Secrets: `AWS_ROLE_ARN`, `HOST_EMAIL`) |
 | dev 주소 | `infra/envs/dev`에서 `terraform output web_url` / `api_endpoint` |
 | bootstrap 변경 | 로컬에서 `terraform -chdir=infra/bootstrap plan` → 승인 → `apply` |
 

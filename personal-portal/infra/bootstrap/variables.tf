@@ -26,6 +26,6 @@ variable "budget_limit_unit" {
 }
 
 variable "budget_notification_email" {
-  type    = string
-  default = "ldlgusgod@mz.co.kr"
+  description = "예산 알림 수신 주소. 레포에 남기지 않도록 terraform.tfvars(로컬) / TF_VAR_budget_notification_email(CI)로 넣는다"
+  type        = string
 }

@@ -35,9 +35,8 @@ resource "aws_iam_role_policy" "logs" {
   policy = data.aws_iam_policy_document.logs.json
 }
 
-# 함수별 추가 권한 (DynamoDB, Cognito 관리, Bedrock 등)
+# 함수별 권한 (DynamoDB, Cognito 관리, Bedrock 등)
 resource "aws_iam_role_policy" "extra" {
-  count  = var.policy_json == null ? 0 : 1
   name   = "extra"
   role   = aws_iam_role.this.id
   policy = var.policy_json

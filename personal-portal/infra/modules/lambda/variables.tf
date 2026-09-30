@@ -30,8 +30,8 @@ variable "environment" {
 }
 
 variable "policy_json" {
-  type    = string
-  default = null
+  description = "함수별 IAM 정책 JSON (로그 권한은 모듈이 따로 부여)"
+  type        = string
 }
 
 variable "memory_size" {

@@ -151,7 +151,13 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 
 비활성 계정이 로그인하면 Cognito가 "User is disabled"를 반환 → 프론트에서 "승인 대기 중이거나 정지된 계정입니다" 안내.
 
-**계정 정지**: `AdminDisableUser` + `AdminUserGlobalSignOut`(refresh 토큰 즉시 폐기) + status = suspended.
+**계정 정지**: `AdminDisableUser` + `AdminUserGlobalSignOut`(refresh 토큰 즉시 폐기) + status = suspended. 이미 발급된 access token(최대 1시간)은 API 권한 미들웨어가 매 요청 status를 확인해서 즉시 차단한다. 정지 해제(재활성)는 `AdminEnableUser` + status = active.
+
+**첫 Host 계정**: Terraform 변수 `host_email`(레포에 남기지 않음, 로컬 tfvars / CI Secret)과 같은 이메일로 가입하면 Post Confirmation 트리거가 비활성화 대신 host 그룹 추가 + status active + 전체 권한을 준다.
+
+**거절·삭제**: 거절은 Cognito 사용자 + PROFILE 삭제(같은 이메일로 재가입 가능). 삭제는 Cognito 사용자 + `USER#<sub>` 전체 + 공유 리소스 멤버십(`GSI1PK=USER#<sub>`) 삭제. 둘 다 활동 로그에는 남긴다.
+
+**이메일 대소문자**: 풀은 사용자 이름(이메일) 대소문자를 무시한다(`case_sensitive = false`, 생성 후 변경 불가). 프론트도 저장·표시 일관성을 위해 소문자로 바꿔 보낸다.
 
 ### 4.2 권한 모델
 
@@ -188,7 +194,8 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 - 계정 목록: 상태 필터(대기·활성·정지), 정지, 삭제, 비밀번호 초기화
 - 권한 매트릭스: 사용자 × 모듈 표에서 권한 변경
 - 권한 프리셋 관리
-- 활동 로그: 로그인, 권한 변경만 기록
+- 활동 로그: 로그인(Cognito Post Authentication 트리거), 권한·계정 변경(승인·거절·정지·재활성·삭제·비밀번호 초기화·권한 변경)만 기록
+- 관리자 API는 host 그룹 + TOTP MFA 등록 여부(AdminGetUser, 5분 캐시)까지 확인한다
 
 ---
 
@@ -427,7 +434,7 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | 체크리스트 정보 | `LIST#<id>` | `META` |
 | 체크리스트 멤버 | `LIST#<id>` | `MEMBER#<sub>` |
 | 체크리스트 항목 | `LIST#<id>` | `ITEM#<id>` |
-| 권한 프리셋 | `PRESET` | `PRESET#<id>` |
+| 권한 프리셋 (name, perms) | `PRESET` | `PRESET#<id>` |
 | 활동 로그 | `AUDIT#<yyyy-mm>` | `<timestamp>#<id>` |
 
 ### 7.3 GSI1 (오버로딩)
@@ -447,7 +454,7 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 
 | Lambda | 담당 | 특별 권한 |
 |---|---|---|
-| `auth-trigger` | Cognito Post Confirmation (비활성화, PROFILE 생성, 알림) | Cognito AdminDisableUser, SNS Publish |
+| `auth-trigger` | Cognito Post Confirmation (비활성화, PROFILE 생성, 알림, Host 지정), Post Authentication (로그인 기록) | Cognito AdminDisableUser·AdminAddUserToGroup, SNS Publish |
 | `admin` | 승인, 권한, 프리셋, 정지, 활동 로그 | Cognito 관리 API (Host 그룹만 호출) |
 | `personal` | 캘린더, 할 일, health, 메모, 가계부, 허브, 설정, 레이아웃 | 없음 |
 | `shared` | 작업 보드, 공용 체크리스트 | 없음 |
@@ -460,6 +467,36 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 - 기간 조회는 쿼리 파라미터: `GET /meals?from=2026-09-01&to=2026-09-30`
 - 관리자: `/api/v1/admin/*`
 - AI: `POST /api/v1/ai/estimate-calories`
+
+**모듈 권한 매핑** (공통 미들웨어 `backend/common/perms.py`): `/api/v1` 뒤 첫 경로 세그먼트로 모듈을 정한다. 조회(GET)는 view 이상, 변경은 edit. 캘린더는 사용 가능 여부만 본다. 라우트가 아직 없어도 권한 검사가 먼저 적용된다.
+
+| 첫 세그먼트 | 모듈 |
+|---|---|
+| `events` | calendar |
+| `todos`, `todo-lists` | todo |
+| `meals`, `meal-sets`, `foods`, `weights`, `runs`, `gym`, `routines`, `programs`, `ai`(edit) | health |
+| `boards` | boards |
+| `notes` | notes |
+| `txns`, `categories`, `recurring`, `budgets` | ledger |
+| `hub` | hub |
+| `checklists` | checklists |
+| `me`, `settings`, `layout`, `admin` | 모듈 권한 없음 (active만 확인, admin은 host) |
+
+**관리자 API** (`/api/v1/admin`)
+
+| 메서드 · 경로 | 내용 |
+|---|---|
+| `GET /admin/users?status=` | 계정 목록 (상태 필터) |
+| `POST /admin/users/{sub}/approve` `{presetId}` | 승인 + 프리셋 권한 |
+| `POST /admin/users/{sub}/reject` | 거절 (완전 삭제) |
+| `POST /admin/users/{sub}/suspend` · `/reactivate` | 정지 · 재활성 |
+| `DELETE /admin/users/{sub}` | 삭제 (개인 데이터 포함) |
+| `POST /admin/users/{sub}/reset-password` | 비밀번호 초기화 (이메일 코드) |
+| `GET /admin/permissions` · `PUT /admin/users/{sub}/permissions` | 권한 매트릭스 조회 · 변경 |
+| `GET` · `POST /admin/presets`, `PUT` · `DELETE /admin/presets/{id}` | 프리셋 (최초 조회 시 가족·팀 기본 생성) |
+| `GET /admin/audit?month=YYYY-MM` | 활동 로그 |
+
+`GET /api/v1/me`: 로그인 사용자의 프로필과 모듈 권한 (프론트 메뉴 노출·Host 판단용)
 
 **Lambda 매핑** (API Gateway에서 가장 구체적인 경로가 우선)
 
@@ -543,6 +580,7 @@ side-projects/
 | apply 주체 | 로컬(`personal-portal` 프로파일)에서만. CI는 `portal-oidc-check.yml`로 plan 검증만 |
 | CI Role 권한 | `PowerUserAccess` + `portal-*` IAM 역할·정책 관리 + OIDC Provider 조회 |
 | CI Role ARN | GitHub Secret `AWS_ROLE_ARN` (계정 ID를 레포에 남기지 않음) |
+| 예산 알림 이메일 | 레포에 남기지 않음. 로컬 `bootstrap/terraform.tfvars`, CI는 Secret `HOST_EMAIL` |
 
 ---
 

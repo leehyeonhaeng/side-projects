@@ -36,4 +36,7 @@ jobs:
         run: terraform init -input=false
 
       - name: Terraform plan
+        env:
+          # 예산 알림 주소 = Host 이메일 (같은 Secret 사용)
+          TF_VAR_budget_notification_email: ${{ secrets.HOST_EMAIL }}
         run: terraform plan -input=false -lock=false -detailed-exitcode

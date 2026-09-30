@@ -1,3 +1,5 @@
+import { fetchAuthSession } from "aws-amplify/auth";
+
 const baseUrl = import.meta.env.VITE_API_BASE_URL;
 
 export class ApiError extends Error {
@@ -9,14 +11,42 @@ export class ApiError extends Error {
   }
 }
 
-/** 모든 API 호출의 단일 진입점. 인증 헤더는 Phase 2에서 여기에 붙인다. */
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+type Options = {
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  body?: unknown;
+  auth?: boolean;
+};
+
+async function authHeader(): Promise<Record<string, string>> {
+  // 만료된 access token은 Amplify가 refresh token으로 자동 갱신한다
+  const session = await fetchAuthSession();
+  const token = session.tokens?.accessToken?.toString();
+  return token ? { authorization: `Bearer ${token}` } : {};
+}
+
+/** 모든 API 호출의 단일 진입점 */
+export async function apiFetch<T>(path: string, { method = "GET", body, auth = true }: Options = {}): Promise<T> {
   const res = await fetch(`${baseUrl}/api/v1${path}`, {
-    ...init,
-    headers: { "content-type": "application/json", ...init?.headers },
+    method,
+    headers: { "content-type": "application/json", ...(auth ? await authHeader() : {}) },
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) {
-    throw new ApiError(res.status, `${res.status} ${res.statusText}`);
+    let message = `${res.status} ${res.statusText}`;
+    try {
+      const data = (await res.json()) as { message?: string };
+      message = data.message ?? message;
+    } catch {
+      // 본문이 JSON이 아니면 상태 코드만 쓴다
+    }
+    throw new ApiError(res.status, message);
   }
   return (await res.json()) as T;
 }
+
+export const api = {
+  get: <T>(path: string) => apiFetch<T>(path),
+  post: <T>(path: string, body?: unknown) => apiFetch<T>(path, { method: "POST", body }),
+  put: <T>(path: string, body?: unknown) => apiFetch<T>(path, { method: "PUT", body }),
+  del: <T>(path: string) => apiFetch<T>(path, { method: "DELETE" }),
+};

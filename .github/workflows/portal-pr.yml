@@ -60,6 +60,8 @@ jobs:
         run: terraform fmt -check -recursive
 
       - name: Terraform plan
+        env:
+          TF_VAR_host_email: ${{ secrets.HOST_EMAIL }}
         run: |
           terraform init -input=false
           terraform plan -input=false -lock=false

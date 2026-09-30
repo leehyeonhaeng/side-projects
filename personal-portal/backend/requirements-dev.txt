@@ -1,3 +1,6 @@
-# 런타임의 Powertools는 Lambda 레이어로 제공된다 (infra/envs/*/variables.tf)
+# 런타임의 Powertools·pydantic은 Lambda 레이어, boto3는 Lambda 런타임이 제공한다 (infra/envs/*/variables.tf)
 aws-lambda-powertools==3.*
+pydantic==2.*
+boto3
+moto[dynamodb,cognitoidp,sns]==5.*
 pytest==8.*

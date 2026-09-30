@@ -1,13 +1,14 @@
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.event_handler import APIGatewayHttpResolver
 
-API_PREFIX = "/api/v1"
+from common.access import API_PREFIX, access_control
 
 
 def create_app(service: str) -> tuple[APIGatewayHttpResolver, Logger]:
     """도메인 Lambda 공통 골격. 라우트 경로는 /api/v1 을 뺀 나머지로 등록한다."""
     logger = Logger(service=service)
     app = APIGatewayHttpResolver(strip_prefixes=[API_PREFIX])
+    app.use(middlewares=[access_control])
 
     @app.get("/health")
     def health() -> dict[str, str]:

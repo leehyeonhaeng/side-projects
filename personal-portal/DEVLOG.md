@@ -146,5 +146,66 @@
 - 해결: 콘솔 리전을 아시아 태평양(서울) ap-northeast-2로 변경
 
 ### 다음 할 일
-- Phase 2: 가입·이메일 인증·승인 대기(auth-trigger), 관리자 화면, 권한 미들웨어
+- Phase 2 진행 (아래 Day 4)
 - `ubuntu-latest`가 2026-10-19부터 Ubuntu 26으로 바뀜 → 이후 첫 실행 결과만 확인
+
+## Day 4 — 2026-09-30 (수)
+
+Phase 2 (인증·계정). 사용자가 자리 비운 동안 진행 — 사전에 결정 4개 확인받고, dev apply는 "계정 확인 + 삭제·교체 0개"일 때만 하도록 조건부 선승인받음.
+
+### 한 일
+- **백엔드**
+  - `common/access.py`: 공통 권한 미들웨어(Powertools 전역 미들웨어). JWT claim → PROFILE status active → 경로 기반 모듈 PERM. Host는 모듈 권한 검사 생략
+  - `common/perms.py`: 모듈·권한·상태 정의, 경로 첫 세그먼트 → 모듈 매핑, 기본 프리셋(가족·팀)
+  - `common/users.py`, `common/audit.py`: PROFILE·PERM·활동 로그 저장소 (DESIGN 7장 키 패턴)
+  - `handlers/auth_trigger.py`: Post Confirmation(비활성화 + pending + SNS 알림, HOST_EMAIL이면 자동 Host), Post Authentication(로그인 기록)
+  - `handlers/admin.py`: 승인·거절·정지·재활성·삭제·비밀번호 초기화, 권한 매트릭스, 프리셋 CRUD, 활동 로그. host 그룹 + TOTP 등록 확인
+  - `handlers/personal.py`: `GET /me`
+  - 테스트 37개 (moto로 DynamoDB·Cognito·SNS 모킹) 전부 통과
+- **인프라** (dev apply: 추가 12, 변경 5, 삭제 0)
+  - `portal-dev-auth-trigger` Lambda + Cognito 트리거 연결, SNS `portal-dev-signup` + Host 이메일 구독
+  - 도메인 Lambda 4개에 DynamoDB 권한, admin에만 Cognito 관리 권한 + `USER_POOL_ID`
+  - `host_email` 변수 (로컬 `terraform.tfvars`, CI는 Secret `HOST_EMAIL` → `TF_VAR_host_email`)
+- **프론트**
+  - Amplify Auth 연동, shadcn/ui(base-nova) 도입, 다크모드는 `.dark` 클래스 + 시스템 설정 추종
+  - 화면: 로그인(TOTP 코드 단계 포함), 가입 신청, 이메일 인증, 비밀번호 찾기, Host OTP 등록(QR), 홈(권한 있는 모듈만 표시), 관리자(승인 대기·계정·권한 매트릭스·프리셋·활동 로그)
+  - 라우트 가드: 로그인 → 활성 계정 → Host면 TOTP 등록 강제
+  - dev에 로컬 배포, 배포된 Lambda 5개 no-op 호출로 import·권한 정상 확인
+- CI: deploy/PR 워크플로우에 `HOST_EMAIL` Secret, Cognito ID 빌드 변수 연결
+
+### 결정 메모
+- 첫 Host 계정: 지정 이메일(`host_email`)로 가입하면 자동 Host. 이메일은 레포에 남기지 않음
+- 거절·삭제는 완전 삭제 (활동 로그에만 기록)
+- 활동 로그 범위: 로그인 + 계정·권한 변경(승인·거절·정지·재활성·삭제·비밀번호 초기화·권한 변경). 프리셋 변경은 기록 안 함
+- 정지 해제(재활성) 기능 추가 (DESIGN에 없었음)
+- 관리자 API는 Host + TOTP 등록 여부까지 서버에서 확인 (앱 강제만으로는 우회 가능)
+- 모듈 권한은 경로 첫 세그먼트로 판단 → 미구현 라우트도 403이 먼저 나옴 (권한 차단 확인 가능)
+- auth-trigger는 풀이 ARN을 참조하므로 별도 모듈 호출로 분리하고, 풀 ID는 이벤트에서 받음 (순환 의존 방지)
+- Lambda 모듈 `policy_json`을 필수로 변경 (plan 시점 미확정 값으로 `count` 계산이 막히는 문제 회피)
+- Select는 네이티브 `<select>` 사용 (권한 매트릭스처럼 칸이 많고 모바일 OS 선택창이 편함)
+
+### 트러블슈팅
+**1. dev Cognito 풀이 이메일 대소문자를 구분함**
+- 원인: Phase 1에서 `username_configuration`을 지정하지 않아 API 기본값(대소문자 구분)으로 생성됨. 바꾸려면 풀 교체 필요
+- 대응: 사용자 승인 후 `username_configuration { case_sensitive = false }` 추가 → 풀 교체 (풀·클라이언트·host 그룹·트리거 권한 교체 4, 인증기·admin 환경변수·정책 변경 4). 교체 전 풀·테이블이 비어 있는 것 확인, 새 풀 ID로 프론트 재배포
+- 주의: 풀 교체는 사용자·그룹 데이터가 모두 사라진다. 이후 스키마·사용자 이름 설정 변경은 사용자 이전 계획 없이 하지 않는다
+
+**2. shadcn init 결과물의 `cn` import**
+- `src/lib/utils.ts`가 `cn` npm 패키지(shadcn 공식)를 쓰도록 생성됨 → 일반적인 `clsx` + `tailwind-merge`로 교체, `sonner`(next-themes 의존)는 제거
+
+**3. heredoc 안의 Python 테스트 코드로 bash 파싱 실패**
+- 파일 쓰기 도구로 대체
+
+**4. 예산 알림 이메일을 개인 메일로 변경**
+- `budget_notification_email` 기본값(회사 메일)을 제거하고 로컬 `bootstrap/terraform.tfvars` / CI Secret `HOST_EMAIL`로 주입 (`portal-oidc-check.yml`)
+- 주의: 이전 회사 메일 주소는 git 히스토리에는 남아 있음
+
+**5. PowerShell로 README를 수정했다가 한글 깨짐**
+- 원인: Windows PowerShell 5.1의 `Get-Content`가 BOM 없는 UTF-8을 시스템 코드페이지(cp949)로 읽고, `Set-Content -Encoding utf8`이 BOM을 붙여 저장
+- 해결: 마지막 커밋 버전으로 복구 후 변경분 재적용
+- 주의: 문서·코드 파일 수정은 PowerShell `Get-Content`/`Set-Content`로 하지 않는다 (Node/편집 도구 사용)
+
+### 다음 할 일 (사용자)
+- AWS에서 온 SNS 구독 확인 메일(`lhh…@gmail.com`)에서 **Confirm subscription** 클릭
+- GitHub Secret `HOST_EMAIL` 등록 → 커밋·push → CI 배포 확인
+- Phase 2 완료 기준 확인: Host 가입 → OTP 등록 → 두 번째 계정 가입 → 승인 → 로그인 → 권한 없는 모듈 차단
