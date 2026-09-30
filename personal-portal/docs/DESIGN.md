@@ -130,6 +130,9 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | 토큰 | Access/ID 1시간(백그라운드 자동 갱신), Refresh 30일 |
 | 재로그인 | 로그인 시점부터 30일 후 1회 재로그인 (재가입 아님) |
 | 비밀번호 찾기 | Cognito 기본 기능 (이메일 코드) |
+| 비밀번호 규칙 | 8자 이상, 소문자·숫자·특수문자 필수 (대문자 선택) |
+| 사용자 속성 | 필수 `email`, `name` / 선택 `custom:signup_note`(가입 메모, 200자). 생성 후 변경 불가 |
+| 요금제·메일 | Cognito Lite, 인증 메일은 Cognito 기본 발송(하루 50통) |
 
 **가입 처리 흐름**
 
@@ -457,6 +460,22 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 - 기간 조회는 쿼리 파라미터: `GET /meals?from=2026-09-01&to=2026-09-30`
 - 관리자: `/api/v1/admin/*`
 - AI: `POST /api/v1/ai/estimate-calories`
+
+**Lambda 매핑** (API Gateway에서 가장 구체적인 경로가 우선)
+
+| 경로 | Lambda | 인증 |
+|---|---|---|
+| `GET /api/v1/health` | personal | 없음 |
+| `/api/v1/admin/{proxy+}` | admin | JWT |
+| `/api/v1/ai/{proxy+}` | ai | JWT |
+| `/api/v1/boards`, `/api/v1/boards/{proxy+}`, `/api/v1/checklists`, `/api/v1/checklists/{proxy+}` | shared | JWT |
+| `/api/v1/{proxy+}` (나머지) | personal | JWT |
+
+- 메서드(GET/POST/PUT/PATCH/DELETE)는 명시해서 등록한다. `ANY` + JWT 조합은 CORS preflight(OPTIONS)까지 인증을 요구하기 때문
+- 프론트는 API Gateway 주소를 CORS로 직접 호출한다 (허용 origin: CloudFront 주소, 로컬 개발 주소)
+- 전역 스로틀: 초당 20건, 버스트 50
+
+**Lambda 공통**: Python 3.12, arm64, 백엔드 전체를 zip 1개로 묶고 함수별로 handler만 다르게 지정. Powertools는 AWS 공개 레이어(버전 고정)
 
 세부 엔드포인트 목록은 각 모듈 구현 단계에서 확정한다.
 

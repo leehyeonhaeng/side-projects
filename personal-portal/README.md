@@ -7,7 +7,8 @@
 ## 상태
 
 - 2026-09-28: 설계 확정
-- 2026-09-30: Phase 0 완료 (상태 버킷, GitHub OIDC Role, Budgets 알림, CI 검증 워크플로우) → Phase 1 대기
+- 2026-09-30: Phase 0 완료 (상태 버킷, GitHub OIDC Role, Budgets 알림, CI 검증 워크플로우)
+- 2026-09-30: Phase 1 완료 (dev: DynamoDB, Cognito, API Gateway, Lambda 4개, S3 + CloudFront, 빈 React 앱 배포) → Phase 2 대기
 
 ## 모듈
 
@@ -50,17 +51,46 @@ GitHub Actions (OIDC) ── Terraform / 배포
 
 ```
 side-projects/
-├─ .github/workflows/     portal-*.yml (Phase 0~1에서 생성, 레포 최상단에만 둠)
+├─ .github/workflows/
+│  ├─ portal-oidc-check.yml   bootstrap plan 검증 (OIDC 접근 확인)
+│  ├─ portal-pr.yml           PR: 테스트 + dev plan
+│  └─ portal-deploy.yml       main push: 테스트 → dev apply → 프론트 빌드·업로드 → CloudFront 무효화
 └─ personal-portal/
-   ├─ docs/DESIGN.md      설계 문서 (전체 결정 사항, ADR, 데이터 모델, 로드맵)
-   ├─ frontend/           (Phase 1에서 생성)
-   ├─ backend/            (Phase 1에서 생성)
-   ├─ infra/              (Phase 0~1에서 생성)
+   ├─ docs/DESIGN.md          설계 문서 (전체 결정 사항, ADR, 데이터 모델, 로드맵)
+   ├─ frontend/               React + TS + Vite + Tailwind
+   │  └─ src/
+   │     ├─ api/              API 호출 단일 진입점 (client.ts)
+   │     └─ modules/<module>/ 화면
+   ├─ backend/                Python Lambda (한 패키지를 4개 함수가 공유)
+   │  ├─ handlers/            personal, shared, admin, ai
+   │  ├─ common/              공통 앱 골격 (Powertools resolver)
+   │  └─ tests/
+   ├─ infra/
+   │  ├─ bootstrap/           상태 버킷, OIDC, CI Role, Budgets (로컬에서만 apply)
+   │  ├─ modules/             dynamodb, cognito, lambda, api, hosting
+   │  └─ envs/dev/            dev 조합 (prod는 Phase 9)
    ├─ README.md
    └─ DEVLOG.md
 ```
 
-GitHub Actions는 레포 최상단 `.github/workflows/`만 인식하므로 워크플로우는 `personal-portal/` 안에 두지 않는다. `paths: personal-portal/**` 필터로 이 프로젝트 변경 시에만 실행한다.
+GitHub Actions는 레포 최상단 `.github/workflows/`만 인식하므로 워크플로우는 `personal-portal/` 안에 두지 않는다. `paths` 필터로 이 프로젝트 변경 시에만 실행한다.
+
+## 개발·배포
+
+로컬 AWS 명령은 반드시 개인 계정 프로파일로 실행한다 (`default`는 회사 계정).
+
+```powershell
+$env:AWS_PROFILE = "personal-portal"
+aws sts get-caller-identity          # 계정 확인 후 진행
+```
+
+| 작업 | 방법 |
+|---|---|
+| 백엔드 테스트 | `cd backend` → `python -m venv .venv` → `.venvScriptspip install -r requirements-dev.txt` → `.venvScriptspytest` |
+| 프론트 로컬 실행 | `frontend/.env.example`을 `.env.development.local`로 복사해 `VITE_API_BASE_URL`에 `terraform output api_endpoint` 값 입력 → `npm install` → `npm run dev` |
+| dev 배포 | main에 push하면 `portal-deploy.yml`이 자동 배포 |
+| dev 주소 | `infra/envs/dev`에서 `terraform output web_url` / `api_endpoint` |
+| bootstrap 변경 | 로컬에서 `terraform -chdir=infra/bootstrap plan` → 승인 → `apply` |
 
 ## 주요 설계 결정
 

@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+/* 다크모드: 지금은 시스템 설정을 따른다. 수동 토글은 Phase 3에서 class 방식으로 전환 */
+
+@layer base {
+  body {
+    @apply bg-zinc-50 text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
+  }
+}

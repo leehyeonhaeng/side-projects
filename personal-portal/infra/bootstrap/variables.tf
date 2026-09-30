@@ -15,9 +15,9 @@ variable "github_repo" {
 }
 
 variable "budget_limit_amount" {
-  description = "월 예산 한도. 계정 청구 통화(Billing preferences)에 맞춰 조정 필요"
+  description = "월 예산 한도(USD). 청구 통화는 KRW지만 Budgets는 USD 기준, 약 1만 원"
   type        = string
-  default     = "10"
+  default     = "7"
 }
 
 variable "budget_limit_unit" {

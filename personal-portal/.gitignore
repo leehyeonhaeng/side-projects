@@ -1,5 +1,8 @@
 # Terraform
 **/.terraform/
+**/.build/
+tfplan
+*.tfplan
 *.tfstate
 *.tfstate.*
 *.tfvars
@@ -17,9 +20,11 @@ dist/
 
 # Python
 __pycache__/
+.pytest_cache/
 *.pyc
 .venv/
 
 # Env
 .env
 .env.*
+!.env.example

@@ -1,0 +1,3 @@
+# 런타임의 Powertools는 Lambda 레이어로 제공된다 (infra/envs/*/variables.tf)
+aws-lambda-powertools==3.*
+pytest==8.*

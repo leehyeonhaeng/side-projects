@@ -103,10 +103,26 @@
 - CI Role 인라인 정책에 `iam:GetOpenIDConnectProvider` 추가 후 워크플로우 통과 → **Phase 0 완료**
 - `DESIGN.md` 9.3(bootstrap) 신설, 9장 폴더 구조에 `bootstrap/` 반영
 
+**Phase 1 (인프라 기반)**
+- bootstrap 수정: Budgets 한도 $7(약 1만 원, 청구 통화 KRW지만 Budgets는 USD 기준), CI Role IAM 관리 대상을 `portal-dev-*`, `portal-prod-*`로 축소 + 자기 역할은 읽기만
+- Terraform 모듈 5개(`dynamodb`, `cognito`, `lambda`, `api`, `hosting`) + `envs/dev` 조합, 로컬 apply로 75개 리소스 생성
+- 백엔드 골격: `common/app.py`(Powertools resolver, `/health`) + 핸들러 4개, pytest 5개
+- 프론트 골격: Vite + React 19 + TS strict + Tailwind v4 + React Router + TanStack Query, `src/api/client.ts`, 홈에서 API 상태 표시
+- 프론트 첫 배포(로컬: 빌드 → S3 → CloudFront 무효화) → 브라우저에서 "ok · personal" 확인 → **Phase 1 완료 기준 충족**
+- CI 워크플로우 `portal-deploy.yml`(main push → dev 배포), `portal-pr.yml`(PR → 테스트 + plan) 추가
+
 ### 결정 메모
 - bootstrap은 로컬에서만 apply하고, CI는 plan으로 접근·drift 검증만 한다
 - 워크플로우에 `mask-aws-account-id: true` 설정 (공개 레포라 Actions 로그에 계정 ID 노출 방지)
 - OIDC Provider는 CI에 조회 권한만 준다 (자기 신뢰 설정 수정 방지)
+- Cognito: Lite 요금제, 필수 속성 `email`·`name`, 선택 `custom:signup_note`(가입 메모). **스키마 속성은 생성 후 변경 불가**
+- 비밀번호 규칙: 8자 이상 + 소문자·숫자·특수문자 필수 (대문자 선택)
+- 인증 메일은 `COGNITO_DEFAULT` (하루 50통 제한, 소규모라 충분)
+- Lambda: Python 3.12, arm64, 백엔드 전체를 zip 1개로 묶어 4개 함수가 공유 (handler만 다름). Powertools는 AWS 공개 레이어(v38 고정)
+- API 라우트: `GET /api/v1/health`만 인증 없음. ANY 대신 메서드를 명시 (ANY + JWT면 CORS preflight도 인증을 요구함)
+- 프론트 → API는 CORS로 직접 호출 (DESIGN 2장 구조 유지). 허용 origin: CloudFront 주소 + `http://localhost:5173`
+- API 스로틀 초당 20건 / 버스트 50 (비용 보호)
+- `backend/**`는 `.gitattributes`로 LF 고정 (Windows/CI 간 Lambda 패키지 해시 차이 방지)
 
 ### 트러블슈팅
 **1. CI `terraform plan`에서 403 AccessDenied (`iam:GetOpenIDConnectProvider`)**
@@ -117,8 +133,16 @@
 **2. GitHub API로 실행 결과 폴링 시 rate limit 초과**
 - 비인증 API는 IP당 시간당 60회 제한. `gh` CLI 미설치 → Actions 결과는 웹 화면에서 직접 확인
 
+**3. 이 세션의 PowerShell에서 `python`이 PATH에 없음**
+- Terraform과 같은 원인(세션 PATH 미갱신). `%LOCALAPPDATA%ProgramsPythonPython312python.exe` 전체 경로로 실행
+
+**4. `.gitignore`의 `.env.*`가 `.env.example`까지 제외**
+- `!.env.example` 예외 추가
+
+**5. 콘솔에서 Lambda·DynamoDB가 안 보인다는 문의**
+- CLI로 개인 계정 서울 리전에 모두 생성된 것 확인. 콘솔 리전(ap-northeast-2)·계정 ID 확인 필요
+
 ### 다음 할 일
-- Phase 1: DynamoDB, Cognito, API Gateway, Lambda 골격, S3 + CloudFront (`infra/modules/`, `infra/envs/dev`)
-- Phase 1에서 Lambda 역할 이름을 `portal-<env>-*`로 정하고 CI Role의 IAM 대상 범위를 `role/portal-dev-*`, `role/portal-prod-*`로 좁히기 (현재는 CI Role이 자기 자신에 정책을 붙일 수 있음)
-- Budgets 청구 통화(USD/KRW) 확인, 필요 시 한도 조정
+- CI 배포(`portal-deploy.yml`) 첫 실행 결과 확인
+- Phase 2: 가입·이메일 인증·승인 대기(auth-trigger), 관리자 화면, 권한 미들웨어
 - 워크플로우 경고 대응: Node.js 20 액션 deprecated, `ubuntu-latest` → Ubuntu 26 전환(2026-10-19)

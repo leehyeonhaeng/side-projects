@@ -1,0 +1,2 @@
+# Lambda 패키지 해시가 OS(CRLF/LF)에 따라 달라지지 않게 고정
+backend/** text eol=lf

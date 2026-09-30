@@ -1,0 +1,65 @@
+name: portal-pr
+
+# PR 검증: 테스트 + dev terraform plan (apply 안 함)
+on:
+  pull_request:
+    paths:
+      - "personal-portal/**"
+      - ".github/workflows/portal-*.yml"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Backend tests
+        working-directory: personal-portal/backend
+        run: |
+          pip install -r requirements-dev.txt
+          pytest -q
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: personal-portal/frontend/package-lock.json
+
+      - name: Frontend typecheck
+        working-directory: personal-portal/frontend
+        run: |
+          npm ci
+          npx tsc
+
+  plan:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: personal-portal/infra/envs/dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-northeast-2
+          mask-aws-account-id: true
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform fmt
+        working-directory: personal-portal/infra
+        run: terraform fmt -check -recursive
+
+      - name: Terraform plan
+        run: |
+          terraform init -input=false
+          terraform plan -input=false -lock=false

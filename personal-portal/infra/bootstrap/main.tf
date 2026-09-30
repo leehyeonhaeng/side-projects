@@ -108,15 +108,19 @@ resource "aws_iam_role_policy_attachment" "power_user" {
   policy_arn = "arn:aws:iam::aws:policy/PowerUserAccess"
 }
 
-# PowerUserAccess는 IAM 관리 권한을 제외하므로, Lambda 실행 역할(portal-*)을
-# 만들고 관리할 수 있게 scoped 권한을 추가로 부여한다.
+# PowerUserAccess는 IAM 관리 권한을 제외하므로 필요한 IAM 권한을 따로 준다.
+# 관리 대상은 env 리소스(portal-dev-*, portal-prod-*)로 한정해서
+# CI Role이 자기 자신(portal-github-actions-role)의 권한을 올리지 못하게 한다.
 data "aws_iam_policy_document" "iam_scoped" {
   statement {
+    sid    = "ManageEnvIam"
     effect = "Allow"
     actions = [
       "iam:CreateRole",
       "iam:DeleteRole",
       "iam:GetRole",
+      "iam:UpdateRole",
+      "iam:UpdateAssumeRolePolicy",
       "iam:PutRolePolicy",
       "iam:DeleteRolePolicy",
       "iam:GetRolePolicy",
@@ -124,8 +128,10 @@ data "aws_iam_policy_document" "iam_scoped" {
       "iam:DetachRolePolicy",
       "iam:ListRolePolicies",
       "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
       "iam:TagRole",
       "iam:UntagRole",
+      "iam:ListRoleTags",
       "iam:PassRole",
       "iam:CreatePolicy",
       "iam:DeletePolicy",
@@ -134,15 +140,34 @@ data "aws_iam_policy_document" "iam_scoped" {
       "iam:ListPolicyVersions",
       "iam:CreatePolicyVersion",
       "iam:DeletePolicyVersion",
+      "iam:TagPolicy",
+      "iam:UntagPolicy",
+      "iam:ListPolicyTags",
     ]
     resources = [
-      "arn:aws:iam::*:role/portal-*",
-      "arn:aws:iam::*:policy/portal-*",
+      "arn:aws:iam::*:role/portal-dev-*",
+      "arn:aws:iam::*:role/portal-prod-*",
+      "arn:aws:iam::*:policy/portal-dev-*",
+      "arn:aws:iam::*:policy/portal-prod-*",
     ]
+  }
+
+  # bootstrap plan 시 자기 역할 상태 조회용 (읽기만)
+  statement {
+    sid    = "ReadSelf"
+    effect = "Allow"
+    actions = [
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:ListRolePolicies",
+      "iam:ListAttachedRolePolicies",
+    ]
+    resources = ["arn:aws:iam::*:role/portal-github-actions-role"]
   }
 
   # plan 시 OIDC Provider 상태 조회용. 수정 권한은 주지 않는다.
   statement {
+    sid       = "ReadOidcProvider"
     effect    = "Allow"
     actions   = ["iam:GetOpenIDConnectProvider"]
     resources = [aws_iam_openid_connect_provider.github.arn]
