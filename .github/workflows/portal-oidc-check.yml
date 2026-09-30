@@ -19,9 +19,9 @@ jobs:
       run:
         working-directory: personal-portal/infra/bootstrap
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ap-northeast-2
@@ -30,7 +30,7 @@ jobs:
       - name: Caller identity
         run: aws sts get-caller-identity --query Arn --output text
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
 
       - name: Terraform init
         run: terraform init -input=false

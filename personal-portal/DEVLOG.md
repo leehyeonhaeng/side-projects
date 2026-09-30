@@ -110,6 +110,8 @@
 - 프론트 골격: Vite + React 19 + TS strict + Tailwind v4 + React Router + TanStack Query, `src/api/client.ts`, 홈에서 API 상태 표시
 - 프론트 첫 배포(로컬: 빌드 → S3 → CloudFront 무효화) → 브라우저에서 "ok · personal" 확인 → **Phase 1 완료 기준 충족**
 - CI 워크플로우 `portal-deploy.yml`(main push → dev 배포), `portal-pr.yml`(PR → 테스트 + plan) 추가
+- CI 첫 배포(`portal-deploy`) 통과, 배포 후 사이트 정상 확인 → **Phase 1 완료**
+- 워크플로우 액션을 Node 24 버전으로 올림: checkout v7, setup-node v7, setup-python v7, configure-aws-credentials v6, setup-terraform v4 (사용 중인 입력값이 새 버전에도 있는지 확인)
 
 ### 결정 메모
 - bootstrap은 로컬에서만 apply하고, CI는 plan으로 접근·drift 검증만 한다
@@ -140,9 +142,9 @@
 - `!.env.example` 예외 추가
 
 **5. 콘솔에서 Lambda·DynamoDB가 안 보인다는 문의**
-- CLI로 개인 계정 서울 리전에 모두 생성된 것 확인. 콘솔 리전(ap-northeast-2)·계정 ID 확인 필요
+- 원인: 콘솔 리전이 서울이 아니었음. S3는 리전과 무관하게 버킷을 보여주지만 Lambda·DynamoDB는 선택한 리전 것만 보임
+- 해결: 콘솔 리전을 아시아 태평양(서울) ap-northeast-2로 변경
 
 ### 다음 할 일
-- CI 배포(`portal-deploy.yml`) 첫 실행 결과 확인
 - Phase 2: 가입·이메일 인증·승인 대기(auth-trigger), 관리자 화면, 권한 미들웨어
-- 워크플로우 경고 대응: Node.js 20 액션 deprecated, `ubuntu-latest` → Ubuntu 26 전환(2026-10-19)
+- `ubuntu-latest`가 2026-10-19부터 Ubuntu 26으로 바뀜 → 이후 첫 실행 결과만 확인
