@@ -28,7 +28,7 @@ side-projects/
    ├─ docs/DESIGN.md
    ├─ frontend/     React + TS + Vite (src/modules/<module>/)
    ├─ backend/      Python Lambda (handlers/, common/, tests/)
-   ├─ infra/        Terraform (modules/, envs/dev, envs/prod)
+   ├─ infra/        Terraform (bootstrap/, modules/, envs/dev, envs/prod)
    ├─ README.md
    └─ DEVLOG.md
 ```
@@ -57,6 +57,8 @@ side-projects/
 - 변경 전 `terraform fmt`, `terraform validate` 통과
 
 ## 인프라 작업 규칙
+- **AWS 계정 확인 필수**: 이 컴퓨터의 `default` 프로파일은 회사 계정이다. 이 프로젝트의 모든 AWS CLI·Terraform 명령은 `$env:AWS_PROFILE = "personal-portal"`(또는 `--profile personal-portal`)을 지정해서만 실행하고, 리소스를 만들거나 바꾸는 명령 전에는 `aws sts get-caller-identity`로 계정을 확인해 사용자에게 보여준다
+- `default` 프로파일은 절대 사용하지 않는다
 - `terraform plan` 결과를 요약해서 보여주고 **승인 후에만** `apply`한다
 - `prod` 환경 apply는 사용자가 명시적으로 요청할 때만 한다
 - `destroy`, 리소스 삭제, state 수동 수정(`terraform state rm` 등)은 반드시 사전 확인

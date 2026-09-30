@@ -1,0 +1,39 @@
+name: portal-oidc-check
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "personal-portal/infra/bootstrap/**"
+      - ".github/workflows/portal-oidc-check.yml"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: personal-portal/infra/bootstrap
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-northeast-2
+          mask-aws-account-id: true
+
+      - name: Caller identity
+        run: aws sts get-caller-identity --query Arn --output text
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform plan
+        run: terraform plan -input=false -lock=false -detailed-exitcode
