@@ -21,7 +21,11 @@ async function authHeader(): Promise<Record<string, string>> {
   // 만료된 access token은 Amplify가 refresh token으로 자동 갱신한다
   const session = await fetchAuthSession();
   const token = session.tokens?.accessToken?.toString();
-  return token ? { authorization: `Bearer ${token}` } : {};
+  if (!token) {
+    // 토큰 없이 요청하지 않는다 → 401로 처리해서 로그인 화면으로 보낸다 (main.tsx)
+    throw new ApiError(401, "로그인이 만료되었습니다. 다시 로그인하세요.");
+  }
+  return { authorization: `Bearer ${token}` };
 }
 
 /** 모든 API 호출의 단일 진입점 */

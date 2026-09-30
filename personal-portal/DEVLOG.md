@@ -205,6 +205,11 @@ Phase 2 (인증·계정). 사용자가 자리 비운 동안 진행 — 사전에
 - 해결: 마지막 커밋 버전으로 복구 후 변경분 재적용
 - 주의: 문서·코드 파일 수정은 PowerShell `Get-Content`/`Set-Content`로 하지 않는다 (Node/편집 도구 사용)
 
+**6. Host 로그인 후 관리자 화면에 "Unauthorized"**
+- 확인: API Gateway 접근 로그상 가입·로그인·OTP 등록·관리자 API(200)까지 정상이었고, 약 2분 뒤부터 모든 요청이 `missing: token not provided`(401) → 브라우저의 Amplify 토큰이 사라진 상태. 서버 쪽 문제 아님
+- 원인: 미확정 (다른 탭 로그아웃 / 토큰 갱신 실패 등 후보). 재현 시 브라우저 콘솔 확인 예정
+- 조치: 토큰이 없으면 요청을 보내지 않고 401로 처리, 401을 받으면 로컬 로그아웃 후 로그인 화면으로 이동. 4xx는 재시도하지 않음
+
 ### 다음 할 일 (사용자)
 - AWS에서 온 SNS 구독 확인 메일(`lhh…@gmail.com`)에서 **Confirm subscription** 클릭
 - GitHub Secret `HOST_EMAIL` 등록 → 커밋·push → CI 배포 확인
