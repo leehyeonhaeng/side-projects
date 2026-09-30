@@ -94,3 +94,31 @@
 - GitHub Actions 워크플로우(`portal-*.yml`) 작성 + 레포 Secret에 Role ARN 등록 + 실제 OIDC 접근 검증 → Phase 0 완료 기준 ② 충족
 - Budgets 한도 통화(USD/KRW) 확인 후 필요시 조정
 - Phase 0 완료되면 `README.md`, `personal-portal/CLAUDE.md` 진행 단계를 Phase 1로 갱신
+## Day 3 — 2026-09-30 (수)
+
+### 한 일
+- `personal-portal/CLAUDE.md`에 AWS 계정 확인 규칙 추가 (`AWS_PROFILE=personal-portal` 필수, `default` 사용 금지, 변경 전 `get-caller-identity` 확인)
+- GitHub Actions 검증 워크플로우 `.github/workflows/portal-oidc-check.yml` 추가: OIDC로 Role assume → caller identity → `terraform init` → `terraform plan -detailed-exitcode`
+- GitHub Secret `AWS_ROLE_ARN` 등록 (Role ARN을 레포에 남기지 않기 위해)
+- CI Role 인라인 정책에 `iam:GetOpenIDConnectProvider` 추가 후 워크플로우 통과 → **Phase 0 완료**
+- `DESIGN.md` 9.3(bootstrap) 신설, 9장 폴더 구조에 `bootstrap/` 반영
+
+### 결정 메모
+- bootstrap은 로컬에서만 apply하고, CI는 plan으로 접근·drift 검증만 한다
+- 워크플로우에 `mask-aws-account-id: true` 설정 (공개 레포라 Actions 로그에 계정 ID 노출 방지)
+- OIDC Provider는 CI에 조회 권한만 준다 (자기 신뢰 설정 수정 방지)
+
+### 트러블슈팅
+**1. CI `terraform plan`에서 403 AccessDenied (`iam:GetOpenIDConnectProvider`)**
+- 원인: `PowerUserAccess`는 IAM을 제외하고, 기존 scoped 정책은 `role/portal-*`, `policy/portal-*`만 허용 → plan의 OIDC Provider 상태 조회 실패
+- 해결: 해당 Provider ARN 한정으로 `iam:GetOpenIDConnectProvider` 허용 추가 (로컬 apply) 후 Re-run
+- 참고: Role assume·init은 이미 통과해서 OIDC 인증 자체는 첫 실행부터 정상이었음
+
+**2. GitHub API로 실행 결과 폴링 시 rate limit 초과**
+- 비인증 API는 IP당 시간당 60회 제한. `gh` CLI 미설치 → Actions 결과는 웹 화면에서 직접 확인
+
+### 다음 할 일
+- Phase 1: DynamoDB, Cognito, API Gateway, Lambda 골격, S3 + CloudFront (`infra/modules/`, `infra/envs/dev`)
+- Phase 1에서 Lambda 역할 이름을 `portal-<env>-*`로 정하고 CI Role의 IAM 대상 범위를 `role/portal-dev-*`, `role/portal-prod-*`로 좁히기 (현재는 CI Role이 자기 자신에 정책을 붙일 수 있음)
+- Budgets 청구 통화(USD/KRW) 확인, 필요 시 한도 조정
+- 워크플로우 경고 대응: Node.js 20 액션 deprecated, `ubuntu-latest` → Ubuntu 26 전환(2026-10-19)

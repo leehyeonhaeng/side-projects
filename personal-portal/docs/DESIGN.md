@@ -487,6 +487,7 @@ side-projects/
    │  ├─ common/          권한 미들웨어, DynamoDB 헬퍼, 모델
    │  └─ tests/
    ├─ infra/              Terraform
+   │  ├─ bootstrap/       상태 버킷, GitHub OIDC, CI Role, Budgets (계정 공유, 로컬에서만 apply)
    │  ├─ modules/         cognito, api, lambda, dynamodb, hosting, monitoring
    │  └─ envs/            dev, prod
    ├─ README.md
@@ -512,6 +513,17 @@ side-projects/
 | 비용 보호 | AWS Budgets 월 1만 원 알림 |
 | 로그 | CloudWatch Logs 보관 14일 |
 | PWA 업데이트 | 배포 후 서비스워커가 새 버전 감지 → "새 버전 있음, 새로고침" 배너 |
+
+### 9.3 bootstrap (Phase 0)
+
+| 항목 | 결정 |
+|---|---|
+| 위치 | `infra/bootstrap/`. env 구분 없는 계정 공유 리소스만 둔다 |
+| 네이밍 | env가 없으므로 `portal-<resource>` (예: `portal-tfstate-lhhportal`, `portal-github-actions-role`, `portal-monthly-budget`) |
+| 상태 | 최초 로컬 state로 apply → 자신이 만든 버킷으로 이관 (key `bootstrap/terraform.tfstate`) |
+| apply 주체 | 로컬(`personal-portal` 프로파일)에서만. CI는 `portal-oidc-check.yml`로 plan 검증만 |
+| CI Role 권한 | `PowerUserAccess` + `portal-*` IAM 역할·정책 관리 + OIDC Provider 조회 |
+| CI Role ARN | GitHub Secret `AWS_ROLE_ARN` (계정 ID를 레포에 남기지 않음) |
 
 ---
 

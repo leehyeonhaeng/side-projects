@@ -6,7 +6,8 @@
 
 ## 상태
 
-- 2026-09-28: 설계 확정 (Day 1) → Phase 0 진행 중 (Day 2): bootstrap 리소스(상태 버킷·OIDC Role·Budgets) 생성 완료, GitHub Actions 검증 남음
+- 2026-09-28: 설계 확정
+- 2026-09-30: Phase 0 완료 (상태 버킷, GitHub OIDC Role, Budgets 알림, CI 검증 워크플로우) → Phase 1 대기
 
 ## 모듈
 

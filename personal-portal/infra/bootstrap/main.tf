@@ -140,6 +140,13 @@ data "aws_iam_policy_document" "iam_scoped" {
       "arn:aws:iam::*:policy/portal-*",
     ]
   }
+
+  # plan 시 OIDC Provider 상태 조회용. 수정 권한은 주지 않는다.
+  statement {
+    effect    = "Allow"
+    actions   = ["iam:GetOpenIDConnectProvider"]
+    resources = [aws_iam_openid_connect_provider.github.arn]
+  }
 }
 
 resource "aws_iam_role_policy" "iam_scoped" {
