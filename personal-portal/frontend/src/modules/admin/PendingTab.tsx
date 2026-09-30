@@ -25,7 +25,8 @@ export function PendingTab() {
 }
 
 function PendingCard({ user, presets }: { user: AdminUser; presets: { id: string; name: string }[] }) {
-  const [presetId, setPresetId] = useState(presets[0]?.id ?? "");
+  // 실수로 기본값 그대로 승인하지 않게, 프리셋은 반드시 직접 고른다
+  const [presetId, setPresetId] = useState("");
   const approve = useApprove();
   const reject = useReject();
 
@@ -41,6 +42,9 @@ function PendingCard({ user, presets }: { user: AdminUser; presets: { id: string
         {user.signupNote && <p className="rounded-md bg-muted p-2 text-sm">{user.signupNote}</p>}
         <div className="flex flex-wrap items-center gap-2">
           <NativeSelect aria-label="권한 프리셋" value={presetId} onChange={(e) => setPresetId(e.target.value)}>
+            <option value="" disabled>
+              프리셋 선택
+            </option>
             {presets.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}

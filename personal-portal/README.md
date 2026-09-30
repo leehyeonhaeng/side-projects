@@ -9,7 +9,7 @@
 - 2026-09-28: 설계 확정
 - 2026-09-30: Phase 0 완료 (상태 버킷, GitHub OIDC Role, Budgets 알림, CI 검증 워크플로우)
 - 2026-09-30: Phase 1 완료 (dev: DynamoDB, Cognito, API Gateway, Lambda 4개, S3 + CloudFront, 빈 React 앱 배포)
-- 2026-09-30: Phase 2 구현·dev 배포 완료, 가입→승인→로그인 실사용 검증 대기
+- 2026-09-30: Phase 2 완료 (가입·이메일 인증·승인 대기·관리자 화면·권한 미들웨어, Host OTP) → Phase 3 대기
 
 ## 모듈
 
