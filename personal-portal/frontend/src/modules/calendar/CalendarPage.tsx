@@ -55,7 +55,7 @@ export function CalendarPage() {
         extendedProps: { kind: "event", event: e },
       });
     }
-    for (const t of dueTodos.data ?? []) {
+    for (const t of dueTodos.data?.todos ?? []) {
       list.push({
         id: `todo-${t.id}`,
         title: `${t.done ? "✓" : "☐"} ${t.title}`,
@@ -63,6 +63,19 @@ export function CalendarPage() {
         start: t.dueTime ? `${t.due}T${t.dueTime}` : t.due,
         color: "transparent",
         contrastColor: "var(--muted-foreground)",
+        editable: false,
+        extendedProps: { kind: "todo" },
+      });
+    }
+    for (const p of dueTodos.data?.projected ?? []) {
+      list.push({
+        id: `todo-proj-${p.todoId}-${p.due}`,
+        title: `↻ ${p.title}`,
+        allDay: !p.dueTime,
+        start: p.dueTime ? `${p.due}T${p.dueTime}` : p.due,
+        color: "transparent",
+        contrastColor: "var(--muted-foreground)",
+        className: "portal-projected",
         editable: false,
         extendedProps: { kind: "todo" },
       });
@@ -151,7 +164,7 @@ export function CalendarPage() {
           }}
         />
       </div>
-      {canTodo && <p className="text-xs text-muted-foreground">☐·✓ 표시는 할 일 마감일입니다 (할 일 화면에서 수정).</p>}
+      {canTodo && <p className="text-xs text-muted-foreground">☐·✓는 할 일 마감일, ↻는 반복 할 일의 다음 회차 예정입니다 (완료하면 생기며, 할 일 화면에서 수정).</p>}
 
       {editing && (
         <EventEditor

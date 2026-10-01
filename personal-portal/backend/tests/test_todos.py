@@ -103,3 +103,24 @@ class TestTodos:
         users.set_perms("m1", {Module.TODO: Level.VIEW})
         assert call(ctx, "GET", "/todos")[0] == 200
         assert call(ctx, "POST", "/todos", {"title": "a"})[0] == 403
+
+
+def test_projected_occurrences() -> None:
+    from datetime import date
+
+    from domains.todos import projected_between
+
+    todos = [
+        {"id": "w", "title": "주간", "due": "2026-10-01", "done": False, "repeat": {"freq": "weekly", "weekdays": [3]}},  # 목 → 매주 수
+        {"id": "d", "title": "완료됨", "due": "2026-10-01", "done": True, "repeat": {"freq": "daily"}},
+        {"id": "n", "title": "반복 없음", "due": "2026-10-01", "done": False},
+        {"id": "old", "title": "밀린 매일", "due": "2026-09-20", "done": False, "repeat": {"freq": "daily"}},
+    ]
+    got = projected_between(todos, date(2026, 10, 1), date(2026, 10, 21), today=date(2026, 10, 19))
+    by_id: dict[str, list[str]] = {}
+    for p in got:
+        by_id.setdefault(p["todoId"], []).append(p["due"])
+    # 오늘(10/19) 이전 회차는 미리보기에서 뺀다
+    assert by_id["w"] == ["2026-10-21"]
+    assert by_id["old"] == ["2026-10-19", "2026-10-20", "2026-10-21"]
+    assert "d" not in by_id and "n" not in by_id

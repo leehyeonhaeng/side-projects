@@ -1,7 +1,7 @@
 """할 일 (DESIGN.md 6.2, 7장: USER#<sub> / TODO#<id>, TODOLIST#<id>, GSI1 USER#<sub>#DUE)."""
 
 import time
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from typing import Annotated, Any, Literal
 from uuid import uuid4
 
@@ -210,6 +210,34 @@ def update_todo(sub: str, todo_id: str, body: TodoFields) -> dict[str, Any]:
     return {"todo": view(current), "next": view(created_next) if created_next else None}
 
 
+KST = timezone(timedelta(hours=9))  # 한국은 서머타임이 없어 고정 오프셋으로 충분
+
+
+def kst_today() -> date:
+    return datetime.now(KST).date()
+
+
+def projected_between(todos: list[dict[str, Any]], frm: date, to: date, today: date) -> list[dict[str, Any]]:
+    """반복 할 일의 앞으로 회차 미리보기 (실제 항목은 완료해야 생긴다).
+
+    오늘 이전 날짜는 보여주지 않는다 (완료 기반이라 지난 회차는 존재하지 않음).
+    """
+    out: list[dict[str, Any]] = []
+    start = max(frm, today)
+    for t in todos:
+        repeat = t.get("repeat")
+        if t.get("done") or not repeat or not t.get("due"):
+            continue
+        d = date.fromisoformat(t["due"])
+        for _ in range(1000):  # 매일 반복이 오래 밀려 있어도 끝나도록 상한
+            d = next_todo_due(d, repeat["freq"], repeat.get("weekdays"), repeat.get("monthDay"))
+            if d > to:
+                break
+            if d >= start:
+                out.append({"todoId": t["id"], "title": t["title"], "due": d.isoformat(), "dueTime": t.get("dueTime"), "priority": t.get("priority", "normal")})
+    return sorted(out, key=lambda p: (p["due"], p.get("dueTime") or ""))
+
+
 # ── 라우트 ───────────────────────────────────────────
 
 @router.get("/todos")
@@ -235,7 +263,11 @@ def due_route() -> dict[str, Any]:
         raise BadRequestError("from, to must be YYYY-MM-DD") from exc
     if (to - frm).days > 62 or to < frm:
         raise BadRequestError("range must be 0~62 days")
-    return {"todos": [view(i) for i in todos_due_between(current_sub(router), frm, to)]}
+    sub = current_sub(router)
+    return {
+        "todos": [view(i) for i in todos_due_between(sub, frm, to)],
+        "projected": projected_between([to_plain(i) for i in list_todos(sub)], frm, to, kst_today()),
+    }
 
 
 @router.post("/todos")

@@ -267,3 +267,9 @@
   --fc-classic-background-event-opacity: 8%;
   font-size: 0.8125rem;
 }
+
+/* 반복 할 일 예정 회차: 아직 실제 항목이 아니라서 흐리게 */
+.portal-projected {
+  opacity: 0.55;
+  font-style: italic;
+}

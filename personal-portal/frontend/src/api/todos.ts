@@ -27,6 +27,9 @@ export type Todo = {
 
 export type TodoList = { id: string; name: string; order: number };
 
+/** 반복 할 일의 앞으로 회차 미리보기 (완료해야 실제로 생긴다, 서버가 계산) */
+export type ProjectedTodo = { todoId: string; title: string; due: string; dueTime?: string | null; priority: Priority };
+
 /** 생성·수정 입력. 수정에서 null은 그 필드를 비운다 */
 export type TodoInput = Partial<{
   title: string;
@@ -54,8 +57,7 @@ export function useTodos(status: "open" | "done") {
 export function useDueTodos(from: string, to: string, enabled: boolean) {
   return useQuery({
     queryKey: [...KEY, "due", from, to],
-    queryFn: () => api.get<{ todos: Todo[] }>(`/todos/due?from=${from}&to=${to}`),
-    select: (d) => d.todos,
+    queryFn: () => api.get<{ todos: Todo[]; projected: ProjectedTodo[] }>(`/todos/due?from=${from}&to=${to}`),
     enabled,
   });
 }

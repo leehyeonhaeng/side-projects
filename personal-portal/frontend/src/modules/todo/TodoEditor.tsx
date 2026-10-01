@@ -8,9 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ISO_WEEKDAYS, isoWeekdayOf, todayStr } from "@/lib/dates";
+import { ISO_WEEKDAYS, formatDay, isoWeekdayOf, todayStr } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { newId } from "@/modules/home/layoutModel";
+import { nextTodoDue } from "./recurrence";
 
 type RepeatKind = "none" | TodoRepeat["freq"];
 
@@ -45,6 +46,12 @@ export function TodoEditor({ todo, lists, defaultListId, readOnly, open, onOpenC
     if (repeatKind === "weekly") return { freq: "weekly", weekdays: weekdays.length ? weekdays : [isoWeekdayOf(due || todayStr())] };
     return { freq: repeatKind };
   };
+
+  const repeating = repeatKind !== "none";
+  const currentRepeat = due ? repeat() : null;
+  const nextPreview = currentRepeat ? nextTodoDue(due, currentRepeat) : null;
+  // 매주 반복인데 첫 회차 요일이 고른 요일이 아닐 때 (예: 이번 주만 목요일, 다음부터 수요일)
+  const firstMismatch = currentRepeat?.freq === "weekly" && !currentRepeat.weekdays.includes(isoWeekdayOf(due));
 
   const save = async () => {
     setError(null);
@@ -87,11 +94,11 @@ export function TodoEditor({ todo, lists, defaultListId, readOnly, open, onOpenC
 
           <div className="grid grid-cols-2 gap-2">
             <label className="grid gap-1 text-xs text-muted-foreground">
-              마감일
+              {repeating ? "첫 회차 날짜" : "마감일"}
               <Input type="date" value={due} onChange={(e) => setDue(e.target.value)} />
             </label>
             <label className="grid gap-1 text-xs text-muted-foreground">
-              시간 (선택)
+              {repeating ? "시간 (매 회차 같은 시간, 선택)" : "시간 (선택)"}
               <Input type="time" value={dueTime} disabled={!due} onChange={(e) => setDueTime(e.target.value)} />
             </label>
             <label className="grid gap-1 text-xs text-muted-foreground">
@@ -142,6 +149,14 @@ export function TodoEditor({ todo, lists, defaultListId, readOnly, open, onOpenC
                 );
               })}
             </div>
+          )}
+
+          {repeating && due && nextPreview && (
+            <p className="rounded-lg bg-muted px-3 py-2 text-xs">
+              {firstMismatch ? `이번 회차는 ${formatDay(due)}, ` : `${formatDay(due)} → `}
+              다음 회차 <b>{formatDay(nextPreview)}</b>
+              {dueTime && ` ${dueTime}`}. 지금 회차를 완료하면 다음 회차가 생깁니다.
+            </p>
           )}
 
           <div className="grid gap-1.5">

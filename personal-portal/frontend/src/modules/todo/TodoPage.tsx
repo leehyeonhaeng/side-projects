@@ -2,13 +2,14 @@ import { type ReactNode, useState } from "react";
 import { DndContext, type DragEndEvent, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVerticalIcon, PencilIcon, PlusIcon } from "lucide-react";
+import { GripVerticalIcon, PencilIcon, PlusIcon, RepeatIcon } from "lucide-react";
 import { useMe } from "@/api/me";
 import {
   type Todo,
   type TodoList,
   useCreateList,
   useCreateTodo,
+  useDueTodos,
   useDeleteList,
   useDeleteTodo,
   useRenameList,
@@ -42,6 +43,8 @@ export function TodoPage() {
   const open = useTodos("open");
   const done = useTodos("done");
   const lists = useTodoLists();
+  // 예정 탭: 반복 할 일의 앞으로 30일 회차 미리보기
+  const preview = useDueTodos(addDays(todayStr(), 1), addDays(todayStr(), 30), true);
   const create = useCreateTodo();
   const update = useUpdateTodo();
   const remove = useDeleteTodo();
@@ -59,6 +62,8 @@ export function TodoPage() {
   const todos = open.data;
   const { pending: todayItems, completed: doneToday } = todayView(todos, done.data ?? [], today);
   const upcoming = todos.filter((t) => t.due && t.due > today).sort(byDue);
+  // 이미 예정 탭에 실제 항목이 있는 날짜·할 일은 미리보기에서 뺀다
+  const projected = (preview.data?.projected ?? []).filter((p) => !upcoming.some((t) => t.due === p.due && t.title === p.title));
 
   const row = (t: Todo, handle?: ReactNode) => (
     <TodoRow
@@ -117,16 +122,34 @@ export function TodoPage() {
         </TabsContent>
 
         <TabsContent value="upcoming" className="grid gap-4 pt-3">
-          {upcoming.length === 0 ? (
+          {upcoming.length === 0 && projected.length === 0 ? (
             <Empty>예정된 할 일이 없습니다.</Empty>
           ) : (
-            groupBy(upcoming, (t) => t.due!).map(([day, items]) => (
+            [...new Set([...upcoming.map((t) => t.due!), ...projected.map((p) => p.due)])].sort().map((day) => (
               <section key={day} className="grid gap-2">
                 <h2 className="text-xs font-medium text-muted-foreground">{formatDay(day)}</h2>
-                {items.map((t) => row(t))}
+                {upcoming.filter((t) => t.due === day).map((t) => row(t))}
+                {projected
+                  .filter((p) => p.due === day)
+                  .map((p) => (
+                    <button
+                      key={`${p.todoId}-${p.due}`}
+                      type="button"
+                      onClick={() => {
+                        const source = todos.find((t) => t.id === p.todoId);
+                        if (source) setEditing({ todo: source, key: Date.now() });
+                      }}
+                      className="flex items-center gap-2 rounded-xl border border-dashed px-3 py-2 text-left text-sm text-muted-foreground"
+                    >
+                      <RepeatIcon className="size-3.5 shrink-0" />
+                      <span className="flex-1 truncate">{p.title}</span>
+                      <span className="text-xs">반복 예정{p.dueTime && ` · ${p.dueTime}`}</span>
+                    </button>
+                  ))}
               </section>
             ))
           )}
+          {projected.length > 0 && <p className="text-xs text-muted-foreground">점선 항목은 반복 할 일의 다음 회차 예정입니다. 지금 회차를 완료하면 생깁니다.</p>}
         </TabsContent>
 
         <TabsContent value="all" className="grid gap-4 pt-3">
@@ -182,12 +205,6 @@ export function TodoPage() {
       )}
     </main>
   );
-}
-
-function groupBy<T>(items: T[], key: (t: T) => string): [string, T[]][] {
-  const map = new Map<string, T[]>();
-  for (const item of items) map.set(key(item), [...(map.get(key(item)) ?? []), item]);
-  return [...map.entries()];
 }
 
 function Empty({ children }: { children: ReactNode }) {
