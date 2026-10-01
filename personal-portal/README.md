@@ -11,7 +11,8 @@
 - 2026-09-30: Phase 1 완료 (dev: DynamoDB, Cognito, API Gateway, Lambda 4개, S3 + CloudFront, 빈 React 앱 배포)
 - 2026-09-30: Phase 2 완료 (가입·이메일 인증·승인 대기·관리자 화면·권한 미들웨어, Host OTP)
 - 2026-10-01: Phase 3 완료 (홈 위젯 그리드·편집 모드·섹션·테마·하단 바·빠른 추가 틀·설정, PC↔폰 레이아웃 동기화 확인)
-- 2026-10-01: Phase 4 구현·dev 배포 (할 일·캘린더·반복·공휴일·홈 위젯 연결), 실사용 검증 대기
+- 2026-10-01: Phase 4 완료 (할 일·캘린더·반복·예정 회차 미리보기·공휴일·홈 위젯 연결)
+- 2026-10-01: Phase 5a 구현·dev 배포 (식단 + AI 칼로리 추정, Bedrock Claude Haiku 4.5). 5b 체중·5c 운동 남음
 
 ## 모듈
 
@@ -69,7 +70,8 @@ side-projects/
    ├─ backend/                Python Lambda (한 패키지를 4개 함수가 공유)
    │  ├─ handlers/            personal, shared, admin, ai, auth_trigger(Cognito)
    │  ├─ common/              여러 Lambda 공통: 앱 골격, 권한 미들웨어(access), 모듈·권한(perms), 사용자·활동 로그, 검증·직렬화
-│  ├─ domains/             도메인 로직·라우터 (todos, events, recurrence) → handlers에서 include
+│  ├─ domains/             도메인 로직·라우터 (todos, events, recurrence, meals, ai) → handlers에서 include
+│  ├─ requirements-ai.txt  ai Lambda 전용 레이어 의존성 (build_ai_layer.py로 빌드)
    │  └─ tests/
    ├─ infra/
    │  ├─ bootstrap/           상태 버킷, OIDC, CI Role, Budgets (로컬에서만 apply)
@@ -93,6 +95,7 @@ aws sts get-caller-identity          # 계정 확인 후 진행
 | 작업 | 방법 |
 |---|---|
 | terraform 변수 | `infra/bootstrap`, `infra/envs/dev`의 `terraform.tfvars.example`을 `terraform.tfvars`로 복사해 이메일 입력 (git 제외) |
+| ai Lambda 레이어 | **terraform plan 전에** `python backend/build_ai_layer.py dev` (결과는 `infra/envs/dev/.build/`, git 제외). CI는 자동 |
 | 백엔드 테스트 | `cd backend` → `python -m venv .venv` → `.venvScriptspip install -r requirements-dev.txt` → `.venvScriptspytest` |
 | 프론트 로컬 실행 | `frontend/.env.example`을 `.env.development.local`로 복사해 `terraform output`의 `api_endpoint`, `user_pool_id`, `user_pool_client_id` 입력 → `npm install` → `npm run dev` |
 | dev 배포 | main에 push하면 `portal-deploy.yml`이 자동 배포 (GitHub Secrets: `AWS_ROLE_ARN`, `HOST_EMAIL`) |

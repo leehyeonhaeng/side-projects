@@ -10,6 +10,7 @@ import { SignupPage } from "./modules/auth/SignupPage";
 import { HomePage } from "./modules/home/HomePage";
 import { NotFoundPage } from "./modules/home/NotFoundPage";
 import { CalendarPage } from "./modules/calendar/CalendarPage";
+import { HealthPage } from "./modules/health/HealthPage";
 import { MODULES } from "./modules/meta";
 import { RequireModule } from "./modules/RequireModule";
 import { TodoPage } from "./modules/todo/TodoPage";
@@ -30,8 +31,9 @@ export const router = createBrowserRouter([
       { path: "/admin", element: <RequireHost><AdminPage /></RequireHost> },
       { path: "/todo", element: <RequireModule module="todo"><TodoPage /></RequireModule> },
       { path: "/calendar", element: <RequireModule module="calendar"><CalendarPage /></RequireModule> },
+      { path: "/health", element: <RequireModule module="health"><HealthPage /></RequireModule> },
       // 나머지 모듈 화면은 해당 Phase에서 실제 페이지로 바꾼다
-      ...MODULES.filter((m) => m.id !== "todo" && m.id !== "calendar").map((m) => ({ path: m.path, element: <ModulePlaceholderPage module={m.id} /> })),
+      ...MODULES.filter((m) => !["todo", "calendar", "health"].includes(m.id)).map((m) => ({ path: m.path, element: <ModulePlaceholderPage module={m.id} /> })),
     ],
   },
   { path: "*", element: <NotFoundPage /> },

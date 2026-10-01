@@ -325,6 +325,58 @@ Phase 4 (할 일 + 캘린더). 결정 4개 확인받음(반복 일정 "이 일�
   - 편집 화면: 반복 시 "첫 회차 날짜", "시간 (매 회차 같은 시간)" 라벨 + "다음 회차 10/7 (수)" 안내. 매주 반복에서 첫 회차 요일이 다르면 "이번 회차는 …, 다음 회차 …"로 안내 (요일 자동 이동은 안 함)
 - 확인: 배포된 API에서 실제 회차(10/1 완료 → 10/7 생성)와 예정 회차(10/14·21·28) 확인 → 반복 할 일 동작 확인
 
+### 검증
+- 반복 할 일 완료 → 다음 회차 생성(10/1 완료 → 10/7), 마감일 캘린더 표시 확인 → **Phase 4 완료**
+- 이후 사용하면서 나오는 문제는 그때그때 수정하기로 함
+
 ### 다음 할 일
-- Phase 4 완료 기준 확인: 반복 할 일 완료 → 다음 회차 생성, 마감일이 캘린더에 표시
 - Phase 5: 식단·체중·운동 + AI 칼로리 추정
+
+## Day 7 — 2026-10-01 (목)
+
+Phase 5a (식단 + AI 칼로리 추정). Phase 5는 5a 식단+AI → 5b 체중 → 5c 운동으로 나눠 진행하기로 함. 결정: 모델 Haiku 4.5, 러닝 소모 칼로리는 체중×거리×1.036 근사식(5c), 같은 조건 선승인.
+
+### 한 일
+- **모델 확인**: 서울 리전 Bedrock 모델·추론 프로필 조회. Haiku 4.5는 `global.` 프로필로만 제공, Claude 3 Haiku는 지원 종료 모델이라 제외
+- **백엔드**
+  - `domains/meals.py`: 식단 CRUD·여러 항목 저장·끼니/날짜 이동·어제 복사·일별 통계, 내 음식(100g/1회 기준), 끼니 조합
+  - `domains/ai.py`: Anthropic SDK(`AnthropicBedrock`) + 구조화 출력(`messages.parse`)으로 칼로리·탄단지 추정, 하루 50회 조건부 차감(실패 시 복원)
+  - 설정에 식단 목표(kcal·탄단지) 추가
+  - 테스트 18개 추가, 총 111개 통과
+- **인프라** (dev apply: 추가 1, 변경 6, 삭제 0)
+  - ai 전용 레이어 `portal-dev-ai-deps` (Powertools 3.35.0 + pydantic 2.13.5 + anthropic 1.11.0, arm64). `backend/build_ai_layer.py`로 빌드, 의존성 목록이 바뀔 때만 새 버전
+  - ai Lambda: 전용 레이어만, Bedrock InvokeModel 권한(추론 프로필 + 기반 모델), 타임아웃 30초·메모리 512MB
+  - CI(deploy·PR)에 레이어 빌드 단계 추가
+- **실제 호출 확인**: "현미밥 한 공기, 닭가슴살 150g, 김치 조금" → 200g 260kcal / 150g 165kcal / 50g 17.5kcal, 사용 횟수 1/50 차감. Bedrock 모델 접근은 이미 열려 있었음(콘솔 작업 불필요)
+- **프론트**
+  - `/health` 식단 탭: 날짜 이동, 섭취/목표 게이지 + 탄단지, 입력(AI 계산·직접 입력·내 음식 자동완성·끼니 조합 불러오기), 확인 카드(양 바꾸면 비율 재계산, 내 음식에 추가), 끼니별 카드(AI 추정 표시, 조합 저장, 전날 같은 끼니 복사), 항목 수정·이동·삭제, 전날 식단 복사, 기록 그래프(주간·월간, 평균·목표선, Recharts)
+  - 설정: 식단 목표 입력
+  - 홈 식단 위젯(1×1 오늘 kcal / 2×1 게이지+탄단지 / 2×2 끼니 요약+빠른 입력), 빠른 추가 "식단" → 식단 화면에서 AI 계산
+  - 체중·운동 탭은 5b·5c 자리 표시
+
+### 결정 메모
+- ai Lambda는 공개 Powertools 레이어 대신 자체 레이어 하나만 쓴다 (두 레이어의 pydantic 파일이 /opt에서 섞이면 깨짐)
+- 레이어 `source_code_hash`는 zip이 아니라 `requirements-ai.txt` 해시 → 매 배포마다 새 레이어 버전이 쌓이지 않음. 의존성을 바꾸면 레이어가 교체(replace)되므로 그때는 선승인 대상이 아님
+- AI 사용 횟수는 호출 전에 차감, 실패하면 되돌림 (실패는 세지 않음, 동시 요청도 상한을 넘지 않음)
+- 빠른 추가·홈 위젯의 식단 입력은 바로 저장하지 않고 식단 화면(확인 카드)으로 보낸다 (DESIGN: 확인 후 저장)
+
+### 트러블슈팅
+**1. Pydantic 모델에서 필드 이름 `date`가 `date` 타입을 가림**
+- 증상: `date: date | None = None` 정의 시 `TypeError: unsupported operand type(s) for |: 'NoneType' and 'NoneType'`
+- 원인: 클래스 본문에서 기본값이 먼저 평가되어 `date`가 None으로 묶인 뒤 타입 주석이 평가됨
+- 해결: 모듈에 `Day = date` 별칭을 두고 `date: Day | None`으로 선언
+
+**2. AI 계산 502 — Bedrock Marketplace 구독 미완료 (서울 리전)**
+- 증상: 앱에서 "AI 계산에 실패했습니다". 로그: `PermissionDeniedError 403 … not authorized to perform the required AWS Marketplace actions (aws-marketplace:ViewSubscriptions, aws-marketplace:Subscribe) … subscription cannot be completed at this time`
+- 확인 과정: 관리자 계정으로 호출해도 서울에서만 같은 오류, us-east-1(`us.`·`global.` 프로필)은 성공 → Lambda 권한이 아니라 계정의 **서울 리전** 구독 문제. 처음 플레이그라운드 테스트는 버지니아 리전 콘솔에서 해서 그쪽만 구독됨
+- 해결: 콘솔 리전을 서울로 바꾸고 Bedrock 플레이그라운드에서 Claude Haiku 4.5(Global) 호출 → 처음엔 같은 오류, 잠시 뒤 성공 → ai Lambda 호출 성공 ("얼큰쌀국수 1그릇" → 350g 294.5kcal)
+- 주의: `get-foundation-model-availability`의 agreement가 AVAILABLE로 보여도 실제 호출이 될 때까지 몇 분 걸릴 수 있음. 새 리전·새 모델을 쓸 때는 **그 리전 콘솔에서** 플레이그라운드로 1회 호출해 구독을 먼저 만든다. Lambda 역할에 Marketplace 권한은 주지 않는다(최소 권한)
+- 처음에 "플레이그라운드에서 다른 모델을 골랐을 것"이라고 잘못 추정함 → 리전별 호출 비교로 원인 확정
+
+**3. 테스트 파일을 bash heredoc으로 만들 때 따옴표 때문에 파싱 실패 (재발)**
+- 테스트 파일은 파일 쓰기 도구로 작성
+
+### 다음 할 일
+- 5a 확인: AI 추정 → 수정 → 저장, 하루 상한 동작 (Phase 5 완료 기준 일부)
+- 5b: 체중 (요약·7일 이동평균 그래프·인바디), 체중 위젯
+- 5c: 운동 (러닝·헬스 루틴·훈련 프로그램), 순섭취량

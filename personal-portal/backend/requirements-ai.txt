@@ -1,0 +1,5 @@
+# ai Lambda 전용 레이어 (build_ai_layer.py). Powertools 공개 레이어와 같이 쓰면 pydantic 버전이 섞이므로
+# ai Lambda는 이 레이어 하나만 쓴다. boto3/botocore는 Lambda 런타임 것을 쓴다.
+aws-lambda-powertools==3.35.0
+pydantic==2.13.5
+anthropic==1.11.0

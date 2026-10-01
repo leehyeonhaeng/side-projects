@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { useMe } from "@/api/me";
 import { useCreateTodo } from "@/api/todos";
 import { ErrorAlert } from "@/components/states";
@@ -26,6 +27,7 @@ export function QuickAddDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const [text, setText] = useState("");
   const [saved, setSaved] = useState<string | null>(null);
   const createTodo = useCreateTodo();
+  const navigate = useNavigate();
   const kind = kinds.find((k) => k.id === kindId) ?? kinds[0];
 
   return (
@@ -41,7 +43,15 @@ export function QuickAddDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             onSubmit={(e) => {
               e.preventDefault();
               const value = text.trim();
-              if (!value || kind.id !== "todo") return;
+              if (!value) return;
+              if (kind.id === "meal") {
+                // 식단은 AI 추정 → 확인 카드에서 고친 뒤 저장 (DESIGN.md 6.3) → 식단 화면으로 넘긴다
+                onOpenChange(false);
+                setText("");
+                navigate(`/health?draft=${encodeURIComponent(value)}`);
+                return;
+              }
+              if (kind.id !== "todo") return;
               createTodo.mutate(
                 { title: value, due: todayStr() },
                 {
@@ -64,6 +74,10 @@ export function QuickAddDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             {kind.id === "todo" ? (
               <Button type="submit" disabled={!text.trim() || createTodo.isPending}>
                 오늘 할 일로 추가
+              </Button>
+            ) : kind.id === "meal" ? (
+              <Button type="submit" disabled={!text.trim()}>
+                식단 화면에서 AI 계산
               </Button>
             ) : (
               <Button type="submit" disabled>

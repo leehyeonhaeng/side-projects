@@ -1,7 +1,10 @@
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { CheckIcon } from "lucide-react";
 import { colorHex, useEvents } from "@/api/events";
+import { MEAL_TYPES, sumTotals, useMeals } from "@/api/meals";
 import { useMe } from "@/api/me";
+import { useSettings } from "@/api/preferences";
 import type { LayoutItem } from "@/api/preferences";
 import { useCreateTodo, useTodos, useUpdateTodo } from "@/api/todos";
 import { addDays, formatDay, todayStr } from "@/lib/dates";
@@ -14,6 +17,7 @@ import { WIDGET_BY_KEY, sizeKey } from "./widgets";
 export function WidgetBody({ item }: { item: LayoutItem }) {
   if (item.widget === "todo") return <TodoWidget w={item.w} h={item.h} />;
   if (item.widget === "calendar") return <CalendarWidget w={item.w} h={item.h} />;
+  if (item.widget === "meal") return <MealWidget w={item.w} h={item.h} />;
   const def = item.widget ? WIDGET_BY_KEY[item.widget] : undefined;
   const compact = item.w === 1;
   return (
@@ -145,6 +149,72 @@ function CalendarWidget({ w, h }: { w: number; h: number }) {
         );
       })}
       {events.data && events.data.length === 0 && <p className="text-xs text-muted-foreground">이번 주 일정이 없습니다.</p>}
+    </div>
+  );
+}
+
+// ── 식단: 1×1 오늘 칼로리 / 2×1 게이지 + 탄단지 / 2×2 끼니 요약 + 빠른 입력 (DESIGN.md 6.5 표) ──
+function MealWidget({ w, h }: { w: number; h: number }) {
+  const today = todayStr();
+  const meals = useMeals(today);
+  const settings = useSettings();
+  const navigate = useNavigate();
+  const [text, setText] = useState("");
+  const totals = sumTotals(meals.data ?? []);
+  const goal = settings.data?.goalKcal ?? null;
+
+  if (w === 1) return <Count value={meals.data ? Math.round(totals.kcal) : undefined} label={goal ? `/ ${goal} kcal` : "오늘 kcal"} />;
+
+  const pct = goal ? Math.min(100, (totals.kcal / goal) * 100) : 0;
+  const summary = (
+    <>
+      <p className="text-lg font-semibold tabular-nums">
+        {Math.round(totals.kcal)}
+        <span className="ml-1 text-xs font-normal text-muted-foreground">{goal ? `/ ${goal} kcal` : "kcal"}</span>
+      </p>
+      {goal !== null && (
+        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+          <div className={cn("h-full rounded-full", totals.kcal > goal ? "bg-red-500" : "bg-primary")} style={{ width: `${pct}%` }} />
+        </div>
+      )}
+      <p className="text-[10px] tabular-nums text-muted-foreground">
+        탄 {Math.round(totals.carb)} · 단 {Math.round(totals.protein)} · 지 {Math.round(totals.fat)} g
+      </p>
+    </>
+  );
+
+  if (h === 1) return <div className="mt-1 grid gap-1">{summary}</div>;
+
+  return (
+    <div className="mt-1 grid min-h-0 flex-1 content-start gap-1">
+      {summary}
+      <div className="grid grid-cols-2 gap-x-2 text-[11px]">
+        {MEAL_TYPES.map((m) => (
+          <p key={m.value} className="flex justify-between">
+            <span className="text-muted-foreground">{m.label}</span>
+            <span className="tabular-nums">{Math.round(sumTotals((meals.data ?? []).filter((x) => x.meal === m.value)).kcal)}</span>
+          </p>
+        ))}
+      </div>
+      <form
+        className="mt-auto"
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault();
+          // AI 추정 → 확인 단계를 거치도록 식단 화면으로 넘긴다
+          if (text.trim()) navigate(`/health?draft=${encodeURIComponent(text.trim())}`);
+        }}
+      >
+        <input
+          aria-label="식단 빠른 입력"
+          placeholder="+ 먹은 음식 (AI 계산)"
+          value={text}
+          maxLength={300}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => e.stopPropagation()}
+          className="h-7 w-full rounded-md border bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        />
+      </form>
     </div>
   );
 }

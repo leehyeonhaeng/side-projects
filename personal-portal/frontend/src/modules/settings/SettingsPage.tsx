@@ -23,6 +23,7 @@ export function SettingsPage() {
     <main className="mx-auto grid max-w-2xl gap-4 p-4 pb-24 sm:pb-8">
       <h1 className="text-xl font-semibold">설정</h1>
       <ThemeCard />
+      {me.data.perms.health !== "none" && <GoalsCard />}
       <ProfileCard name={me.data.name} email={me.data.email} />
       <PasswordCard />
       <MfaCard email={me.data.email} isHost={me.data.isHost} />
@@ -201,6 +202,55 @@ function MfaCard({ email, isHost }: { email: string; isHost: boolean }) {
         </Button>
       )}
       <FormError message={error} />
+    </Section>
+  );
+}
+
+const GOALS = [
+  { key: "goalKcal", label: "칼로리", unit: "kcal" },
+  { key: "goalCarb", label: "탄수화물", unit: "g" },
+  { key: "goalProtein", label: "단백질", unit: "g" },
+  { key: "goalFat", label: "지방", unit: "g" },
+] as const;
+
+/** 식단 목표 (DESIGN.md 6.3). 비워두면 목표 없음 */
+function GoalsCard() {
+  const settings = useSettings();
+  const patch = usePatchSettings();
+  const [draft, setDraft] = useState<Record<string, string> | null>(null);
+  if (!settings.data) return null;
+  const values = draft ?? Object.fromEntries(GOALS.map((g) => [g.key, settings.data[g.key]?.toString() ?? ""]));
+
+  return (
+    <Section title="식단 목표" description="식단 화면의 게이지와 남은 칼로리 계산에 쓰입니다. 비워두면 목표 없음.">
+      <form
+        className="grid gap-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const body = Object.fromEntries(GOALS.map((g) => [g.key, values[g.key] === "" ? null : Math.round(Number(values[g.key]))]));
+          patch.mutate(body, { onSuccess: () => setDraft(null) });
+        }}
+      >
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {GOALS.map((g) => (
+            <label key={g.key} className="grid gap-1 text-xs text-muted-foreground">
+              {g.label} ({g.unit})
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={20000}
+                value={values[g.key]}
+                onChange={(e) => setDraft({ ...values, [g.key]: e.target.value })}
+              />
+            </label>
+          ))}
+        </div>
+        <Button type="submit" size="sm" className="justify-self-start" disabled={!draft || patch.isPending}>
+          저장
+        </Button>
+      </form>
+      <ErrorAlert error={patch.error} />
     </Section>
   );
 }

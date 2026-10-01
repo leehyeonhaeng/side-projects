@@ -1,12 +1,13 @@
 """홈 레이아웃·사용자 설정 (DESIGN.md 4.3, 7장: USER#<sub> / LAYOUT, SETTINGS)."""
 
 import json
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from common.aws import table
 from common.perms import Module
+from common.serialize import to_plain
 from common.users import now_iso, user_pk
 
 GRID_COLS = 4
@@ -71,16 +72,30 @@ class Layout(BaseModel):
         return self
 
 
+Goal = Annotated[int, Field(ge=0, le=20000)]
+
+
 class Settings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     theme: Literal["system", "light", "dark"] = "system"
+    # 식단 목표 (DESIGN.md 6.3): 칼로리(kcal), 탄수화물·단백질·지방(g). 없으면 미설정
+    goalKcal: Goal | None = None
+    goalCarb: Goal | None = None
+    goalProtein: Goal | None = None
+    goalFat: Goal | None = None
 
 
 class SettingsPatch(BaseModel):
+    """보낸 필드만 바뀐다. 목표치에 null을 보내면 미설정으로 돌린다."""
+
     model_config = ConfigDict(extra="forbid")
 
     theme: Literal["system", "light", "dark"] | None = None
+    goalKcal: Goal | None = None
+    goalCarb: Goal | None = None
+    goalProtein: Goal | None = None
+    goalFat: Goal | None = None
 
 
 def get_layout(sub: str) -> dict[str, Any]:
@@ -102,11 +117,15 @@ def put_layout(sub: str, layout: Layout) -> dict[str, Any]:
 
 
 def get_settings(sub: str) -> Settings:
-    item = table().get_item(Key={"PK": user_pk(sub), "SK": "SETTINGS"}).get("Item") or {}
+    item = to_plain(table().get_item(Key={"PK": user_pk(sub), "SK": "SETTINGS"}).get("Item") or {})
     return Settings.model_validate({k: v for k, v in item.items() if k in Settings.model_fields})
 
 
 def patch_settings(sub: str, patch: SettingsPatch) -> Settings:
-    merged = get_settings(sub).model_copy(update=patch.model_dump(exclude_none=True))
-    table().put_item(Item={"PK": user_pk(sub), "SK": "SETTINGS", **merged.model_dump(), "updatedAt": now_iso()})
+    sent = patch.model_dump(exclude_unset=True)
+    if sent.get("theme", "") is None:
+        sent.pop("theme")  # 테마는 비울 수 없다
+    merged = get_settings(sub).model_copy(update=sent)
+    stored = {k: v for k, v in merged.model_dump().items() if v is not None}
+    table().put_item(Item={"PK": user_pk(sub), "SK": "SETTINGS", **stored, "updatedAt": now_iso()})
     return merged

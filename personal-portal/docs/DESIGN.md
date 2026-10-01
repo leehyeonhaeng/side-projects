@@ -326,8 +326,12 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 5. "내 음식에 추가" 체크 시 다음부터 자동완성
 ```
 
-- 모델 ID는 구현 시 서울 리전 사용 가능 여부(교차 리전 추론 프로필 포함)를 콘솔에서 확인 후 확정
-- 호출 상한: 계정당 하루 50회 (`AIUSAGE#<날짜>`, TTL 자동 삭제)
+- 모델: **Claude Haiku 4.5** (`global.anthropic.claude-haiku-4-5-20251001-v1:0`). 서울 리전에서는 global 교차 리전 추론 프로필로만 제공 → 요청이 해외 리전에서 처리될 수 있음(음식 이름·양만 전송). Claude 3 Haiku는 서울에서 바로 쓸 수 있지만 지원 종료 모델이라 제외 (2026-10-01 확인)
+- 호출: Anthropic Python SDK(`AnthropicBedrock`) + 구조화 출력(`messages.parse`, Pydantic)으로 JSON 형식 보장. ai Lambda는 전용 레이어(Powertools·pydantic·anthropic, `backend/requirements-ai.txt`)만 쓴다 (공개 Powertools 레이어와 섞으면 pydantic 버전 충돌)
+- 호출 상한: 계정당 하루 50회 (`AIUSAGE#<KST 날짜>`, TTL 3일). 호출 전에 조건부로 1회 차감하고(동시 요청도 상한 초과 불가), 모델 호출이 실패하면 되돌린다
+- 비용 추정: 1회 약 $0.0017(입력 ~400·출력 ~250토큰, Haiku 4.5 $1/$5 per MTok 기준. Bedrock 요금은 AWS 요금표 확인)
+- 확인 카드에서 양(g)을 바꾸면 열량·탄단지를 같은 비율로 다시 계산한다
+- 입력 방식 공통: AI 추정·직접 입력·내 음식·끼니 조합 모두 확인 카드를 거쳐 저장 (`POST /meals/batch`)
 - AI 결과는 "추정치" 표시
 
 **기록 항목**: 날짜, 끼니, 음식명, 그램, 칼로리, 탄·단·지, 입력 방식, 메모
@@ -444,7 +448,7 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | 할 일 목록(리스트) | `TODOLIST#<id>` |
 | 식단 항목 | `MEAL#<date>#<meal>#<id>` |
 | 끼니 조합 | `MEALSET#<id>` |
-| 내 음식 | `FOOD#<id>` |
+| 내 음식 (`basis`: 100g당 / 1회 제공량당) | `FOOD#<id>` |
 | 체중 | `WEIGHT#<date>` |
 | 러닝 | `RUN#<date>#<id>` |
 | 헬스 세션 | `GYM#<date>#<id>` |
@@ -495,7 +499,7 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | `admin` | 승인, 권한, 프리셋, 정지, 활동 로그 | Cognito 관리 API (Host 그룹만 호출) |
 | `personal` | 캘린더, 할 일, health, 메모, 가계부, 허브, 설정, 레이아웃 | 없음 |
 | `shared` | 작업 보드, 공용 체크리스트 | 없음 |
-| `ai` | 칼로리 추정 | Bedrock InvokeModel |
+| `ai` | 칼로리 추정 | Bedrock InvokeModel (Claude Haiku 4.5 추론 프로필만) |
 
 ### 8.2 라우트 규칙
 
@@ -534,6 +538,22 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | `GET /admin/audit?month=YYYY-MM` | 활동 로그 |
 
 `GET /api/v1/me`: 로그인 사용자의 프로필과 모듈 권한 (프론트 메뉴 노출·Host 판단용). `PATCH /api/v1/me` `{name}`: 이름 변경 (PROFILE만, Cognito 속성은 가입 시 값 유지)
+
+**식단** (health 모듈)
+
+| 메서드 · 경로 | 내용 |
+|---|---|
+| `GET /meals?from&to` | 기간 식단 + 일별 합계 (62일 이내) |
+| `POST /meals`, `POST /meals/batch` | 한 항목 / 여러 항목(확인 카드) 저장 |
+| `PATCH` · `DELETE /meals/{id}?date&meal` | 수정(끼니·날짜 이동 포함)·삭제 |
+| `POST /meals/copy` `{fromDate, toDate, meal?}` | 어제 식단 복사 (하루 전체 또는 한 끼니) |
+| `GET /meals/stats?from&to` | 일별 합계 (기록 그래프, 366일 이내) |
+| `GET /foods?q`, `POST`, `PUT` · `DELETE /foods/{id}` | 내 음식 |
+| `GET` · `POST /meal-sets`, `DELETE /meal-sets/{id}` | 끼니 조합 |
+| `POST /ai/estimate-calories` `{text}` | AI 추정 → `{items, usage}` (상한 초과 429) |
+| `GET /ai/usage` | 오늘 AI 사용 횟수 |
+
+설정(`GET` · `PATCH /settings`)에 식단 목표 `goalKcal`·`goalCarb`·`goalProtein`·`goalFat` 추가 (null이면 미설정)
 
 **할 일** (todo 모듈)
 

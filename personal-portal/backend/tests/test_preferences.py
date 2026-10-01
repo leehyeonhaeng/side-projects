@@ -74,10 +74,21 @@ class TestLayout:
 @pytest.mark.usefixtures("aws", "member")
 class TestSettingsAndProfile:
     def test_settings_default_and_patch(self, ctx: FakeContext) -> None:
-        assert call(ctx, "GET", "/settings") == (200, {"theme": "system"})
-        assert call(ctx, "PATCH", "/settings", {"theme": "dark"}) == (200, {"theme": "dark"})
-        assert call(ctx, "GET", "/settings") == (200, {"theme": "dark"})
+        empty_goals = {"goalKcal": None, "goalCarb": None, "goalProtein": None, "goalFat": None}
+        assert call(ctx, "GET", "/settings") == (200, {"theme": "system", **empty_goals})
+        assert call(ctx, "PATCH", "/settings", {"theme": "dark"})[1]["theme"] == "dark"
+        assert call(ctx, "GET", "/settings")[1]["theme"] == "dark"
         assert call(ctx, "PATCH", "/settings", {"theme": "pink"})[0] == 400
+
+    def test_goals_set_and_clear(self, ctx: FakeContext) -> None:
+        _, s = call(ctx, "PATCH", "/settings", {"goalKcal": 2000, "goalProtein": 120})
+        assert (s["goalKcal"], s["goalProtein"], s["theme"]) == (2000, 120, "system")
+        # 다른 필드만 바꿔도 목표치는 유지, null이면 미설정으로
+        assert call(ctx, "PATCH", "/settings", {"theme": "light"})[1]["goalKcal"] == 2000
+        _, s = call(ctx, "PATCH", "/settings", {"goalKcal": None})
+        assert s["goalKcal"] is None and s["goalProtein"] == 120
+        assert call(ctx, "GET", "/settings")[1]["goalKcal"] is None
+        assert call(ctx, "PATCH", "/settings", {"goalKcal": -1})[0] == 400
 
     def test_update_name(self, ctx: FakeContext) -> None:
         status, body = call(ctx, "PATCH", "/me", {"name": "  새 이름 "})

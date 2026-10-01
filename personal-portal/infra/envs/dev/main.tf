@@ -102,6 +102,7 @@ data "archive_file" "backend" {
     ".venv/**",
     ".pytest_cache/**",
     "requirements*.txt",
+    "build_ai_layer.py",
   ]
 }
 
@@ -144,6 +145,52 @@ data "aws_iam_policy_document" "admin" {
   }
 }
 
+# ai만 Bedrock 호출 권한을 가진다 (DESIGN.md ADR-05). 교차 리전(global) 추론 프로필은
+# 프로필 ARN + 모든 리전의 기반 모델 ARN 둘 다 허용해야 호출된다.
+data "aws_caller_identity" "current" {}
+
+locals {
+  bedrock_foundation_model = trimprefix(var.bedrock_model_id, "global.")
+}
+
+data "aws_iam_policy_document" "ai" {
+  source_policy_documents = [data.aws_iam_policy_document.table_rw.json]
+
+  statement {
+    effect  = "Allow"
+    actions = ["bedrock:InvokeModel"]
+    resources = [
+      "arn:aws:bedrock:ap-northeast-2:${data.aws_caller_identity.current.account_id}:inference-profile/${var.bedrock_model_id}",
+      "arn:aws:bedrock:*::foundation-model/${local.bedrock_foundation_model}",
+      "arn:aws:bedrock:::foundation-model/${local.bedrock_foundation_model}",
+    ]
+  }
+}
+
+# ai Lambda 전용 의존성 레이어 (Powertools + pydantic + anthropic).
+# 빌드: python backend/build_ai_layer.py dev → .build/ai-layer/python
+data "archive_file" "ai_layer" {
+  type        = "zip"
+  source_dir  = "${path.module}/.build/ai-layer"
+  output_path = "${path.module}/.build/ai-layer.zip"
+}
+
+resource "aws_lambda_layer_version" "ai" {
+  layer_name               = "${local.prefix}-ai-deps"
+  filename                 = data.archive_file.ai_layer.output_path
+  compatible_runtimes      = ["python3.12"]
+  compatible_architectures = ["arm64"]
+  # zip은 빌드할 때마다 바이트가 달라질 수 있어서, 의존성 목록이 바뀔 때만 새 버전을 올린다
+  source_code_hash = filebase64sha256("${path.module}/../../../backend/requirements-ai.txt")
+}
+
+locals {
+  lambda_policies = {
+    admin = data.aws_iam_policy_document.admin.json
+    ai    = data.aws_iam_policy_document.ai.json
+  }
+}
+
 module "lambda" {
   source   = "../../modules/lambda"
   for_each = toset(local.services)
@@ -153,12 +200,16 @@ module "lambda" {
   handler       = "handlers.${each.key}.lambda_handler"
   package_path  = data.archive_file.backend.output_path
   package_hash  = data.archive_file.backend.output_base64sha256
-  layers        = [var.powertools_layer_arn]
-  policy_json   = each.key == "admin" ? data.aws_iam_policy_document.admin.json : data.aws_iam_policy_document.table_rw.json
+  # ai는 자체 레이어만 쓴다 (공개 Powertools 레이어와 같이 쓰면 pydantic 버전이 섞임)
+  layers      = each.key == "ai" ? [aws_lambda_layer_version.ai.arn] : [var.powertools_layer_arn]
+  timeout     = each.key == "ai" ? 30 : 10
+  memory_size = each.key == "ai" ? 512 : 256
+  policy_json = lookup(local.lambda_policies, each.key, data.aws_iam_policy_document.table_rw.json)
 
   environment = merge(
     { TABLE_NAME = module.table.name },
     each.key == "admin" ? { USER_POOL_ID = module.cognito.user_pool_id } : {},
+    each.key == "ai" ? { BEDROCK_MODEL_ID = var.bedrock_model_id } : {},
   )
 }
 

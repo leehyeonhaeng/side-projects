@@ -60,6 +60,13 @@ jobs:
           aws-region: ap-northeast-2
           mask-aws-account-id: true
 
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Build ai Lambda layer
+        run: python personal-portal/backend/build_ai_layer.py dev
+
       - uses: hashicorp/setup-terraform@v4
         with:
           terraform_wrapper: false

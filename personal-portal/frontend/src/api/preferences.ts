@@ -23,7 +23,14 @@ export type Layout = { version: 1; sections: Section[] };
 export type SavedLayout = { layout: Layout | null; updatedAt: string | null };
 
 export type ThemePref = "system" | "light" | "dark";
-export type Settings = { theme: ThemePref };
+export type Settings = {
+  theme: ThemePref;
+  // 식단 목표 (없으면 null)
+  goalKcal: number | null;
+  goalCarb: number | null;
+  goalProtein: number | null;
+  goalFat: number | null;
+};
 
 export function useLayout() {
   return useQuery({
