@@ -9,7 +9,8 @@
 - 2026-09-28: 설계 확정
 - 2026-09-30: Phase 0 완료 (상태 버킷, GitHub OIDC Role, Budgets 알림, CI 검증 워크플로우)
 - 2026-09-30: Phase 1 완료 (dev: DynamoDB, Cognito, API Gateway, Lambda 4개, S3 + CloudFront, 빈 React 앱 배포)
-- 2026-09-30: Phase 2 완료 (가입·이메일 인증·승인 대기·관리자 화면·권한 미들웨어, Host OTP) → Phase 3 대기
+- 2026-09-30: Phase 2 완료 (가입·이메일 인증·승인 대기·관리자 화면·권한 미들웨어, Host OTP)
+- 2026-10-01: Phase 3 구현·dev 배포 (홈 위젯 그리드·편집 모드·섹션·테마·하단 바·빠른 추가 틀·설정), 기기 간 동기화 검증 대기
 
 ## 모듈
 
@@ -63,7 +64,7 @@ side-projects/
    │     ├─ api/              API 호출 단일 진입점 (client.ts) + 도메인별 훅
    │     ├─ auth/             Amplify 설정, 세션, 라우트 가드
    │     ├─ components/       공통 컴포넌트 (ui/는 shadcn)
-   │     └─ modules/<module>/ 화면 (auth, home, admin, …)
+   │     └─ modules/<module>/ 화면 (auth, home, settings, admin, …)
    ├─ backend/                Python Lambda (한 패키지를 4개 함수가 공유)
    │  ├─ handlers/            personal, shared, admin, ai, auth_trigger(Cognito)
    │  ├─ common/              앱 골격, 권한 미들웨어(access), 모듈·권한(perms), 사용자·활동 로그 저장소

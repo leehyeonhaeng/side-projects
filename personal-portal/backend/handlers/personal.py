@@ -1,8 +1,10 @@
 from typing import Any
 
+from aws_lambda_powertools.event_handler.exceptions import BadRequestError
 from aws_lambda_powertools.utilities.typing import LambdaContext
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from common import users
+from common import preferences, users
 from common.access import current_access
 from common.app import create_app
 from common.perms import all_edit
@@ -10,11 +12,16 @@ from common.perms import all_edit
 app, logger = create_app("personal")
 
 
-@app.get("/me")
-def me() -> dict[str, Any]:
-    """로그인한 사용자의 프로필과 모듈 권한. 프론트는 이걸로 메뉴 노출·Host 여부를 정한다."""
+def parse[T: BaseModel](model: type[T]) -> T:
+    try:
+        return model.model_validate(app.current_event.json_body or {})
+    except (ValidationError, ValueError) as exc:
+        raise BadRequestError(str(exc)) from exc
+
+
+def me_view() -> dict[str, Any]:
     access = current_access(app)
-    profile = access.profile
+    profile = users.get_profile(access.identity.sub) or access.profile
     perms = all_edit() if access.identity.is_host else users.get_perms(access.identity.sub)
     return {
         "sub": profile["sub"],
@@ -24,6 +31,51 @@ def me() -> dict[str, Any]:
         "isHost": access.identity.is_host,
         "perms": perms,
     }
+
+
+class ProfilePatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=50)
+
+
+@app.get("/me")
+def me() -> dict[str, Any]:
+    """로그인한 사용자의 프로필과 모듈 권한. 프론트는 이걸로 메뉴 노출·Host 여부를 정한다."""
+    return me_view()
+
+
+@app.patch("/me")
+def update_me() -> dict[str, Any]:
+    body = parse(ProfilePatch)
+    name = body.name.strip()
+    if not name:
+        raise BadRequestError("name is required")
+    users.set_name(current_access(app).identity.sub, name)
+    return me_view()
+
+
+# ── 홈 레이아웃·설정 (모듈 권한과 무관, 본인 데이터만) ─────────
+
+@app.get("/layout")
+def get_layout() -> dict[str, Any]:
+    return preferences.get_layout(current_access(app).identity.sub)
+
+
+@app.put("/layout")
+def put_layout() -> dict[str, Any]:
+    return preferences.put_layout(current_access(app).identity.sub, parse(preferences.Layout))
+
+
+@app.get("/settings")
+def get_settings() -> dict[str, Any]:
+    return preferences.get_settings(current_access(app).identity.sub).model_dump()
+
+
+@app.patch("/settings")
+def patch_settings() -> dict[str, Any]:
+    patch = parse(preferences.SettingsPatch)
+    return preferences.patch_settings(current_access(app).identity.sub, patch).model_dump()
 
 
 @logger.inject_lambda_context

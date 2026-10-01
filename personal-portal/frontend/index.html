@@ -6,8 +6,13 @@
     <meta name="color-scheme" content="light dark" />
     <title>Personal Portal</title>
     <script>
-      // 첫 렌더 전에 다크모드를 적용해 깜빡임을 막는다 (src/lib/theme.ts)
-      if (matchMedia("(prefers-color-scheme: dark)").matches) document.documentElement.classList.add("dark");
+      // 첫 렌더 전에 마지막 테마를 적용해 깜빡임을 막는다 (src/lib/theme.ts)
+      (function () {
+        var t = localStorage.getItem("theme");
+        if (t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches)) {
+          document.documentElement.classList.add("dark");
+        }
+      })();
     </script>
   </head>
   <body>

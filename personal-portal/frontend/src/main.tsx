@@ -6,11 +6,11 @@ import { RouterProvider } from "react-router";
 import { ApiError } from "./api/client";
 import { configureAuth } from "./auth/amplify";
 import "./index.css";
-import { followSystemTheme } from "./lib/theme";
+import { initTheme } from "./lib/theme";
 import { router } from "./router";
 
 configureAuth();
-followSystemTheme();
+initTheme();
 
 // 401(토큰 없음·만료·거부)이면 로컬 세션을 정리하고 RequireAuth가 로그인 화면으로 보내게 한다
 let signingOut = false;

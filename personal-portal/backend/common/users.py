@@ -55,6 +55,16 @@ def set_status(sub: str, status: Status) -> None:
     )
 
 
+def set_name(sub: str, name: str) -> None:
+    table().update_item(
+        Key={"PK": user_pk(sub), "SK": "PROFILE"},
+        UpdateExpression="SET #n = :n",
+        ConditionExpression="attribute_exists(PK)",
+        ExpressionAttributeNames={"#n": "name"},
+        ExpressionAttributeValues={":n": name},
+    )
+
+
 def list_by_status(status: Status) -> list[dict[str, Any]]:
     res = table().query(
         IndexName="GSI1",

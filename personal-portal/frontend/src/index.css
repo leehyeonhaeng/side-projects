@@ -233,3 +233,9 @@
 
   --sidebar-ring: oklch(0.556 0 0);
 }
+/* react-grid-layout 드래그 자리 표시 (기본 빨간색 대신 테마 색) */
+.react-grid-item.react-grid-placeholder {
+  background: var(--primary);
+  opacity: 0.15;
+  border-radius: 1rem;
+}
