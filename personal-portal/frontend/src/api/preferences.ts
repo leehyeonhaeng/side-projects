@@ -30,6 +30,7 @@ export type Settings = {
   goalCarb: number | null;
   goalProtein: number | null;
   goalFat: number | null;
+  goalWeight: number | null; // kg
 };
 
 export function useLayout() {

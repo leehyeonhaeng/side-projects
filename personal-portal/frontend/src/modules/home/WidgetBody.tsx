@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { Line, LineChart, ReferenceLine, ResponsiveContainer, YAxis } from "recharts";
 import { useNavigate } from "react-router";
 import { CheckIcon } from "lucide-react";
 import { colorHex, useEvents } from "@/api/events";
 import { MEAL_TYPES, sumTotals, useMeals } from "@/api/meals";
 import { useMe } from "@/api/me";
 import { useSettings } from "@/api/preferences";
+import { useWeights, withMovingAverage } from "@/api/weights";
 import type { LayoutItem } from "@/api/preferences";
 import { useCreateTodo, useTodos, useUpdateTodo } from "@/api/todos";
 import { addDays, formatDay, todayStr } from "@/lib/dates";
@@ -18,6 +20,7 @@ export function WidgetBody({ item }: { item: LayoutItem }) {
   if (item.widget === "todo") return <TodoWidget w={item.w} h={item.h} />;
   if (item.widget === "calendar") return <CalendarWidget w={item.w} h={item.h} />;
   if (item.widget === "meal") return <MealWidget w={item.w} h={item.h} />;
+  if (item.widget === "weight") return <WeightWidget w={item.w} h={item.h} />;
   const def = item.widget ? WIDGET_BY_KEY[item.widget] : undefined;
   const compact = item.w === 1;
   return (
@@ -215,6 +218,49 @@ function MealWidget({ w, h }: { w: number; h: number }) {
           className="h-7 w-full rounded-md border bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         />
       </form>
+    </div>
+  );
+}
+
+// ── 체중: 1×1 현재 체중 / 2×1 7일 추세 / 2×2 1개월 그래프 + 목표 (DESIGN.md 6.5 표) ──
+function WeightWidget({ w, h }: { w: number; h: number }) {
+  const today = todayStr();
+  const weights = useWeights({ from: addDays(today, -29), to: today });
+  const settings = useSettings();
+  const list = weights.data ?? [];
+  const latest = list.at(-1);
+  const goal = settings.data?.goalWeight ?? null;
+
+  if (w === 1) return <Count value={latest?.weight} label={latest ? "kg" : "기록 없음"} />;
+
+  const days = h === 1 ? 7 : 30;
+  const recent = withMovingAverage(list).filter((e) => e.date >= addDays(today, -(days - 1)));
+  const first = recent[0];
+  const delta = latest && first && first !== recent.at(-1) ? latest.weight - first.weight : null;
+
+  return (
+    <div className="mt-1 grid min-h-0 flex-1 grid-rows-[auto_1fr] gap-1">
+      <p className="text-xs">
+        <b className="text-base tabular-nums">{latest ? latest.weight.toFixed(1) : "–"}</b> kg
+        {delta !== null && (
+          <span className={cn("ml-1.5 tabular-nums", delta <= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400")}>
+            {delta > 0 ? "+" : ""}
+            {delta.toFixed(1)} ({days}일)
+          </span>
+        )}
+        {h === 2 && goal !== null && <span className="ml-1.5 text-muted-foreground">목표 {goal}kg</span>}
+      </p>
+      {recent.length > 1 ? (
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={recent} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+            <YAxis hide domain={["dataMin - 0.5", "dataMax + 0.5"]} />
+            {h === 2 && goal !== null && <ReferenceLine y={goal} stroke="#ef4444" strokeDasharray="3 3" ifOverflow="extendDomain" />}
+            <Line type="monotone" dataKey="avg7" stroke="var(--primary)" strokeWidth={2} dot={false} isAnimationActive={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      ) : (
+        <p className="text-[10px] text-muted-foreground">기록이 2개 이상이면 추세가 보입니다.</p>
+      )}
     </div>
   );
 }

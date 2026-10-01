@@ -211,6 +211,7 @@ const GOALS = [
   { key: "goalCarb", label: "탄수화물", unit: "g" },
   { key: "goalProtein", label: "단백질", unit: "g" },
   { key: "goalFat", label: "지방", unit: "g" },
+  { key: "goalWeight", label: "목표 체중", unit: "kg" },
 ] as const;
 
 /** 식단 목표 (DESIGN.md 6.3). 비워두면 목표 없음 */
@@ -222,22 +223,25 @@ function GoalsCard() {
   const values = draft ?? Object.fromEntries(GOALS.map((g) => [g.key, settings.data[g.key]?.toString() ?? ""]));
 
   return (
-    <Section title="식단 목표" description="식단 화면의 게이지와 남은 칼로리 계산에 쓰입니다. 비워두면 목표 없음.">
+    <Section title="식단·체중 목표" description="식단 게이지·남은 칼로리, 체중 그래프 목표선에 쓰입니다. 비워두면 목표 없음.">
       <form
         className="grid gap-3"
         onSubmit={(e) => {
           e.preventDefault();
-          const body = Object.fromEntries(GOALS.map((g) => [g.key, values[g.key] === "" ? null : Math.round(Number(values[g.key]))]));
+          // 체중만 소수 첫째 자리까지, 나머지는 정수
+          const toValue = (key: string, raw: string) => (raw === "" ? null : key === "goalWeight" ? Math.round(Number(raw) * 10) / 10 : Math.round(Number(raw)));
+          const body = Object.fromEntries(GOALS.map((g) => [g.key, toValue(g.key, values[g.key] ?? "")]));
           patch.mutate(body, { onSuccess: () => setDraft(null) });
         }}
       >
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
           {GOALS.map((g) => (
             <label key={g.key} className="grid gap-1 text-xs text-muted-foreground">
               {g.label} ({g.unit})
               <Input
                 type="number"
-                inputMode="numeric"
+                inputMode="decimal"
+                step={g.key === "goalWeight" ? "0.1" : "1"}
                 min={0}
                 max={20000}
                 value={values[g.key]}

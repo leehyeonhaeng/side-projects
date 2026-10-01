@@ -74,7 +74,7 @@ class TestLayout:
 @pytest.mark.usefixtures("aws", "member")
 class TestSettingsAndProfile:
     def test_settings_default_and_patch(self, ctx: FakeContext) -> None:
-        empty_goals = {"goalKcal": None, "goalCarb": None, "goalProtein": None, "goalFat": None}
+        empty_goals = {"goalKcal": None, "goalCarb": None, "goalProtein": None, "goalFat": None, "goalWeight": None}
         assert call(ctx, "GET", "/settings") == (200, {"theme": "system", **empty_goals})
         assert call(ctx, "PATCH", "/settings", {"theme": "dark"})[1]["theme"] == "dark"
         assert call(ctx, "GET", "/settings")[1]["theme"] == "dark"

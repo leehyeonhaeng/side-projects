@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from common.aws import table
 from common.perms import Module
-from common.serialize import to_plain
+from common.serialize import to_dynamo, to_plain
 from common.users import now_iso, user_pk
 
 GRID_COLS = 4
@@ -73,6 +73,7 @@ class Layout(BaseModel):
 
 
 Goal = Annotated[int, Field(ge=0, le=20000)]
+GoalWeight = Annotated[float, Field(ge=20, le=300)]
 
 
 class Settings(BaseModel):
@@ -84,6 +85,7 @@ class Settings(BaseModel):
     goalCarb: Goal | None = None
     goalProtein: Goal | None = None
     goalFat: Goal | None = None
+    goalWeight: GoalWeight | None = None  # 목표 체중 kg (DESIGN.md 6.4)
 
 
 class SettingsPatch(BaseModel):
@@ -96,6 +98,7 @@ class SettingsPatch(BaseModel):
     goalCarb: Goal | None = None
     goalProtein: Goal | None = None
     goalFat: Goal | None = None
+    goalWeight: GoalWeight | None = None  # 목표 체중 kg (DESIGN.md 6.4)
 
 
 def get_layout(sub: str) -> dict[str, Any]:
@@ -127,5 +130,6 @@ def patch_settings(sub: str, patch: SettingsPatch) -> Settings:
         sent.pop("theme")  # 테마는 비울 수 없다
     merged = get_settings(sub).model_copy(update=sent)
     stored = {k: v for k, v in merged.model_dump().items() if v is not None}
-    table().put_item(Item={"PK": user_pk(sub), "SK": "SETTINGS", **stored, "updatedAt": now_iso()})
+    # 목표 체중은 실수라 DynamoDB용으로 Decimal 변환
+    table().put_item(Item=to_dynamo({"PK": user_pk(sub), "SK": "SETTINGS", **stored, "updatedAt": now_iso()}))
     return merged

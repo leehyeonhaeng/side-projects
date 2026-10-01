@@ -345,6 +345,7 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 - 그래프: 일별 체중 + 7일 이동평균선, 기간 필터(1개월·3개월·전체)
 - 항목: 날짜, 체중, 체지방률(선택), 골격근량(선택), 메모
 - 인바디 수치는 입력한 날만 점으로 표시
+- 구현 (Phase 5b): 하루 한 기록(`WEIGHT#<date>`, 같은 날 다시 저장하면 덮어씀). 7일 이동평균은 각 기록일 기준 직전 7일(당일 포함) 기록의 평균. 지난주 대비는 최근 기록일 7일 전 이전의 가장 가까운 기록과 비교. 목표 체중은 설정(`goalWeight`)
 
 ### 6.5 운동 (health 모듈 탭 3)
 
@@ -554,6 +555,16 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | `GET /ai/usage` | 오늘 AI 사용 횟수 |
 
 설정(`GET` · `PATCH /settings`)에 식단 목표 `goalKcal`·`goalCarb`·`goalProtein`·`goalFat` 추가 (null이면 미설정)
+
+**체중** (health 모듈)
+
+| 메서드 · 경로 | 내용 |
+|---|---|
+| `GET /weights` · `GET /weights?from&to` | 전체 또는 기간 (날짜 오름차순) |
+| `PUT /weights/{date}` `{weight, bodyFat?, muscle?, memo?}` | 그 날 기록 저장 (하루 한 기록, 다시 저장하면 덮어씀) |
+| `DELETE /weights/{date}` | 삭제 |
+
+설정에 목표 체중 `goalWeight`(kg, 소수 첫째 자리) 추가
 
 **할 일** (todo 모듈)
 
