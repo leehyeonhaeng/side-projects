@@ -1,11 +1,14 @@
 import { useState } from "react";
-import { ArrowDownIcon, ArrowUpIcon, EyeIcon, EyeOffIcon, Maximize2Icon, PencilIcon, PlusIcon, RepeatIcon, XIcon } from "lucide-react";
+import { Link } from "react-router";
+import { ArrowDownIcon, ArrowUpIcon, CalendarDaysIcon, EyeIcon, EyeOffIcon, Maximize2Icon, PencilIcon, PlusIcon, RepeatIcon, XIcon } from "lucide-react";
+import { useEvents } from "@/api/events";
 import { useMe } from "@/api/me";
 import { type Layout, type LayoutItem, type Section, useLayout, useSaveLayout } from "@/api/preferences";
 import { NativeSelect } from "@/components/NativeSelect";
 import { ErrorAlert, InlineSpinner } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { todayStr } from "@/lib/dates";
 import { MODULE_BY_ID } from "@/modules/meta";
 import { formatDateTime } from "@/modules/admin/format";
 import { AddItemDialog } from "./AddItemDialog";
@@ -103,6 +106,7 @@ export function HomePage() {
         )}
       </div>
       <ErrorAlert error={save.error} />
+      {!editing && perms.calendar !== "none" && <TodayBanner />}
 
       {!hasAnyModule && <p className="text-sm text-muted-foreground">사용할 수 있는 모듈이 없습니다. 관리자에게 권한을 요청하세요.</p>}
 
@@ -296,4 +300,24 @@ export function HomePage() {
 function itemLabel(item: LayoutItem): string {
   const def = item.widget ? WIDGET_BY_KEY[item.widget] : undefined;
   return item.kind === "widget" ? `${def?.title ?? MODULE_BY_ID[item.module].label} 위젯` : `${MODULE_BY_ID[item.module].label} 아이콘`;
+}
+
+/** DESIGN.md 6.1 알림: 앱을 열었을 때 "오늘 일정" 표시 */
+function TodayBanner() {
+  const today = todayStr();
+  const events = useEvents(today, today);
+  const list = (events.data ?? []).filter((e) => e.start <= today && e.end >= today);
+  if (list.length === 0) return null;
+  return (
+    <Link to="/calendar" className="flex items-center gap-2 rounded-xl border bg-primary/5 px-3 py-2 text-sm hover:bg-primary/10">
+      <CalendarDaysIcon className="size-4 shrink-0 text-primary" />
+      <span className="font-medium">오늘 일정 {list.length}개</span>
+      <span className="truncate text-muted-foreground">
+        {list
+          .slice(0, 2)
+          .map((e) => (e.allDay ? e.title : `${e.startTime} ${e.title}`))
+          .join(" · ")}
+      </span>
+    </Link>
+  );
 }

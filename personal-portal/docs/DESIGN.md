@@ -254,6 +254,18 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | 검색 | 제목·메모 |
 | 공유 | 없음 |
 | 겹쳐 보기 | 할 일·작업 보드 마감일을 읽기 전용으로 표시 |
+
+**구현 결정 (Phase 4)**
+
+| 항목 | 결정 |
+|---|---|
+| 보기 | 월 + 주 + 목록 (FullCalendar v7) |
+| 반복 저장 | 규칙만 저장(`EVENTR#<id>`)하고 조회 기간에 맞춰 서버에서 펼친다. 매월·매년은 없는 날짜(31일, 2/29)를 건너뜀 |
+| 반복 수정·삭제 | "이 일정만"(그 날짜를 exdates에 넣고 단일 일정으로 분리, seriesId 기록) / "전체"(시리즈 수정·삭제, 분리된 일정도 같이 삭제). 전체 수정에서는 날짜를 바꾸지 않는다 (이전 회차 유실 방지) |
+| 여러 날 일정 | 최대 62일. 기간 조회는 62일 앞부터 읽어 겹치는 일정을 찾는다 |
+| 시간대 | 한국 시간 달력 날짜(`YYYY-MM-DD`)·시각(`HH:mm`) 문자열 그대로 저장 |
+| 공휴일 | `@hyunbinseo/holidays-kr` 패키지 내장 데이터 (관보 기준, 외부 호출 없음). 패키지에 없는 연도는 표시 안 함 |
+| 오늘 일정 알림 | 홈 상단에 오늘 일정 수·첫 일정 표시 |
 | 홈 위젯 | 오늘 일정 / 이번 주 일정 / 미니 월간 달력 |
 
 ### 6.2 할 일
@@ -275,6 +287,14 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 - 정렬: 마감일순 / 우선순위순 / 직접 순서
 - 반복 할 일은 완료 시 다음 회차 자동 생성
 - 작업 보드와는 별개 (연결 없음)
+
+**구현 결정 (Phase 4)**
+- 반복에는 마감일이 필요하다. 완료하면 다음 회차를 만들고 반복 규칙을 다음 회차로 넘긴다 (완료한 항목은 반복 없음 + `nextId`). 완료를 되돌려도 다음 회차는 그대로 남는다
+- 매월 반복은 원래 날짜(`monthDay`)를 기억해서, 짧은 달은 말일로 당기고 다음 달에 원래 날짜로 돌아간다
+- 요일은 ISO 기준(월=1 … 일=7)
+- "내일로 미루기"는 오늘 기준 내일로 마감일을 바꾼다
+- 직접 순서는 `order` 실수값. 드래그로 놓은 자리 앞뒤 값의 중간으로 바꾼다
+- 완료 탭은 최근 200개까지
 
 **홈 위젯**: 1×1 남은 개수 / 2×1 오늘 할 일 3개 / 2×2 오늘 + 지연 + 빠른 추가
 
@@ -416,8 +436,9 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | 모듈 권한 | `PERM#<module>` |
 | 홈 레이아웃 (`layoutJson`: 섹션·항목 JSON 문자열, 숫자가 Decimal로 바뀌지 않게) | `LAYOUT` |
 | 설정 (테마, 목표 칼로리·탄단지·체중) | `SETTINGS` |
-| 캘린더 일정 | `EVENT#<startDate>#<id>` |
-| 할 일 | `TODO#<id>` |
+| 캘린더 일정 (단일, 반복에서 분리된 회차는 `seriesId`) | `EVENT#<startDate>#<id>` |
+| 반복 일정 (규칙·`exdates`) | `EVENTR#<id>` |
+| 할 일 (마감일이 있으면 GSI1 `USER#<sub>#DUE` / `<due>#<id>`) | `TODO#<id>` |
 | 할 일 목록(리스트) | `TODOLIST#<id>` |
 | 식단 항목 | `MEAL#<date>#<meal>#<id>` |
 | 끼니 조합 | `MEALSET#<id>` |
@@ -486,7 +507,7 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 
 | 첫 세그먼트 | 모듈 |
 |---|---|
-| `events` | calendar |
+| `events`, `event-series` | calendar |
 | `todos`, `todo-lists` | todo |
 | `meals`, `meal-sets`, `foods`, `weights`, `runs`, `gym`, `routines`, `programs`, `ai`(edit) | health |
 | `boards` | boards |
@@ -511,6 +532,26 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | `GET /admin/audit?month=YYYY-MM` | 활동 로그 |
 
 `GET /api/v1/me`: 로그인 사용자의 프로필과 모듈 권한 (프론트 메뉴 노출·Host 판단용). `PATCH /api/v1/me` `{name}`: 이름 변경 (PROFILE만, Cognito 속성은 가입 시 값 유지)
+
+**할 일** (todo 모듈)
+
+| 메서드 · 경로 | 내용 |
+|---|---|
+| `GET /todos?status=open|done|all` | 할 일 목록 (완료는 최근 200개) |
+| `GET /todos/due?from&to` | 기간 내 마감 할 일 (캘린더 겹쳐 보기, 62일 이내) |
+| `POST /todos`, `PATCH` · `DELETE /todos/{id}` | 생성·수정(null은 필드 비움, `done: true`면 반복 다음 회차 생성)·삭제 |
+| `GET` · `POST /todo-lists`, `PATCH` · `DELETE /todo-lists/{id}` | 목록. 삭제하면 안의 할 일은 목록 없음으로 |
+
+**캘린더** (calendar 모듈)
+
+| 메서드 · 경로 | 내용 |
+|---|---|
+| `GET /events?from&to` | 기간 내 일정 (단일 + 반복 회차 펼침, 62일 이내). 회차 id는 `<seriesId>@<날짜>` |
+| `GET /events/search?q=` | 제목·메모 검색 (반복은 시리즈 하나로) |
+| `POST /events` | 생성 (`repeat`가 있으면 반복 시리즈) |
+| `PATCH` · `DELETE /events/{id}?start=` | 단일 일정 수정·삭제 (현재 시작일로 키를 찾음) |
+| `PATCH` · `DELETE /event-series/{id}` | 반복 전체 수정·삭제 |
+| `PATCH` · `DELETE /event-series/{id}/occurrences/{date}` | 반복 "이 일정만" 수정·삭제 |
 
 **홈·설정** (모듈 권한 없음, 본인 데이터만)
 

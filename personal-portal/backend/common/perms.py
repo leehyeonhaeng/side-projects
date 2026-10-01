@@ -36,6 +36,7 @@ _RANK = {Level.NONE: 0, Level.VIEW: 1, Level.EDIT: 2}
 # /api/v1 뒤 첫 경로 세그먼트 → 모듈. 새 리소스를 추가하면 여기에 등록한다.
 MODULE_BY_SEGMENT: dict[str, Module] = {
     "events": Module.CALENDAR,
+    "event-series": Module.CALENDAR,
     "todos": Module.TODO,
     "todo-lists": Module.TODO,
     "meals": Module.HEALTH,

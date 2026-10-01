@@ -2,21 +2,19 @@ from typing import Any
 
 from aws_lambda_powertools.event_handler.exceptions import BadRequestError
 from aws_lambda_powertools.utilities.typing import LambdaContext
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field
 
 from common import preferences, users
 from common.access import current_access
 from common.app import create_app
+from common.http import parse_body
 from common.perms import all_edit
+from domains import events, todos
 
 app, logger = create_app("personal")
-
-
-def parse[T: BaseModel](model: type[T]) -> T:
-    try:
-        return model.model_validate(app.current_event.json_body or {})
-    except (ValidationError, ValueError) as exc:
-        raise BadRequestError(str(exc)) from exc
+# 모듈 권한은 공통 미들웨어가 경로로 판단한다 (todos→todo, events·event-series→calendar)
+app.include_router(todos.router)
+app.include_router(events.router)
 
 
 def me_view() -> dict[str, Any]:
@@ -47,7 +45,7 @@ def me() -> dict[str, Any]:
 
 @app.patch("/me")
 def update_me() -> dict[str, Any]:
-    body = parse(ProfilePatch)
+    body = parse_body(app, ProfilePatch)
     name = body.name.strip()
     if not name:
         raise BadRequestError("name is required")
@@ -64,7 +62,7 @@ def get_layout() -> dict[str, Any]:
 
 @app.put("/layout")
 def put_layout() -> dict[str, Any]:
-    return preferences.put_layout(current_access(app).identity.sub, parse(preferences.Layout))
+    return preferences.put_layout(current_access(app).identity.sub, parse_body(app, preferences.Layout))
 
 
 @app.get("/settings")
@@ -74,7 +72,7 @@ def get_settings() -> dict[str, Any]:
 
 @app.patch("/settings")
 def patch_settings() -> dict[str, Any]:
-    patch = parse(preferences.SettingsPatch)
+    patch = parse_body(app, preferences.SettingsPatch)
     return preferences.patch_settings(current_access(app).identity.sub, patch).model_dump()
 
 

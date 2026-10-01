@@ -1,10 +1,11 @@
 import { memo } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { GripVerticalIcon } from "lucide-react";
 import type { LayoutItem } from "@/api/preferences";
 import { cn } from "@/lib/utils";
 import { MODULE_BY_ID } from "@/modules/meta";
-import { WIDGET_BY_KEY, sizeKey } from "./widgets";
+import { WidgetBody } from "./WidgetBody";
+import { WIDGET_BY_KEY } from "./widgets";
 
 type Props = {
   item: LayoutItem;
@@ -15,6 +16,7 @@ type Props = {
 
 /** 홈 그리드의 아이콘·위젯 한 칸. 위젯 내용은 각 모듈 Phase에서 실제 데이터로 채운다. */
 export const ItemCard = memo(function ItemCard({ item, editing, selected, onSelect }: Props) {
+  const navigate = useNavigate();
   const module = MODULE_BY_ID[item.module];
   const frame = cn(
     "relative flex h-full w-full flex-col overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-xs transition-shadow",
@@ -62,25 +64,43 @@ export const ItemCard = memo(function ItemCard({ item, editing, selected, onSele
   const def = item.widget ? WIDGET_BY_KEY[item.widget] : undefined;
   const Icon = def?.icon ?? module.icon;
   const compact = item.w === 1;
-  const content = (
-    <>
-      {handle}
-      <div className={cn("flex items-center gap-1.5", compact && "flex-col justify-center text-center", editing && !compact && "pl-6")}>
-        <Icon className="size-4 shrink-0 text-primary" />
-        <span className="truncate text-sm font-medium">{def?.title ?? module.label}</span>
-      </div>
-      {!compact && <p className="mt-1 text-xs text-muted-foreground">{def?.sizes[sizeKey(item.w, item.h)]}</p>}
-      <p className={cn("mt-auto text-[10px] text-muted-foreground", compact && "text-center")}>Phase {module.phase}</p>
-    </>
+  const header = (
+    <div className={cn("flex items-center gap-1.5", compact && "flex-col justify-center text-center", editing && !compact && "pl-6")}>
+      <Icon className="size-4 shrink-0 text-primary" />
+      <span className="truncate text-sm font-medium">{def?.title ?? module.label}</span>
+    </div>
   );
 
-  return editing ? (
-    <button type="button" className={cn(frame, "p-3 text-left")} onClick={() => onSelect(item.id)}>
-      {content}
-    </button>
-  ) : (
-    <Link to={module.path} className={cn(frame, "p-3 hover:shadow-md")}>
-      {content}
-    </Link>
+  if (editing) {
+    return (
+      <button type="button" className={cn(frame, "p-3 text-left")} onClick={() => onSelect(item.id)}>
+        {handle}
+        {header}
+        {/* 편집 중에는 위젯 안 버튼·입력이 눌리지 않게 */}
+        <div className="pointer-events-none flex min-h-0 flex-1 flex-col">
+          <WidgetBody item={item} />
+        </div>
+      </button>
+    );
+  }
+
+  // 위젯 어디를 눌러도 모듈 화면으로 간다. 안쪽 체크 버튼·입력창은 WidgetBody에서 클릭 전파를 막는다
+  // (<a> 안에 버튼·입력을 넣을 수 없어서 링크 대신 role="link")
+  return (
+    <div
+      role="link"
+      tabIndex={0}
+      aria-label={`${def?.title ?? module.label} 열기`}
+      className={cn(frame, "cursor-pointer p-3 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none")}
+      onClick={() => navigate(module.path)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && e.target === e.currentTarget) navigate(module.path);
+      }}
+    >
+      {header}
+      <div className="flex min-h-0 flex-1 flex-col">
+        <WidgetBody item={item} />
+      </div>
+    </div>
   );
 });

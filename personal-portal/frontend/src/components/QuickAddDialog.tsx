@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { useMe } from "@/api/me";
+import { useCreateTodo } from "@/api/todos";
+import { ErrorAlert } from "@/components/states";
+import { todayStr } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -21,6 +24,8 @@ export function QuickAddDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const kinds = KINDS.filter((k) => me.data?.perms[k.module] === "edit");
   const [kindId, setKindId] = useState<string | null>(null);
   const [text, setText] = useState("");
+  const [saved, setSaved] = useState<string | null>(null);
+  const createTodo = useCreateTodo();
   const kind = kinds.find((k) => k.id === kindId) ?? kinds[0];
 
   return (
@@ -35,19 +40,38 @@ export function QuickAddDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             className="grid gap-3"
             onSubmit={(e) => {
               e.preventDefault();
+              const value = text.trim();
+              if (!value || kind.id !== "todo") return;
+              createTodo.mutate(
+                { title: value, due: todayStr() },
+                {
+                  onSuccess: () => {
+                    setText("");
+                    setSaved(`할 일에 추가했습니다: ${value}`);
+                  },
+                },
+              );
             }}
           >
             <div className="flex flex-wrap gap-1">
               {kinds.map((k) => (
-                <Button key={k.id} type="button" size="sm" variant={k.id === kind.id ? "default" : "outline"} onClick={() => setKindId(k.id)}>
+                <Button key={k.id} type="button" size="sm" variant={k.id === kind.id ? "default" : "outline"} onClick={() => (setKindId(k.id), setSaved(null))}>
                   {k.label}
                 </Button>
               ))}
             </div>
             <Input aria-label={`${kind.label} 입력`} placeholder={kind.placeholder} value={text} onChange={(e) => setText(e.target.value)} />
-            <Button type="submit" disabled>
-              저장 (Phase {MODULE_BY_ID[kind.module].phase}에서 연결)
-            </Button>
+            {kind.id === "todo" ? (
+              <Button type="submit" disabled={!text.trim() || createTodo.isPending}>
+                오늘 할 일로 추가
+              </Button>
+            ) : (
+              <Button type="submit" disabled>
+                저장 (Phase {MODULE_BY_ID[kind.module].phase}에서 연결)
+              </Button>
+            )}
+            {saved && <p className="text-xs text-muted-foreground">{saved}</p>}
+            <ErrorAlert error={createTodo.error} />
           </form>
         )}
       </DialogContent>

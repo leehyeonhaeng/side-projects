@@ -239,3 +239,31 @@
   opacity: 0.15;
   border-radius: 1rem;
 }
+
+/* FullCalendar 클래식 테마 색을 앱 테마(라이트/다크) 변수에 맞춘다 */
+.portal-calendar {
+  --fc-classic-background: var(--background);
+  --fc-classic-foreground: var(--foreground);
+  --fc-classic-border: var(--border);
+  --fc-classic-muted: var(--muted);
+  --fc-classic-muted-foreground: var(--muted-foreground);
+  --fc-classic-faint: var(--muted);
+  --fc-classic-faint-foreground: var(--muted-foreground);
+  --fc-classic-strong: var(--accent);
+  --fc-classic-strong-border: var(--border);
+  --fc-classic-primary: var(--primary);
+  --fc-classic-primary-foreground: var(--primary-foreground);
+  --fc-classic-button: var(--secondary);
+  --fc-classic-button-border: var(--border);
+  --fc-classic-button-foreground: var(--secondary-foreground);
+  /* 활성 버튼(월·주·목록 중 선택된 것): 클래식 테마는 모든 버튼 글자색이 같아서 배경만 대비를 준다.
+     --primary로 두면 다크모드에서 흰 배경 + 흰 글자가 된다 */
+  --fc-classic-button-strong: color-mix(in oklch, var(--secondary), var(--foreground) 28%);
+  --fc-classic-button-strong-border: color-mix(in oklch, var(--secondary), var(--foreground) 55%);
+  --fc-classic-button-outline: var(--ring);
+  --fc-classic-today: color-mix(in oklch, var(--primary) 10%, transparent);
+  --fc-classic-highlight: color-mix(in oklch, var(--primary) 20%, transparent);
+  --fc-classic-background-event: #ef4444;
+  --fc-classic-background-event-opacity: 8%;
+  font-size: 0.8125rem;
+}

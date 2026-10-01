@@ -16,7 +16,7 @@ export type WidgetDef = {
 const m = MODULE_BY_ID;
 
 export const WIDGETS: WidgetDef[] = [
-  { key: "calendar", module: "calendar", title: "일정", icon: m.calendar.icon, sizes: { "1x1": "오늘 일정 수", "2x1": "오늘 일정", "2x2": "이번 주 · 미니 달력" } },
+  { key: "calendar", module: "calendar", title: "일정", icon: m.calendar.icon, sizes: { "1x1": "오늘 일정 수", "2x1": "오늘 일정", "2x2": "이번 주 일정" } },
   { key: "todo", module: "todo", title: "할 일", icon: m.todo.icon, sizes: { "1x1": "남은 개수", "2x1": "오늘 할 일 3개", "2x2": "오늘 + 지연 + 빠른 추가" } },
   { key: "meal", module: "health", title: "식단", icon: UtensilsIcon, sizes: { "1x1": "오늘 칼로리", "2x1": "게이지 + 탄단지", "2x2": "끼니 요약 + 빠른 입력" } },
   { key: "weight", module: "health", title: "체중", icon: ScaleIcon, sizes: { "1x1": "현재 체중", "2x1": "7일 추세", "2x2": "1개월 그래프 + 목표" } },

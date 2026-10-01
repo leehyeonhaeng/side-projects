@@ -10,7 +10,8 @@
 - 2026-09-30: Phase 0 완료 (상태 버킷, GitHub OIDC Role, Budgets 알림, CI 검증 워크플로우)
 - 2026-09-30: Phase 1 완료 (dev: DynamoDB, Cognito, API Gateway, Lambda 4개, S3 + CloudFront, 빈 React 앱 배포)
 - 2026-09-30: Phase 2 완료 (가입·이메일 인증·승인 대기·관리자 화면·권한 미들웨어, Host OTP)
-- 2026-10-01: Phase 3 구현·dev 배포 (홈 위젯 그리드·편집 모드·섹션·테마·하단 바·빠른 추가 틀·설정), 기기 간 동기화 검증 대기
+- 2026-10-01: Phase 3 완료 (홈 위젯 그리드·편집 모드·섹션·테마·하단 바·빠른 추가 틀·설정, PC↔폰 레이아웃 동기화 확인)
+- 2026-10-01: Phase 4 구현·dev 배포 (할 일·캘린더·반복·공휴일·홈 위젯 연결), 실사용 검증 대기
 
 ## 모듈
 
@@ -67,7 +68,8 @@ side-projects/
    │     └─ modules/<module>/ 화면 (auth, home, settings, admin, …)
    ├─ backend/                Python Lambda (한 패키지를 4개 함수가 공유)
    │  ├─ handlers/            personal, shared, admin, ai, auth_trigger(Cognito)
-   │  ├─ common/              앱 골격, 권한 미들웨어(access), 모듈·권한(perms), 사용자·활동 로그 저장소
+   │  ├─ common/              여러 Lambda 공통: 앱 골격, 권한 미들웨어(access), 모듈·권한(perms), 사용자·활동 로그, 검증·직렬화
+│  ├─ domains/             도메인 로직·라우터 (todos, events, recurrence) → handlers에서 include
    │  └─ tests/
    ├─ infra/
    │  ├─ bootstrap/           상태 버킷, OIDC, CI Role, Budgets (로컬에서만 apply)

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from aws_lambda_powertools.event_handler import APIGatewayHttpResolver, Response
+from aws_lambda_powertools.event_handler.api_gateway import BaseRouter
 from aws_lambda_powertools.event_handler.exceptions import ForbiddenError, UnauthorizedError
 from aws_lambda_powertools.event_handler.middlewares import NextMiddleware
 
@@ -68,5 +69,10 @@ def access_control(app: APIGatewayHttpResolver, next_middleware: NextMiddleware)
     return next_middleware(app)
 
 
-def current_access(app: APIGatewayHttpResolver) -> Access:
-    return app.context["access"]
+def current_access(resolver: BaseRouter) -> Access:
+    """app 또는 include된 Router 어디서든 미들웨어가 넣어둔 접근 정보를 꺼낸다"""
+    return resolver.context["access"]
+
+
+def current_sub(resolver: BaseRouter) -> str:
+    return current_access(resolver).identity.sub
