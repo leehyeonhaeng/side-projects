@@ -2,7 +2,7 @@ import { type FormEvent, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { confirmSignIn, signIn, type SignInOutput } from "aws-amplify/auth";
 import { authErrorMessage, normalizeEmail } from "@/auth/errors";
-import { useResetAuthCache } from "@/auth/session";
+import { useClearAuthCache } from "@/auth/session";
 import { FormError } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { AuthCard, Field } from "./AuthCard";
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const resetCache = useResetAuthCache();
+  const clearCache = useClearAuthCache();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
@@ -23,7 +23,7 @@ export function LoginPage() {
 
   const handleStep = async ({ isSignedIn, nextStep }: SignInOutput) => {
     if (isSignedIn) {
-      await resetCache();
+      clearCache();
       navigate(from, { replace: true });
       return;
     }

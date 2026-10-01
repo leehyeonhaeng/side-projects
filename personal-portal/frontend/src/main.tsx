@@ -20,8 +20,10 @@ const onAuthError = (error: unknown) => {
   void signOut()
     .catch(() => undefined)
     .finally(() => {
+      // 다시 요청하지 않도록 캐시를 지우고 로그인 화면으로 보낸다
+      queryClient.clear();
+      void router.navigate("/login", { replace: true });
       signingOut = false;
-      void queryClient.resetQueries();
     });
 };
 

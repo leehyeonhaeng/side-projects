@@ -10,8 +10,11 @@ export function AppLayout() {
   const navigate = useNavigate();
 
   const logout = async () => {
-    await signOut();
-    navigate("/login", { replace: true });
+    try {
+      await signOut();
+    } finally {
+      navigate("/login", { replace: true });
+    }
   };
 
   return (
