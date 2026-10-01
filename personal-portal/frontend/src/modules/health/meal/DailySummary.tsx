@@ -19,7 +19,7 @@ function Bar({ value, max, color }: { value: number; max: number | null; color: 
 }
 
 /** 오늘 섭취 칼로리 / 목표 게이지 + 탄단지 (DESIGN.md 6.3 화면) */
-export function DailySummary({ totals, settings }: { totals: Totals; settings?: Settings }) {
+export function DailySummary({ totals, settings, burned }: { totals: Totals; settings?: Settings; burned: number }) {
   const goal = settings?.goalKcal ?? null;
   const macroKcal = totals.carb * 4 + totals.protein * 4 + totals.fat * 9;
   const remaining = goal !== null ? Math.round(goal - totals.kcal) : null;
@@ -41,6 +41,10 @@ export function DailySummary({ totals, settings }: { totals: Totals; settings?: 
         )}
       </div>
       {goal !== null ? <Bar value={totals.kcal} max={goal} color="bg-primary" /> : <p className="text-xs text-muted-foreground">설정에서 목표 칼로리를 정하면 게이지가 표시됩니다.</p>}
+      {/* 순섭취량 = 섭취 − 운동 소모 (러닝은 체중 기반 추정, 헬스는 직접 입력한 값) */}
+      <p className="text-xs tabular-nums text-muted-foreground">
+        운동 소모 {burned} kcal · 순섭취 <b className="text-foreground">{Math.round(totals.kcal - burned)}</b> kcal
+      </p>
 
       <div className="grid grid-cols-3 gap-3">
         {MACROS.map((m) => {

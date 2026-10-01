@@ -7,6 +7,8 @@ import { MEAL_TYPES, sumTotals, useMeals } from "@/api/meals";
 import { useMe } from "@/api/me";
 import { useSettings } from "@/api/preferences";
 import { useWeights, withMovingAverage } from "@/api/weights";
+import { isPlanDone, mondayOf, useGymSessions, usePrograms, useRuns } from "@/api/exercise";
+import { TodayTraining, useProgramRecords } from "@/modules/health/exercise/ProgramPanel";
 import type { LayoutItem } from "@/api/preferences";
 import { useCreateTodo, useTodos, useUpdateTodo } from "@/api/todos";
 import { addDays, formatDay, todayStr } from "@/lib/dates";
@@ -21,6 +23,7 @@ export function WidgetBody({ item }: { item: LayoutItem }) {
   if (item.widget === "calendar") return <CalendarWidget w={item.w} h={item.h} />;
   if (item.widget === "meal") return <MealWidget w={item.w} h={item.h} />;
   if (item.widget === "weight") return <WeightWidget w={item.w} h={item.h} />;
+  if (item.widget === "exercise") return <ExerciseWidget w={item.w} h={item.h} />;
   const def = item.widget ? WIDGET_BY_KEY[item.widget] : undefined;
   const compact = item.w === 1;
   return (
@@ -260,6 +263,42 @@ function WeightWidget({ w, h }: { w: number; h: number }) {
         </ResponsiveContainer>
       ) : (
         <p className="text-[10px] text-muted-foreground">기록이 2개 이상이면 추세가 보입니다.</p>
+      )}
+    </div>
+  );
+}
+
+// ── 운동: 1×1 이번 주 러닝 거리 / 2×1 오늘 할 훈련 / 2×2 주간 요약 + 프로그램 진행률 (DESIGN.md 6.5 표) ──
+function ExerciseWidget({ w, h }: { w: number; h: number }) {
+  const today = todayStr();
+  const monday = mondayOf(today);
+  const runs = useRuns(monday, today);
+  const gym = useGymSessions(monday, today);
+  const programs = usePrograms();
+  const active = programs.data?.find((p) => p.active);
+  const records = useProgramRecords(active);
+  const km = (runs.data ?? []).reduce((s, r) => s + r.distanceKm, 0);
+
+  if (w === 1) return <Count value={runs.data ? Math.round(km * 10) / 10 : undefined} label="이번 주 km" />;
+  if (h === 1) return <div className="mt-1"><TodayTraining compact /></div>;
+
+  const doneCount = active ? active.items.filter((i) => isPlanDone(active, i, records.runs, records.gym)).length : 0;
+  const pct = active && active.items.length ? Math.round((doneCount / active.items.length) * 100) : null;
+  return (
+    <div className="mt-1 grid min-h-0 flex-1 content-start gap-1.5 text-xs">
+      <p className="tabular-nums">
+        이번 주 러닝 <b>{km.toFixed(1)}km</b> ({runs.data?.length ?? 0}회) · 헬스 <b>{gym.data?.length ?? 0}회</b>
+      </p>
+      <TodayTraining compact />
+      {active && pct !== null && (
+        <div className="mt-auto grid gap-0.5">
+          <p className="text-[10px] text-muted-foreground">
+            {active.name} 진행률 {pct}% ({doneCount}/{active.items.length})
+          </p>
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
       )}
     </div>
   );

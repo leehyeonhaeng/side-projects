@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ChevronLeftIcon, ChevronRightIcon, CopyIcon } from "lucide-react";
+import { burnedKcal, useGymSessions, useRuns } from "@/api/exercise";
 import { useMe } from "@/api/me";
 import { MEAL_TYPES, type Meal, type MealType, currentMealType, sumTotals, useCopyMeals, useCreateMealSet, useDeleteFood, useFoods, useMeals } from "@/api/meals";
 import { useSettings } from "@/api/preferences";
@@ -22,6 +23,8 @@ export function MealTab({ draft }: { draft?: string }) {
   const settings = useSettings();
   const [date, setDate] = useState(todayStr());
   const meals = useMeals(date);
+  const runs = useRuns(date, date);
+  const gym = useGymSessions(date, date);
   const copy = useCopyMeals();
   const [review, setReview] = useState<(Review & { key: number; meal: MealType }) | null>(null);
   const [editing, setEditing] = useState<Meal | null>(null);
@@ -66,7 +69,7 @@ export function MealTab({ draft }: { draft?: string }) {
       </div>
       {copy.error && <ErrorAlert error={copy.error.message === "nothing to copy" ? new Error("전날 기록이 없습니다.") : copy.error} />}
 
-      {meals.isPending ? <InlineSpinner /> : <DailySummary totals={sumTotals(list)} settings={settings.data} />}
+      {meals.isPending ? <InlineSpinner /> : <DailySummary totals={sumTotals(list)} settings={settings.data} burned={burnedKcal(runs.data ?? [], gym.data ?? [])} />}
 
       {!readOnly && <MealInput initialText={draft} onReview={(r) => setReview({ ...r, key: Date.now(), meal: currentMealType() })} />}
 

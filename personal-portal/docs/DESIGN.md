@@ -366,6 +366,13 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 - 오늘 할 훈련 표시, 기록 입력 시 자동 완료 체크
 - 주차별 달성률
 
+**구현 결정 (Phase 5c)**
+- 러닝 소모 칼로리: 직접 입력이 없으면 `체중(kg) × 거리(km) × 1.036`. 체중은 그 날 또는 그 이전 가장 가까운 체중 기록, 기록이 없으면 추정하지 않음 (`kcalEstimated`로 추정 여부 표시)
+- 5K·10K 최고 페이스: 거리 5km 이상(10km 이상) 기록 중 가장 빠른 페이스
+- 헬스: 루틴은 운동 이름 + 기본 세트 수만 저장. 세션 시작 시 운동별 마지막 기록의 세트(횟수·무게)로 채움. 무게 추이는 세션별 최고 무게
+- 훈련 프로그램: 계획 항목 = 주차·요일·종류(러닝/헬스/기타)·제목. 1주차 = 시작일이 속한 주(월요일 시작). 러닝·헬스 항목은 그 날 해당 기록이 있으면 자동 완료, 기타는 직접 체크(`manualDone`). 진행 중 프로그램은 하나만
+- 순섭취량: 식단 요약에 그 날 운동 소모(러닝 + 헬스 기록된 kcal 합)와 `섭취 − 소모` 표시
+
 **health 홈 위젯**
 
 | 위젯 | 1×1 | 2×1 | 2×2 |
@@ -565,6 +572,18 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | `DELETE /weights/{date}` | 삭제 |
 
 설정에 목표 체중 `goalWeight`(kg, 소수 첫째 자리) 추가
+
+**운동** (health 모듈, 기간 조회는 400일 이내)
+
+| 메서드 · 경로 | 내용 |
+|---|---|
+| `GET /runs?from&to`, `GET /runs/records` | 러닝 기간 조회 (`paceSecPerKm` 포함), 5K·10K 최고 기록 |
+| `POST /runs`, `PUT` · `DELETE /runs/{id}?date=` | 생성(kcal 없으면 체중으로 추정)·수정(날짜 변경 가능)·삭제 |
+| `GET /gym?from&to`, `GET /gym/last?names=a,b`, `GET /gym/progress?name=` | 헬스 세션 기간 조회, 운동별 마지막 세트, 운동별 최고 무게·볼륨 추이 |
+| `POST /gym`, `PUT` · `DELETE /gym/{id}?date=` | 세션 생성·수정·삭제 |
+| `GET` · `POST /routines`, `PUT` · `DELETE /routines/{id}` | 루틴 템플릿 |
+| `GET` · `POST /programs`, `PUT` · `DELETE /programs/{id}` | 훈련 프로그램 (`active: true`로 저장하면 다른 프로그램은 비활성) |
+| `PATCH /programs/{id}/done` `{date, done}` | 기타 항목 직접 완료 체크 |
 
 **할 일** (todo 모듈)
 
