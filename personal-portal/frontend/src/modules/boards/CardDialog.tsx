@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from "react";
 import Markdown from "react-markdown";
 import { PlusIcon, XIcon } from "lucide-react";
-import { type BoardDetail, type Card, type CardLink, type CheckItem, type Priority, labelClass, orderAt, type useBoardMutations } from "@/api/boards";
+import { type BoardDetail, type Card, type CardLink, type CheckItem, type Priority, formatTime, labelClass, orderAt, type useBoardMutations, useComments } from "@/api/boards";
+import { useMe } from "@/api/me";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { NativeSelect } from "@/components/NativeSelect";
 import { ErrorAlert } from "@/components/states";
@@ -11,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { newId } from "@/modules/home/layoutModel";
+import { ActivityList } from "./ActivityDialog";
 
 type Props = { card: Card; data: BoardDetail; mut: ReturnType<typeof useBoardMutations>; readOnly: boolean; onClose: () => void };
 type Position = "keep" | "top" | "bottom";
@@ -221,12 +223,17 @@ export function CardDialog({ card, data, mut, readOnly, onClose }: Props) {
           )}
         </Field>
 
+        <CardHistory card={card} data={data} readOnly={readOnly} />
+
         <ErrorAlert error={mut.patchCard.error ?? mut.deleteCard.error} />
         {!readOnly && (
-          <DialogFooter className="flex-row items-center">
-            <ConfirmButton type="button" variant="ghost" className="mr-auto" title="카드를 삭제할까요?" description={card.title} confirmLabel="삭제" onConfirm={() => mut.deleteCard.mutateAsync(card.id).then(onClose)}>
+          <DialogFooter className="flex-row flex-wrap items-center">
+            <ConfirmButton type="button" variant="ghost" title="카드를 삭제할까요?" description={`${card.title} — 댓글도 함께 지워집니다. 지우지 않고 치우려면 "보관"을 쓰세요.`} confirmLabel="삭제" onConfirm={() => mut.deleteCard.mutateAsync(card.id).then(onClose)}>
               삭제
             </ConfirmButton>
+            <Button type="button" variant="ghost" className="mr-auto" onClick={() => mut.patchCard.mutate({ id: card.id, patch: { archived: true } }, { onSuccess: onClose })}>
+              보관
+            </Button>
             <Button type="button" variant="outline" onClick={onClose}>
               취소
             </Button>
@@ -267,6 +274,72 @@ export function MarkdownView({ text }: { text: string }) {
       >
         {text}
       </Markdown>
+    </div>
+  );
+}
+
+/** 카드 하단: 댓글 / 활동(변경 이력) */
+function CardHistory({ card, data, readOnly }: { card: Card; data: BoardDetail; readOnly: boolean }) {
+  const [tab, setTab] = useState<"comments" | "activity">("comments");
+  return (
+    <section className="grid gap-2 border-t pt-3">
+      <div className="flex gap-1">
+        <Button type="button" size="xs" variant={tab === "comments" ? "secondary" : "ghost"} onClick={() => setTab("comments")}>
+          댓글
+        </Button>
+        <Button type="button" size="xs" variant={tab === "activity" ? "secondary" : "ghost"} onClick={() => setTab("activity")}>
+          활동
+        </Button>
+      </div>
+      {tab === "comments" ? <Comments card={card} data={data} readOnly={readOnly} /> : <ActivityList data={data} cardId={card.id} />}
+    </section>
+  );
+}
+
+function Comments({ card, data, readOnly }: { card: Card; data: BoardDetail; readOnly: boolean }) {
+  const me = useMe();
+  const { list, add, remove } = useComments(data.board.id, card.id);
+  const [text, setText] = useState("");
+  const name = (sub: string) => data.members.find((m) => m.sub === sub)?.name || "(나간 멤버)";
+  const canDelete = (author: string) => !readOnly && (author === me.data?.sub || data.role === "owner");
+
+  return (
+    <div className="grid gap-2">
+      {list.isPending ? null : list.data?.length ? (
+        <ul className="grid gap-2">
+          {list.data.map((c) => (
+            <li key={c.id} className="grid gap-0.5 rounded-lg bg-muted/40 px-2.5 py-1.5">
+              <div className="flex items-center gap-2 text-xs">
+                <b className="font-medium">{name(c.author)}</b>
+                <span className="text-muted-foreground">{formatTime(c.createdAt)}</span>
+                {canDelete(c.author) && (
+                  <button type="button" className="ml-auto text-muted-foreground hover:text-destructive" disabled={remove.isPending} onClick={() => remove.mutate(c.id)}>
+                    삭제
+                  </button>
+                )}
+              </div>
+              <p className="text-sm whitespace-pre-wrap break-words">{c.text}</p>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-xs text-muted-foreground">댓글이 없습니다.</p>
+      )}
+      {!readOnly && (
+        <form
+          className="grid gap-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (text.trim()) add.mutate(text.trim(), { onSuccess: () => setText("") });
+          }}
+        >
+          <Textarea rows={2} maxLength={2000} placeholder="댓글 입력" value={text} onChange={(e) => setText(e.target.value)} />
+          <Button type="submit" size="sm" variant="outline" className="justify-self-end" disabled={!text.trim() || add.isPending}>
+            댓글 달기
+          </Button>
+        </form>
+      )}
+      <ErrorAlert error={list.error ?? add.error ?? remove.error} />
     </div>
   );
 }

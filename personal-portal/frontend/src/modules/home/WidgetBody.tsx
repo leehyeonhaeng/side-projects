@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type MouseEvent, useState } from "react";
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, YAxis } from "recharts";
 import { useNavigate } from "react-router";
 import { CheckIcon } from "lucide-react";
@@ -7,6 +7,7 @@ import { MEAL_TYPES, sumTotals, useMeals } from "@/api/meals";
 import { useMe } from "@/api/me";
 import { useSettings } from "@/api/preferences";
 import { useWeights, withMovingAverage } from "@/api/weights";
+import { useBoards } from "@/api/boards";
 import { isPlanDone, mondayOf, useGymSessions, usePrograms, useRuns } from "@/api/exercise";
 import { TodayTraining, useProgramRecords } from "@/modules/health/exercise/ProgramPanel";
 import type { LayoutItem } from "@/api/preferences";
@@ -24,6 +25,7 @@ export function WidgetBody({ item }: { item: LayoutItem }) {
   if (item.widget === "meal") return <MealWidget w={item.w} h={item.h} />;
   if (item.widget === "weight") return <WeightWidget w={item.w} h={item.h} />;
   if (item.widget === "exercise") return <ExerciseWidget w={item.w} h={item.h} />;
+  if (item.widget === "boards") return <BoardsWidget w={item.w} h={item.h} />;
   const def = item.widget ? WIDGET_BY_KEY[item.widget] : undefined;
   const compact = item.w === 1;
   return (
@@ -300,6 +302,62 @@ function ExerciseWidget({ w, h }: { w: number; h: number }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── 작업 보드: 1×1 내 진행 중 카드 수 / 2×1 내 담당 마감 임박 / 2×2 즐겨찾기 보드 요약 (DESIGN.md 6.6) ──
+function BoardsWidget({ w, h }: { w: number; h: number }) {
+  const data = useBoards();
+  const navigate = useNavigate();
+  const today = todayStr();
+  const myCards = data.data?.myCards ?? [];
+
+  // "진행 중" = 완료 컬럼·보관이 아닌 내 담당 카드
+  if (w === 1) return <Count value={data.data ? myCards.length : undefined} label="내 진행 중 카드" />;
+
+  const open = (e: MouseEvent, path: string) => {
+    e.stopPropagation();
+    void navigate(path);
+  };
+
+  if (h === 1) {
+    const soon = myCards.filter((c) => c.due && c.due <= addDays(today, 2));
+    return (
+      <div className="mt-1 grid min-h-0 flex-1 content-start gap-0.5 overflow-hidden text-xs">
+        {data.data && soon.length === 0 && <p className="text-muted-foreground">마감 임박한 내 카드가 없습니다.</p>}
+        {soon.slice(0, 3).map((c) => (
+          <button key={c.id} type="button" onClick={(e) => open(e, `/boards/${c.boardId}`)} className="flex min-w-0 items-center gap-1.5 text-left">
+            <span className={cn("shrink-0 tabular-nums", c.due! < today ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400")}>{formatDay(c.due!)}</span>
+            <span className="truncate">{c.title}</span>
+          </button>
+        ))}
+        {soon.length > 3 && <p className="text-[10px] text-muted-foreground">외 {soon.length - 3}개</p>}
+      </div>
+    );
+  }
+
+  const boards = data.data?.boards ?? [];
+  const favorites = boards.filter((b) => b.favorite);
+  const shown = (favorites.length ? favorites : boards).slice(0, 4);
+  return (
+    <div className="mt-1 grid min-h-0 flex-1 content-start gap-1.5 overflow-hidden text-xs">
+      {data.data && shown.length === 0 && <p className="text-muted-foreground">보드가 없습니다.</p>}
+      {data.data && boards.length > 0 && favorites.length === 0 && <p className="text-[10px] text-muted-foreground">☆ 즐겨찾기한 보드가 여기에 보입니다</p>}
+      {shown.map((b) => {
+        const pct = b.progress.total ? Math.round((b.progress.done / b.progress.total) * 100) : 0;
+        return (
+          <button key={b.id} type="button" onClick={(e) => open(e, `/boards/${b.id}`)} className="grid gap-0.5 text-left">
+            <span className="flex justify-between gap-2">
+              <span className="truncate font-medium">{b.name}</span>
+              <span className="shrink-0 tabular-nums text-muted-foreground">진행 중 {b.activeCount} · {pct}%</span>
+            </span>
+            <span className="h-1 overflow-hidden rounded-full bg-muted">
+              <span className="block h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }

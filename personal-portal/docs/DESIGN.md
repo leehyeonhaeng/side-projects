@@ -419,6 +419,13 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | 카드 | 보드당 최대 500개. 담당자는 보드 멤버만, 멤버가 나가면 담당자 비움. 라벨은 보드 단위(이름 선택 + 9색), 지우면 카드에서도 빠짐. 링크는 http(s)만 |
 | 설명 | 마크다운(react-markdown). HTML 태그는 렌더링하지 않고 링크는 새 탭 |
 | 동기화 | 실시간 연결 없음. 보드 화면이 열려 있는 동안 30초마다 + 창 복귀 시 다시 불러옴. 카드 이동·수정은 화면에 먼저 반영 |
+| 즐겨찾기 | 사람마다 다름 → 내 멤버 항목의 `favorite`. 목록에서 즐겨찾기 먼저, 홈 2×2 위젯에 표시 |
+| 필터 | 라벨(여러 개, 하나라도 맞으면), 담당자(전체·내 카드·없음·멤버), 마감 임박(오늘 포함 3일 이내 또는 지남, 완료 컬럼 제외). 화면에서만 거르고, 필터 중에는 드래그를 끈다(보이지 않는 카드 사이 순서가 꼬이지 않게) |
+| 보관 | "완료 카드 보관"은 완료 컬럼 카드 전체를 보관. 카드 상세에서 하나씩도 보관. 보관 카드는 보드·진행률·카드 수 제한에서 빠짐. 복구하면 원래 컬럼(없어졌으면 첫 컬럼) 맨 아래 |
+| 활동 기록 | 카드 생성·이동(다른 컬럼)·제목·담당자·마감일·우선순위·라벨·설명·체크리스트·링크 변경·보관·복구·삭제. 같은 컬럼 안 순서 변경은 남기지 않음. 보드 전체 최근 50개 / 카드별 최근 50개 |
+| 댓글 | 편집자 이상이 작성(열람자는 보기만). 내 댓글은 내가, 남의 댓글은 소유자가 삭제. 카드를 지우면 댓글도 삭제 |
+| 템플릿 | 개인 소유(`USER#<sub>` / `BOARDTPL#<id>`). 멤버인 보드의 컬럼 구성(이름·완료 여부)과 라벨을 저장, 카드는 저장하지 않음. 최대 20개 |
+| 홈 위젯 | 1×1 내 담당 진행 중 카드 수(완료 컬럼 제외) / 2×1 내 담당 마감 임박 3개 / 2×2 즐겨찾기 보드(없으면 전체) 4개의 진행 중 카드 수·진행률 |
 
 ### 6.7 메모·노트
 
@@ -479,6 +486,7 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | 헬스 세션 | `GYM#<date>#<id>` |
 | 헬스 루틴 | `ROUTINE#<id>` |
 | 훈련 프로그램 | `PROGRAM#<id>` |
+| 보드 템플릿 (컬럼 구성·라벨) | `BOARDTPL#<id>` |
 | 메모 | `NOTE#<id>` |
 | 가계부 내역 | `TXN#<date>#<id>` |
 | 가계부 카테고리 | `CAT#<id>` |
@@ -492,11 +500,11 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | 데이터 | PK | SK |
 |---|---|---|
 | 보드 정보 | `BOARD#<id>` | `META` |
-| 보드 멤버 | `BOARD#<id>` | `MEMBER#<sub>` |
+| 보드 멤버 (역할, 즐겨찾기 `favorite`) | `BOARD#<id>` | `MEMBER#<sub>` |
 | 컬럼 | `BOARD#<id>` | `COL#<id>` |
-| 카드 | `BOARD#<id>` | `CARD#<id>` |
+| 카드 (보관 시 `archived`) | `BOARD#<id>` | `CARD#<id>` |
 | 카드 댓글 | `BOARD#<id>` | `CARD#<id>#CMT#<timestamp>` |
-| 보드 활동 | `BOARD#<id>` | `ACT#<timestamp>` |
+| 보드 활동 (`cardId`로 카드별 이력) | `BOARD#<id>` | `ACT#<timestamp>` |
 | 체크리스트 정보 | `LIST#<id>` | `META` |
 | 체크리스트 멤버 | `LIST#<id>` | `MEMBER#<sub>` |
 | 체크리스트 항목 | `LIST#<id>` | `ITEM#<id>` |
@@ -613,7 +621,14 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | `GET /boards/{id}/candidates` | 초대 가능한 계정 (소유자) |
 | `POST /boards/{id}/members` `{sub, role}`, `PATCH` · `DELETE /boards/{id}/members/{sub}` | 멤버 추가·역할 변경·내보내기(소유자). 본인 `DELETE`는 나가기 |
 | `POST /boards/{id}/columns`, `PATCH` · `DELETE /boards/{id}/columns/{cid}` | 컬럼 `{name, order, done}` |
-| `POST /boards/{id}/cards`, `PATCH` · `DELETE /boards/{id}/cards/{cardId}` | 카드. 이동은 `PATCH {columnId, order}`. null은 담당자·마감일 비우기 |
+| `POST /boards/{id}/cards`, `PATCH` · `DELETE /boards/{id}/cards/{cardId}` | 카드. 이동은 `PATCH {columnId, order}`. null은 담당자·마감일 비우기. `{archived: true/false}`는 보관·복구 |
+| `POST /boards/{id}/archive-done`, `GET /boards/{id}/archived` | 완료 컬럼 카드 일괄 보관, 보관함 |
+| `PUT /boards/{id}/favorite` `{favorite}` | 내 즐겨찾기 |
+| `GET /boards/{id}/activity?cardId=` | 활동 기록 (최신순 50개, cardId면 그 카드만) |
+| `GET` · `POST /boards/{id}/cards/{cardId}/comments`, `DELETE …/comments/{commentId}` | 댓글 |
+| `GET` · `POST /boards/templates` `{name, boardId}`, `DELETE /boards/templates/{id}` | 내 보드 템플릿. `POST /boards`에 `templateId`를 주면 그 구성으로 생성 |
+
+`GET /boards`는 `myCards`(내 담당, 완료 컬럼·보관 제외, 마감일순)도 함께 준다 (홈 위젯)
 
 **할 일** (todo 모듈)
 

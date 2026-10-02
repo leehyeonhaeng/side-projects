@@ -15,15 +15,19 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowLeftIcon, CheckIcon, ChevronLeftIcon, PencilIcon, PlusIcon, SettingsIcon, TagIcon, UsersIcon } from "lucide-react";
-import { type BoardDetail, type Card, type Column, orderAt, useBoard, useBoardMutations } from "@/api/boards";
+import { ArchiveIcon, ArrowLeftIcon, CheckIcon, ChevronLeftIcon, FilterIcon, HistoryIcon, LayoutTemplateIcon, PencilIcon, PlusIcon, SettingsIcon, TagIcon, UsersIcon } from "lucide-react";
+import { type BoardDetail, type Card, type Column, orderAt, useBoard, useBoardMutations, useSetFavorite } from "@/api/boards";
 import { ApiError } from "@/api/client";
 import { useMe } from "@/api/me";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { ErrorAlert, InlineSpinner } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ROLE_LABEL } from "./BoardsPage";
+import { ActivityDialog } from "./ActivityDialog";
+import { ArchiveDialog } from "./ArchiveDialog";
+import { FavoriteButton, ROLE_LABEL } from "./BoardsPage";
+import { type CardFilter, EMPTY_FILTER, FilterBar, isFiltering, matchesFilter } from "./FilterBar";
+import { SaveTemplateDialog } from "./SaveTemplateDialog";
 import { CardDialog } from "./CardDialog";
 import { CardTile } from "./CardTile";
 import { ColumnDialog } from "./ColumnDialog";
@@ -62,8 +66,13 @@ function BoardView({ data, mut }: { data: BoardDetail; mut: Mutations }) {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [openCard, setOpenCard] = useState<string | null>(null);
   const [openColumn, setOpenColumn] = useState<Column | null>(null);
-  const [dialog, setDialog] = useState<"members" | "labels" | null>(null);
+  const [dialog, setDialog] = useState<"members" | "labels" | "archive" | "activity" | "template" | null>(null);
   const [dragging, setDragging] = useState<Card | null>(null);
+  const [showFilter, setShowFilter] = useState(false);
+  const [filter, setFilter] = useState<CardFilter>(EMPTY_FILTER);
+  const favorite = useSetFavorite();
+  const filtering = isFiltering(filter);
+  const doneColumns = new Set(columns.filter((c) => c.done).map((c) => c.id));
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
@@ -72,6 +81,8 @@ function BoardView({ data, mut }: { data: BoardDetail; mut: Mutations }) {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
   const byColumn = (cid: string) => cards.filter((c) => c.columnId === cid);
+  const shownIn = (cid: string) => byColumn(cid).filter((c) => matchesFilter(c, filter, me.data?.sub, doneColumns));
+  const doneCount = cards.filter((c) => doneColumns.has(c.columnId)).length;
   const memberName = (sub?: string) => members.find((m) => m.sub === sub)?.name;
   const current = cards.find((c) => c.id === openCard) ?? null;
 
@@ -137,6 +148,7 @@ function BoardView({ data, mut }: { data: BoardDetail; mut: Mutations }) {
             )}
           </h1>
         )}
+        <FavoriteButton on={data.favorite} onClick={() => favorite.mutate({ id: board.id, favorite: !data.favorite })} />
         <span className="text-xs text-muted-foreground">{ROLE_LABEL[role]}</span>
         <div className="ml-auto flex gap-1">
           <Button variant="outline" size="sm" onClick={() => setDialog("members")}>
@@ -159,19 +171,45 @@ function BoardView({ data, mut }: { data: BoardDetail; mut: Mutations }) {
             )
           )}
         </div>
-        <div className="w-full max-w-xs">
-          <ProgressBar progress={progress} />
+        <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-1">
+          <div className="w-full max-w-xs">
+            <ProgressBar progress={progress} />
+          </div>
+          <div className="flex flex-wrap gap-1">
+            <Button variant={showFilter || filtering ? "secondary" : "ghost"} size="xs" onClick={() => setShowFilter(!showFilter)}>
+              <FilterIcon /> 필터{filtering && " 적용 중"}
+            </Button>
+            {canEdit && (
+              <ConfirmButton variant="ghost" size="xs" disabled={doneCount === 0} title="완료 카드를 보관할까요?" description={`완료 컬럼의 카드 ${doneCount}개를 보관함으로 옮깁니다. 보관함에서 언제든 복구할 수 있습니다.`} confirmLabel="보관" onConfirm={() => mut.archiveDone.mutateAsync(undefined)}>
+                <ArchiveIcon /> 완료 카드 보관
+              </ConfirmButton>
+            )}
+            <Button variant="ghost" size="xs" onClick={() => setDialog("archive")}>
+              보관함 {data.archivedCount}
+            </Button>
+            <Button variant="ghost" size="xs" onClick={() => setDialog("activity")}>
+              <HistoryIcon /> 활동
+            </Button>
+            {me.data?.perms.boards === "edit" && (
+              <Button variant="ghost" size="xs" onClick={() => setDialog("template")}>
+                <LayoutTemplateIcon /> 템플릿으로 저장
+              </Button>
+            )}
+          </div>
         </div>
+        {(showFilter || filtering) && <FilterBar filter={filter} onChange={setFilter} data={data} />}
       </header>
-      <ErrorAlert error={mut.patchCard.error ?? mut.patchColumn.error ?? mut.patchBoard.error ?? mut.createCard.error ?? mut.createColumn.error} />
+      <ErrorAlert error={mut.patchCard.error ?? mut.patchColumn.error ?? mut.patchBoard.error ?? mut.createCard.error ?? mut.createColumn.error ?? mut.archiveDone.error ?? favorite.error} />
+      {filtering && canEdit && <p className="text-xs text-muted-foreground">필터 중에는 드래그가 꺼집니다. 카드를 열어 "컬럼·위치"로 옮기거나 필터를 해제하세요.</p>}
 
-      <DndContext sensors={canEdit ? sensors : undefined} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
+      <DndContext sensors={canEdit && !filtering ? sensors : undefined} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
         <div className="-mx-4 flex snap-x snap-mandatory items-start gap-3 overflow-x-auto px-4 pb-4 sm:snap-none">
           {columns.map((col, i) => (
             <ColumnView
               key={col.id}
               column={col}
-              cards={byColumn(col.id)}
+              cards={shownIn(col.id)}
+              total={byColumn(col.id).length}
               board={data}
               canEdit={canEdit}
               memberName={memberName}
@@ -192,6 +230,9 @@ function BoardView({ data, mut }: { data: BoardDetail; mut: Mutations }) {
       {openColumn && <ColumnDialog key={openColumn.id} column={openColumn} cardCount={byColumn(openColumn.id).length} isOnly={columns.length === 1} mut={mut} onClose={() => setOpenColumn(null)} />}
       {dialog === "members" && <MembersDialog data={data} mut={mut} onClose={() => setDialog(null)} />}
       {dialog === "labels" && <LabelsDialog labels={board.labels} mut={mut} onClose={() => setDialog(null)} />}
+      {dialog === "archive" && <ArchiveDialog data={data} mut={mut} onClose={() => setDialog(null)} />}
+      {dialog === "activity" && <ActivityDialog data={data} onOpenCard={(cid) => (setDialog(null), setOpenCard(cid))} onClose={() => setDialog(null)} />}
+      {dialog === "template" && <SaveTemplateDialog boardId={board.id} defaultName={board.name} onClose={() => setDialog(null)} />}
     </main>
   );
 }
@@ -199,6 +240,7 @@ function BoardView({ data, mut }: { data: BoardDetail; mut: Mutations }) {
 type ColumnProps = {
   column: Column;
   cards: Card[];
+  total: number;
   board: BoardDetail;
   canEdit: boolean;
   memberName: (sub?: string) => string | undefined;
@@ -210,7 +252,7 @@ type ColumnProps = {
   onAdd: (title: string) => Promise<unknown>;
 };
 
-function ColumnView({ column, cards, board, canEdit, memberName, first, last, onMove, onSettings, onOpenCard, onAdd }: ColumnProps) {
+function ColumnView({ column, cards, total, board, canEdit, memberName, first, last, onMove, onSettings, onOpenCard, onAdd }: ColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: `col:${column.id}` });
   const [adding, setAdding] = useState<string | null>(null);
 
@@ -219,7 +261,7 @@ function ColumnView({ column, cards, board, canEdit, memberName, first, last, on
       <div className="flex items-center gap-1 px-1">
         <h2 className="truncate text-sm font-medium">{column.name}</h2>
         {column.done && <CheckIcon className="size-3.5 shrink-0 text-primary" aria-label="완료 컬럼" />}
-        <span className="text-xs tabular-nums text-muted-foreground">{cards.length}</span>
+        <span className="text-xs tabular-nums text-muted-foreground">{cards.length === total ? total : `${cards.length}/${total}`}</span>
         {canEdit && (
           <div className="ml-auto flex">
             <Button variant="ghost" size="icon-xs" aria-label="왼쪽으로" disabled={first} onClick={() => onMove(-1)}>

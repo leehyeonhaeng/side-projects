@@ -8,7 +8,10 @@ export type Label = { id: string; name: string; color: LabelColor };
 export type Progress = { done: number; total: number };
 
 export type Board = { id: string; name: string; ownerSub: string; labels: Label[]; createdAt: string };
-export type BoardSummary = Board & { role: BoardRole; progress: Progress; memberCount: number };
+export type BoardSummary = Board & { role: BoardRole; favorite: boolean; progress: Progress; memberCount: number; activeCount: number };
+/** 내 담당 카드 (완료 컬럼·보관 제외, 마감일순) */
+export type MyCard = { id: string; title: string; due?: string; priority: Priority; boardId: string; boardName: string; columnName: string };
+export type Template = { id: string; name: string; columns: { name: string; done: boolean }[]; labels: Label[]; createdAt: string };
 export type Column = { id: string; name: string; order: number; done: boolean };
 export type Priority = "high" | "normal" | "low";
 export type CheckItem = { id: string; text: string; done: boolean };
@@ -28,13 +31,17 @@ export type Card = {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  archived?: boolean;
+  archivedAt?: string;
 };
 export type Person = { sub: string; name: string; email: string };
 export type Member = Person & { role: BoardRole };
-export type BoardDetail = { board: Board; role: BoardRole; columns: Column[]; cards: Card[]; members: Member[]; progress: Progress };
+export type BoardDetail = { board: Board; role: BoardRole; favorite: boolean; columns: Column[]; cards: Card[]; archivedCount: number; members: Member[]; progress: Progress };
+export type Activity = { actor: string; cardId: string; cardTitle: string; action: string; at: string; from?: string; to?: string };
+export type Comment = { id: string; author: string; text: string; createdAt: string };
 
 /** 수정: 보낸 필드만 바뀌고 null은 비운다 */
-export type CardPatch = Partial<Omit<Card, "id" | "createdBy" | "createdAt" | "updatedAt" | "assignee" | "due">> & { assignee?: string | null; due?: string | null };
+export type CardPatch = Partial<Omit<Card, "id" | "createdBy" | "createdAt" | "updatedAt" | "assignee" | "due" | "archivedAt">> & { assignee?: string | null; due?: string | null };
 
 export const LABEL_COLORS: { value: LabelColor; className: string }[] = [
   { value: "gray", className: "bg-zinc-500" },
@@ -52,8 +59,56 @@ export const labelClass = (color: LabelColor) => LABEL_COLORS.find((c) => c.valu
 const LIST_KEY = ["boards"];
 const boardKey = (id: string) => ["boards", id];
 
-export function useBoards() {
-  return useQuery({ queryKey: LIST_KEY, queryFn: () => api.get<{ boards: BoardSummary[] }>("/boards"), select: (d) => d.boards });
+const TEMPLATE_KEY = ["boardTemplates"];
+
+export function useBoards(enabled = true) {
+  return useQuery({ queryKey: LIST_KEY, queryFn: () => api.get<{ boards: BoardSummary[]; myCards: MyCard[] }>("/boards"), enabled });
+}
+
+export function useSetFavorite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, favorite }: { id: string; favorite: boolean }) => api.put(`/boards/${id}/favorite`, { favorite }),
+    onSettled: (_d, _e, { id }) => {
+      void qc.invalidateQueries({ queryKey: LIST_KEY, exact: true });
+      void qc.invalidateQueries({ queryKey: boardKey(id), exact: true });
+    },
+  });
+}
+
+export function useTemplates() {
+  return useQuery({ queryKey: TEMPLATE_KEY, queryFn: () => api.get<{ templates: Template[] }>("/boards/templates"), select: (d) => d.templates });
+}
+export function useSaveTemplate() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: (body: { name: string; boardId: string }) => api.post<Template>("/boards/templates", body), onSettled: () => qc.invalidateQueries({ queryKey: TEMPLATE_KEY }) });
+}
+export function useDeleteTemplate() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: (id: string) => api.del(`/boards/templates/${id}`), onSettled: () => qc.invalidateQueries({ queryKey: TEMPLATE_KEY }) });
+}
+
+export function useArchived(boardId: string) {
+  return useQuery({ queryKey: [...boardKey(boardId), "archived"], queryFn: () => api.get<{ cards: Card[] }>(`/boards/${boardId}/archived`), select: (d) => d.cards });
+}
+export function useActivity(boardId: string, cardId?: string) {
+  return useQuery({
+    queryKey: [...boardKey(boardId), "activity", cardId ?? "all"],
+    queryFn: () => api.get<{ activity: Activity[] }>(`/boards/${boardId}/activity${cardId ? `?cardId=${cardId}` : ""}`),
+    select: (d) => d.activity,
+  });
+}
+
+export function useComments(boardId: string, cardId: string) {
+  const qc = useQueryClient();
+  const key = [...boardKey(boardId), "comments", cardId];
+  const base = `/boards/${boardId}/cards/${cardId}/comments`;
+  const refresh = () => qc.invalidateQueries({ queryKey: key });
+  return {
+    list: useQuery({ queryKey: key, queryFn: () => api.get<{ comments: Comment[] }>(base), select: (d) => d.comments, refetchInterval: 30_000 }),
+    add: useMutation({ mutationFn: (text: string) => api.post<Comment>(base, { text }), onSettled: refresh }),
+    remove: useMutation({ mutationFn: (id: string) => api.del(`${base}/${id}`), onSettled: refresh }),
+  };
 }
 
 /** 다른 멤버의 변경은 창 복귀 시 + 보드가 열려 있는 동안 30초마다 반영 (DESIGN.md 6.6 구현 결정) */
@@ -78,7 +133,7 @@ export function useCandidates(boardId: string, enabled: boolean) {
 
 export function useCreateBoard() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: (name: string) => api.post<Board>("/boards", { name }), onSettled: () => qc.invalidateQueries({ queryKey: LIST_KEY }) });
+  return useMutation({ mutationFn: (body: { name: string; templateId?: string }) => api.post<Board>("/boards", body), onSettled: () => qc.invalidateQueries({ queryKey: LIST_KEY }) });
 }
 
 function useRefreshing<V>(refresh: () => void, fn: (v: V) => Promise<unknown>) {
@@ -89,6 +144,7 @@ function useRefreshing<V>(refresh: () => void, fn: (v: V) => Promise<unknown>) {
 export function useBoardMutations(boardId: string) {
   const qc = useQueryClient();
   const key = boardKey(boardId);
+  // 보드 상세·보관함·활동 기록을 함께 다시 불러온다
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: key });
     void qc.invalidateQueries({ queryKey: LIST_KEY, exact: true });
@@ -102,6 +158,7 @@ export function useBoardMutations(boardId: string) {
       const prev = qc.getQueryData<BoardDetail>(key);
       if (prev) {
         const cards = prev.cards
+          .filter((c) => !(c.id === id && patch.archived))
           .map((c) => {
             if (c.id !== id) return c;
             const next: Card = { ...c, ...(patch as Partial<Card>) };
@@ -130,6 +187,7 @@ export function useBoardMutations(boardId: string) {
     createCard: useRefreshing(refresh, (body: CardPatch & { title: string; columnId: string }) => api.post<Card>(`${base}/cards`, body)),
     patchCard,
     deleteCard: useRefreshing(refresh, (id: string) => api.del(`${base}/cards/${id}`)),
+    archiveDone: useRefreshing(refresh, () => api.post<{ archived: number }>(`${base}/archive-done`)),
   };
 }
 
@@ -142,3 +200,43 @@ export function orderAt(sorted: { order: number }[], index: number): number {
   if (after === undefined) return before + 1;
   return (before + after) / 2;
 }
+
+const PRIORITY_LABEL: Record<string, string> = { high: "높음", normal: "보통", low: "낮음" };
+
+/** 활동 기록 한 줄 (backend boards._changes 의 action) */
+export function describeActivity(a: Activity, name: (sub?: string) => string): string {
+  switch (a.action) {
+    case "created":
+      return `카드 생성${a.to ? ` (${a.to})` : ""}`;
+    case "moved":
+      return `${a.from} → ${a.to} 이동`;
+    case "renamed":
+      return `제목 변경 (이전: ${a.from})`;
+    case "assigned":
+      return a.to ? `담당자 ${name(a.to)}` : "담당자 해제";
+    case "due":
+      return a.to ? `마감일 ${a.to}` : "마감일 해제";
+    case "priority":
+      return `우선순위 ${PRIORITY_LABEL[a.to ?? "normal"]}`;
+    case "labels":
+      return "라벨 변경";
+    case "description":
+      return "설명 수정";
+    case "links":
+      return "링크 변경";
+    case "checklist":
+      return `체크리스트 ${a.to}`;
+    case "archived":
+      return "보관";
+    case "restored":
+      return "복구";
+    case "deleted":
+      return "삭제";
+    default:
+      return a.action;
+  }
+}
+
+const KST_TIME = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+/** ISO 시각 → "10. 2. 14:05" (KST) */
+export const formatTime = (iso: string) => KST_TIME.format(new Date(iso));

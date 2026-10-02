@@ -9,9 +9,9 @@ from handlers import shared
 from tests.conftest import FakeContext, http_event
 
 
-def call(ctx: FakeContext, sub: str, method: str, path: str, body: dict[str, Any] | None = None) -> tuple[int, Any]:
+def call(ctx: FakeContext, sub: str, method: str, path: str, body: dict[str, Any] | None = None, query: dict[str, str] | None = None) -> tuple[int, Any]:
     raw = json.dumps(body) if body is not None else None
-    res = shared.lambda_handler(http_event(method, f"/api/v1{path}", sub=sub, body=raw), ctx)
+    res = shared.lambda_handler(http_event(method, f"/api/v1{path}", sub=sub, body=raw, query=query), ctx)
     return res["statusCode"], json.loads(res["body"])
 
 

@@ -21,7 +21,7 @@ export const WIDGETS: WidgetDef[] = [
   { key: "meal", module: "health", title: "식단", icon: UtensilsIcon, sizes: { "1x1": "오늘 칼로리", "2x1": "게이지 + 탄단지", "2x2": "끼니 요약 + 빠른 입력" } },
   { key: "weight", module: "health", title: "체중", icon: ScaleIcon, sizes: { "1x1": "현재 체중", "2x1": "7일 추세", "2x2": "1개월 그래프 + 목표" } },
   { key: "exercise", module: "health", title: "운동", icon: FootprintsIcon, sizes: { "1x1": "이번 주 러닝 거리", "2x1": "오늘 할 훈련", "2x2": "주간 요약 + 진행률" } },
-  { key: "boards", module: "boards", title: "작업 보드", icon: m.boards.icon, sizes: { "1x1": "진행 중 카드 수", "2x1": "내 담당 마감 임박", "2x2": "즐겨찾기 보드 요약" } },
+  { key: "boards", module: "boards", title: "작업 보드", icon: m.boards.icon, sizes: { "1x1": "내 진행 중 카드 수", "2x1": "내 담당 마감 임박", "2x2": "즐겨찾기 보드 요약" } },
   { key: "notes", module: "notes", title: "메모", icon: m.notes.icon, sizes: { "1x1": "빠른 메모", "2x1": "최근 메모 3개", "2x2": "고정 메모" } },
   { key: "ledger", module: "ledger", title: "가계부", icon: m.ledger.icon, sizes: { "1x1": "이번 달 지출", "2x1": "예산 게이지", "2x2": "카테고리 차트" } },
   { key: "hub", module: "hub", title: "스니펫·링크", icon: m.hub.icon, sizes: { "1x1": "검색창", "2x1": "즐겨찾기 링크", "2x2": "즐겨찾기 스니펫" } },
