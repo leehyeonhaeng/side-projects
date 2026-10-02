@@ -7,7 +7,7 @@ GSI1 USER#<sub> / BOARD#<id>, 7.1: USER#<sub> / BOARDTPL#<id>).
 - 만든 사람이 소유자: 멤버 관리·보드 삭제는 소유자만. 멤버가 아니면 보드가 없는 것처럼 404
 """
 
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any, Literal
 from uuid import uuid4
 
@@ -269,10 +269,22 @@ def _new_column(bid: str, name: str, order: float, done: bool) -> dict[str, Any]
 
 # ── 활동 기록 (카드별 변경 이력) ─────────────────────
 
+_last_ts = datetime.min.replace(tzinfo=UTC)
+
+
+def _sort_ts() -> str:
+    """정렬 키용 시각 (마이크로초, 프로세스 안에서 항상 증가).
+    시계 해상도가 낮으면(Windows 약 15ms) 연달아 쓴 항목이 같은 시각이 되어 순서가 뒤섞이므로 직전 값보다 크게 만든다"""
+    global _last_ts
+    now = datetime.now(UTC)
+    _last_ts = now if now > _last_ts else _last_ts + timedelta(microseconds=1)
+    return _last_ts.isoformat(timespec="microseconds")
+
+
 def _act(bid: str, actor: str, card: dict[str, Any], action: str, seq: int = 0, **detail: Any) -> dict[str, Any]:
     """seq: 한 요청에서 여러 개를 남길 때 같은 시각 안의 순서"""
     at = now_iso()
-    return {"PK": _pk(bid), "SK": f"ACT#{at}#{seq:02d}{uuid4().hex[:6]}", "actor": actor, "cardId": card["id"], "cardTitle": card["title"], "action": action, "at": at, **detail}
+    return {"PK": _pk(bid), "SK": f"ACT#{_sort_ts()}#{seq:02d}{uuid4().hex[:6]}", "actor": actor, "cardId": card["id"], "cardTitle": card["title"], "action": action, "at": at, **detail}
 
 
 def _write(items: list[dict[str, Any]]) -> None:
@@ -758,7 +770,7 @@ def add_comment(bid: str, card_id: str) -> dict[str, Any]:
         raise NotFoundError("card not found")
     at = now_iso()
     cmt_id = uuid4().hex[:12]
-    item = {"PK": _pk(bid), "SK": f"{_comment_prefix(card_id)}{at}#{cmt_id}", "id": cmt_id, "author": sub, "text": text, "createdAt": at}
+    item = {"PK": _pk(bid), "SK": f"{_comment_prefix(card_id)}{_sort_ts()}#{cmt_id}", "id": cmt_id, "author": sub, "text": text, "createdAt": at}
     table().put_item(Item=item)
     return _strip(item)
 

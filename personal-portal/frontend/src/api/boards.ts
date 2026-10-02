@@ -237,6 +237,4 @@ export function describeActivity(a: Activity, name: (sub?: string) => string): s
   }
 }
 
-const KST_TIME = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
-/** ISO 시각 → "10. 2. 14:05" (KST) */
-export const formatTime = (iso: string) => KST_TIME.format(new Date(iso));
+export { formatTime } from "@/lib/dates";

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { useMe } from "@/api/me";
+import { useNoteMutations } from "@/api/notes";
 import { useCreateTodo } from "@/api/todos";
 import { ErrorAlert } from "@/components/states";
 import { todayStr } from "@/lib/dates";
@@ -27,6 +28,7 @@ export function QuickAddDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const [text, setText] = useState("");
   const [saved, setSaved] = useState<string | null>(null);
   const createTodo = useCreateTodo();
+  const createNote = useNoteMutations().create;
   const navigate = useNavigate();
   const kind = kinds.find((k) => k.id === kindId) ?? kinds[0];
 
@@ -49,6 +51,10 @@ export function QuickAddDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 onOpenChange(false);
                 setText("");
                 navigate(`/health?draft=${encodeURIComponent(value)}`);
+                return;
+              }
+              if (kind.id === "note") {
+                createNote.mutate({ body: value }, { onSuccess: () => (setText(""), setSaved("메모에 저장했습니다.")) });
                 return;
               }
               if (kind.id !== "todo") return;
@@ -79,13 +85,17 @@ export function QuickAddDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               <Button type="submit" disabled={!text.trim()}>
                 식단 화면에서 AI 계산
               </Button>
+            ) : kind.id === "note" ? (
+              <Button type="submit" disabled={!text.trim() || createNote.isPending}>
+                메모 저장
+              </Button>
             ) : (
               <Button type="submit" disabled>
                 저장 (Phase {MODULE_BY_ID[kind.module].phase}에서 연결)
               </Button>
             )}
             {saved && <p className="text-xs text-muted-foreground">{saved}</p>}
-            <ErrorAlert error={createTodo.error} />
+            <ErrorAlert error={createTodo.error ?? createNote.error} />
           </form>
         )}
       </DialogContent>

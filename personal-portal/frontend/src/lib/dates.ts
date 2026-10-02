@@ -47,3 +47,7 @@ export const ISO_WEEKDAYS = [
 ];
 
 export const isoWeekdayOf = (day: string) => ((weekdayOf(day) + 6) % 7) + 1;
+
+const KST_TIME = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+/** ISO 시각 → "10. 2. 14:05" (KST) */
+export const formatTime = (iso: string) => KST_TIME.format(new Date(iso));

@@ -8,6 +8,7 @@ import { useMe } from "@/api/me";
 import { useSettings } from "@/api/preferences";
 import { useWeights, withMovingAverage } from "@/api/weights";
 import { useBoards } from "@/api/boards";
+import { noteTitle, notePreview, useNotes } from "@/api/notes";
 import { isPlanDone, mondayOf, useGymSessions, usePrograms, useRuns } from "@/api/exercise";
 import { TodayTraining, useProgramRecords } from "@/modules/health/exercise/ProgramPanel";
 import type { LayoutItem } from "@/api/preferences";
@@ -26,6 +27,7 @@ export function WidgetBody({ item }: { item: LayoutItem }) {
   if (item.widget === "weight") return <WeightWidget w={item.w} h={item.h} />;
   if (item.widget === "exercise") return <ExerciseWidget w={item.w} h={item.h} />;
   if (item.widget === "boards") return <BoardsWidget w={item.w} h={item.h} />;
+  if (item.widget === "notes") return <NotesWidget w={item.w} h={item.h} />;
   const def = item.widget ? WIDGET_BY_KEY[item.widget] : undefined;
   const compact = item.w === 1;
   return (
@@ -358,6 +360,40 @@ function BoardsWidget({ w, h }: { w: number; h: number }) {
           </button>
         );
       })}
+    </div>
+  );
+}
+
+// ── 메모: 1×1 빠른 메모(새 메모) / 2×1 최근 메모 3개 / 2×2 고정 메모 (DESIGN.md 6.7) ──
+function NotesWidget({ w, h }: { w: number; h: number }) {
+  const navigate = useNavigate();
+  const me = useMe();
+  const notes = useNotes(false);
+  const open = (e: MouseEvent, path: string) => {
+    e.stopPropagation();
+    void navigate(path);
+  };
+
+  if (w === 1) {
+    const canEdit = me.data?.perms.notes === "edit";
+    return (
+      <button type="button" disabled={!canEdit} onClick={(e) => open(e, "/notes/new")} className="mt-1 grid flex-1 place-items-center rounded-lg border border-dashed text-xs text-muted-foreground hover:bg-muted/50">
+        {canEdit ? "+ 빠른 메모" : "메모"}
+      </button>
+    );
+  }
+
+  const list = notes.data ?? [];
+  const shown = h === 1 ? list.slice(0, 3) : list.filter((n) => n.pinned).slice(0, 4);
+  return (
+    <div className="mt-1 grid min-h-0 flex-1 content-start gap-1 overflow-hidden text-xs">
+      {notes.data && shown.length === 0 && <p className="text-muted-foreground">{h === 1 ? "메모가 없습니다." : "고정한 메모가 없습니다."}</p>}
+      {shown.map((n) => (
+        <button key={n.id} type="button" onClick={(e) => open(e, `/notes/${n.id}`)} className="grid min-w-0 text-left">
+          <span className="truncate font-medium">{noteTitle(n)}</span>
+          {h === 2 && notePreview(n) && <span className="line-clamp-2 text-[11px] text-muted-foreground">{notePreview(n)}</span>}
+        </button>
+      ))}
     </div>
   );
 }

@@ -1,9 +1,9 @@
 import { type ReactNode, useState } from "react";
-import Markdown from "react-markdown";
 import { PlusIcon, XIcon } from "lucide-react";
 import { type BoardDetail, type Card, type CardLink, type CheckItem, type Priority, formatTime, labelClass, orderAt, type useBoardMutations, useComments } from "@/api/boards";
 import { useMe } from "@/api/me";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { MarkdownView } from "@/components/MarkdownView";
 import { NativeSelect } from "@/components/NativeSelect";
 import { ErrorAlert } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -259,24 +259,6 @@ function Field({ label, action, children }: { label: string; action?: ReactNode;
   );
 }
 
-/** 마크다운 표시. HTML 태그는 렌더링하지 않고, 링크는 새 탭으로 */
-export function MarkdownView({ text }: { text: string }) {
-  return (
-    <div className="grid gap-2 rounded-lg border bg-muted/30 p-2 text-sm break-words [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_h1]:text-base [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-medium [&_ol]:list-decimal [&_ol]:pl-5 [&_pre]:overflow-x-auto [&_ul]:list-disc [&_ul]:pl-5 [&_blockquote]:border-l-2 [&_blockquote]:pl-2 [&_blockquote]:text-muted-foreground">
-      <Markdown
-        components={{
-          a: ({ href, children }) => (
-            <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
-              {children}
-            </a>
-          ),
-        }}
-      >
-        {text}
-      </Markdown>
-    </div>
-  );
-}
 
 /** 카드 하단: 댓글 / 활동(변경 이력) */
 function CardHistory({ card, data, readOnly }: { card: Card; data: BoardDetail; readOnly: boolean }) {
