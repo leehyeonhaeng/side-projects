@@ -10,6 +10,7 @@ import { useWeights, withMovingAverage } from "@/api/weights";
 import { useBoards } from "@/api/boards";
 import { noteTitle, notePreview, useNotes } from "@/api/notes";
 import { copyText, useHubItems } from "@/api/hub";
+import { sortItems, useChecklist, useChecklists, useListMutations } from "@/api/checklists";
 import { categoryColor, expenseByCategory, totals, useBudget, useCategories, useTxns, won } from "@/api/ledger";
 import { isPlanDone, mondayOf, useGymSessions, usePrograms, useRuns } from "@/api/exercise";
 import { TodayTraining, useProgramRecords } from "@/modules/health/exercise/ProgramPanel";
@@ -17,7 +18,6 @@ import type { LayoutItem } from "@/api/preferences";
 import { useCreateTodo, useTodos, useUpdateTodo } from "@/api/todos";
 import { addDays, formatDay, todayStr } from "@/lib/dates";
 import { cn } from "@/lib/utils";
-import { MODULE_BY_ID } from "@/modules/meta";
 import { todayView } from "@/modules/todo/selectors";
 import { WIDGET_BY_KEY, sizeKey } from "./widgets";
 
@@ -32,14 +32,10 @@ export function WidgetBody({ item }: { item: LayoutItem }) {
   if (item.widget === "notes") return <NotesWidget w={item.w} h={item.h} />;
   if (item.widget === "ledger") return <LedgerWidget w={item.w} h={item.h} />;
   if (item.widget === "hub") return <HubWidget w={item.w} h={item.h} />;
+  if (item.widget === "checklists") return <ChecklistsWidget w={item.w} />;
+  // 알 수 없는 위젯(저장된 레이아웃에만 남은 예전 키 등): 크기별 설명만
   const def = item.widget ? WIDGET_BY_KEY[item.widget] : undefined;
-  const compact = item.w === 1;
-  return (
-    <>
-      {!compact && <p className="mt-1 text-xs text-muted-foreground">{def?.sizes[sizeKey(item.w, item.h)]}</p>}
-      <p className={cn("mt-auto text-[10px] text-muted-foreground", compact && "text-center")}>Phase {MODULE_BY_ID[item.module].phase}</p>
-    </>
-  );
+  return item.w === 1 ? null : <p className="mt-1 text-xs text-muted-foreground">{def?.sizes[sizeKey(item.w, item.h)]}</p>;
 }
 
 function Count({ value, label }: { value: number | undefined; label: string }) {
@@ -516,6 +512,52 @@ function HubWidget({ w, h }: { w: number; h: number }) {
           </button>
         ),
       )}
+    </div>
+  );
+}
+
+// ── 공용 체크리스트: 1×1 남은 항목 수(즐겨찾기 리스트 합, 없으면 전체) / 2×1 즐겨찾기 리스트 미리보기(바로 체크) (DESIGN.md 6.10) ──
+function ChecklistsWidget({ w }: { w: number }) {
+  const lists = useChecklists();
+  const all = lists.data ?? [];
+  const favs = all.filter((l) => l.favorite);
+  const scope = favs.length ? favs : all;
+
+  if (w === 1) return <Count value={lists.data ? scope.reduce((s, l) => s + l.remaining, 0) : undefined} label={favs.length ? "즐겨찾기 남은 항목" : "남은 항목"} />;
+  const target = scope[0];
+  if (lists.data && !target) return <p className="mt-1 text-xs text-muted-foreground">리스트가 없습니다.</p>;
+  return target ? <ChecklistPreview id={target.id} /> : null;
+}
+
+function ChecklistPreview({ id }: { id: string }) {
+  const list = useChecklist(id);
+  const mut = useListMutations(id);
+  const navigate = useNavigate();
+  if (!list.data) return null;
+  const canEdit = list.data.role !== "viewer";
+  const open = sortItems(list.data.items).filter((i) => !i.done);
+  return (
+    <div className="mt-1 grid min-h-0 flex-1 content-start gap-0.5 overflow-hidden text-xs">
+      <button type="button" onClick={(e) => (e.stopPropagation(), void navigate(`/checklists/${id}`))} className="truncate text-left font-medium">
+        {list.data.list.icon} {list.data.list.name}
+      </button>
+      {open.length === 0 && <p className="text-muted-foreground">모두 체크했습니다.</p>}
+      {open.slice(0, 3).map((i) => (
+        <button
+          key={i.id}
+          type="button"
+          disabled={!canEdit}
+          onClick={(e) => {
+            e.stopPropagation(); // 위젯 전체 클릭(화면 이동)과 분리
+            mut.patchItem.mutate({ iid: i.id, done: true });
+          }}
+          className="flex min-w-0 items-center gap-1.5 text-left"
+        >
+          <span className="size-3.5 shrink-0 rounded border border-muted-foreground/60" />
+          <span className="truncate">{i.text}</span>
+        </button>
+      ))}
+      {open.length > 3 && <p className="text-[10px] text-muted-foreground">외 {open.length - 3}개</p>}
     </div>
   );
 }

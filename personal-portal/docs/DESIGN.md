@@ -489,6 +489,18 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 - 동기화: 앱 열 때 + 당겨서 새로고침
 - 홈 위젯: 1×1 남은 항목 수 / 2×1 즐겨찾기 리스트 미리보기
 
+**구현 결정 (Phase 8)**
+
+| 항목 | 결정 |
+|---|---|
+| 멤버·권한 | 작업 보드와 같은 규칙 (소유자 = 만든 사람, 승인된 계정 목록에서 바로 초대, 모듈 권한과 리스트 역할 중 낮은 쪽). 공통 코드는 `backend/domains/sharing.py`(Space), 프론트 `SharedMembersDialog` |
+| 동기화 | 화면이 열려 있는 동안 30초마다 + 창 복귀 시 + 새로고침 버튼 (ADR-08 범위 안: 실시간 연결 없음). 체크는 화면에 먼저 반영 |
+| 아이콘 | 정해진 이모지 20개 중 선택 |
+| 항목 | 추가한 순서, 체크한 항목은 아래로(드래그 정렬 없음). 체크하면 체크한 사람·시각 기록, 해제하면 지움. 여러 줄 붙여넣기 → 줄마다 항목. 리스트당 300개 |
+| 템플릿 | 개인 소유(`USER#<sub>` / `LISTTPL#<id>`). 항목 내용·아이콘 저장(체크 상태 제외), 새 리스트 만들 때 선택. 최대 20개 |
+| 즐겨찾기 | 내 멤버 항목의 `favorite` (보드와 같음) |
+| 홈 위젯 | 1×1 즐겨찾기 리스트들의 남은 항목 합(없으면 전체) / 2×1 첫 즐겨찾기 리스트(없으면 첫 리스트)의 남은 항목 3개, 위젯에서 바로 체크 |
+
 ---
 
 ## 7. 데이터 모델 (DynamoDB 단일 테이블)
@@ -516,6 +528,7 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | 헬스 루틴 | `ROUTINE#<id>` |
 | 훈련 프로그램 | `PROGRAM#<id>` |
 | 보드 템플릿 (컬럼 구성·라벨) | `BOARDTPL#<id>` |
+| 체크리스트 템플릿 (아이콘·항목 내용) | `LISTTPL#<id>` |
 | 메모 | `NOTE#<id>` |
 | 가계부 내역 | `TXN#<date>#<id>` |
 | 가계부 카테고리 | `CAT#<id>` |
@@ -536,8 +549,8 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | 카드 댓글 | `BOARD#<id>` | `CARD#<id>#CMT#<timestamp>` |
 | 보드 활동 (`cardId`로 카드별 이력) | `BOARD#<id>` | `ACT#<timestamp>` |
 | 체크리스트 정보 | `LIST#<id>` | `META` |
-| 체크리스트 멤버 | `LIST#<id>` | `MEMBER#<sub>` |
-| 체크리스트 항목 | `LIST#<id>` | `ITEM#<id>` |
+| 체크리스트 멤버 (역할, 즐겨찾기 `favorite`) | `LIST#<id>` | `MEMBER#<sub>` |
+| 체크리스트 항목 (`order`, 체크 시 `doneBy`·`doneAt`) | `LIST#<id>` | `ITEM#<id>` |
 | 권한 프리셋 (name, perms) | `PRESET` | `PRESET#<id>` |
 | 활동 로그 | `AUDIT#<yyyy-mm>` | `<timestamp>#<id>` |
 
@@ -669,6 +682,17 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | `GET /hub`, `POST /hub` `{kind, title, lang?, code?, url?, description?, tags?, favorite?, collectionId?}` | 목록(최근 수정순) / 생성 (스니펫은 code, 링크는 url 필수) |
 | `PATCH` · `DELETE /hub/{id}` | 수정(`collectionId: null`은 컬렉션에서 빼기, 종류 변경 불가) / 삭제 |
 | `GET` · `POST /hub/collections`, `PATCH` · `DELETE /hub/collections/{id}` | 컬렉션 `{name, order}`. 삭제 시 항목은 컬렉션 없음으로 |
+
+**공용 체크리스트** (checklists 모듈, shared Lambda)
+
+| 메서드 · 경로 | 내용 |
+|---|---|
+| `GET /checklists`, `POST /checklists` `{name, icon, templateId?}` | 내가 참여한 리스트(역할·즐겨찾기·남은 항목·멤버 수) / 생성 |
+| `GET` · `PATCH` · `DELETE /checklists/{id}` | 리스트 + 항목 + 멤버 / 이름·아이콘(편집자) / 삭제(소유자) |
+| `POST /checklists/{id}/items` `{texts: [...]}`, `PATCH` · `DELETE /checklists/{id}/items/{itemId}` | 항목 추가(여러 개) / `{text?, done?}` / 삭제 |
+| `POST /checklists/{id}/clear-done`, `POST /checklists/{id}/uncheck-all` | 체크 항목 일괄 삭제 / 전체 체크 해제 |
+| `GET /checklists/{id}/candidates`, `POST /checklists/{id}/members`, `PATCH` · `DELETE …/members/{sub}`, `PUT /checklists/{id}/favorite` | 멤버·즐겨찾기 (보드와 같음) |
+| `GET` · `POST /checklists/templates` `{name, listId}`, `DELETE /checklists/templates/{id}` | 내 리스트 템플릿 |
 
 **작업 보드** (boards 모듈, shared Lambda)
 

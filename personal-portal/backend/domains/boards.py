@@ -17,11 +17,12 @@ from boto3.dynamodb.conditions import Attr, Key
 from pydantic import BaseModel, ConfigDict, Field
 
 from common.access import current_access
-from common.aws import dynamodb, table
+from common.aws import table
 from common.http import parse_body
-from common.perms import Level, Module, Role, Status, allows
+from common.perms import Module
 from common.serialize import to_dynamo, to_plain
-from common.users import load_access, now_iso, user_pk
+from common.users import now_iso, user_pk
+from domains.sharing import Need, Space, effective
 
 router = Router()
 
@@ -33,10 +34,8 @@ ACTIVITY_LIMIT = 50
 DEFAULT_COLUMNS = [("할 일", False), ("진행 중", False), ("완료", True)]
 
 BoardRole = Literal["owner", "editor", "viewer"]
-MemberRole = Literal["editor", "viewer"]
 Color = Literal["gray", "red", "orange", "yellow", "green", "teal", "blue", "purple", "pink"]
 Priority = Literal["high", "normal", "low"]
-Need = Literal["view", "edit", "owner"]
 
 
 class Label(BaseModel):
@@ -66,25 +65,6 @@ class TemplateCreate(BaseModel):
 
     name: str = Field(min_length=1, max_length=40)
     boardId: str = Field(pattern=ID)  # 이 보드의 컬럼 구성·라벨을 저장
-
-
-class FavoriteBody(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    favorite: bool
-
-
-class MemberAdd(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    sub: str = Field(pattern=ID)
-    role: MemberRole
-
-
-class MemberPatch(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    role: MemberRole
 
 
 class ColumnCreate(BaseModel):
@@ -209,53 +189,11 @@ class Snapshot:
         return card
 
 
-def _effective(role: BoardRole, level: Level) -> BoardRole:
-    return role if level == Level.EDIT else "viewer"
+SPACE = Space(router, "BOARD", Module.BOARDS)
 
 
 def _authorize(bid: str, need: Need) -> tuple[str, BoardRole]:
-    access = current_access(router)
-    sub = access.identity.sub
-    member = table().get_item(Key={"PK": _pk(bid), "SK": f"MEMBER#{sub}"}).get("Item")
-    if member is None:
-        raise NotFoundError("board not found")
-    role = _effective(member["role"], access.level)
-    if need == "edit" and role == "viewer":
-        raise ForbiddenError("board is read-only for you")
-    if need == "owner" and role != "owner":
-        raise ForbiddenError("only the board owner can do this")
-    return sub, role
-
-
-def _member_item(bid: str, sub: str, role: BoardRole) -> dict[str, Any]:
-    return {"PK": _pk(bid), "SK": f"MEMBER#{sub}", "sub": sub, "role": role, "addedAt": now_iso(), "GSI1PK": user_pk(sub), "GSI1SK": f"BOARD#{bid}"}
-
-
-def _profiles(subs: list[str]) -> dict[str, dict[str, Any]]:
-    if not subs:
-        return {}
-    name = table().name
-    out: dict[str, dict[str, Any]] = {}
-    for i in range(0, len(subs), 100):
-        keys = [{"PK": user_pk(s), "SK": "PROFILE"} for s in subs[i : i + 100]]
-        res = dynamodb().batch_get_item(RequestItems={name: {"Keys": keys}})
-        for p in res["Responses"].get(name, []):
-            out[p["sub"]] = p
-    return out
-
-
-def _can_join(sub: str) -> dict[str, Any] | None:
-    """초대 가능한 계정: 활성 + 보드 모듈 view 이상 (Host는 항상)"""
-    profile, level = load_access(sub, Module.BOARDS)
-    if profile is None or profile.get("status") != Status.ACTIVE:
-        return None
-    if profile.get("role") != Role.HOST and not allows(level, Level.VIEW):
-        return None
-    return profile
-
-
-def _person(p: dict[str, Any] | None, sub: str) -> dict[str, str]:
-    return {"sub": sub, "name": (p or {}).get("name", ""), "email": (p or {}).get("email", "")}
+    return SPACE.authorize(bid, need)
 
 
 def _next_order(items: list[dict[str, Any]]) -> float:
@@ -326,10 +264,9 @@ def list_boards() -> dict[str, Any]:
     """내 보드 목록 + 홈 위젯용 내 담당 카드(완료 컬럼·보관 제외)"""
     access = current_access(router)
     sub = access.identity.sub
-    res = table().query(IndexName="GSI1", KeyConditionExpression=Key("GSI1PK").eq(user_pk(sub)) & Key("GSI1SK").begins_with("BOARD#"))
     boards = []
     my_cards = []
-    for m in res["Items"]:
+    for m in SPACE.memberships(sub):
         bid = m["GSI1SK"].removeprefix("BOARD#")
         snap = Snapshot(bid)
         if snap.meta is None:
@@ -340,7 +277,7 @@ def list_boards() -> dict[str, Any]:
         boards.append(
             {
                 **snap.meta,
-                "role": _effective(m["role"], access.level),
+                "role": effective(m["role"], access.level),
                 "favorite": bool(m.get("favorite")),
                 "progress": snap.progress(),
                 "memberCount": len(snap.members),
@@ -370,7 +307,7 @@ def create_board() -> dict[str, Any]:
     meta = {"PK": _pk(bid), "SK": "META", "id": bid, "name": body.name, "ownerSub": sub, "labels": labels, "createdAt": now_iso()}
     with table().batch_writer() as batch:
         batch.put_item(Item=meta)
-        batch.put_item(Item=_member_item(bid, sub, "owner"))
+        batch.put_item(Item=SPACE.member_item(bid, sub, "owner"))
         for i, col in enumerate(columns, start=1):
             batch.put_item(Item=_new_column(bid, col["name"], i, bool(col["done"])))
     return _strip(meta)
@@ -423,9 +360,7 @@ def get_board(bid: str) -> dict[str, Any]:
     snap = Snapshot(bid)
     if snap.meta is None:
         raise NotFoundError("board not found")
-    profiles = _profiles(list(snap.members))
-    members = [{**_person(profiles.get(s), s), "role": m["role"]} for s, m in snap.members.items()]
-    members.sort(key=lambda m: (m["role"] != "owner", m["name"]))
+    members = Space.member_views(snap.members)
     return {
         "board": snap.meta,
         "role": role,
@@ -471,19 +406,6 @@ def delete_board(bid: str) -> dict[str, Any]:
     return {"deleted": len(items)}
 
 
-@router.put("/boards/<bid>/favorite")
-def set_favorite(bid: str) -> dict[str, Any]:
-    """즐겨찾기는 내 멤버 항목에 저장 (사람마다 다름)"""
-    sub, _ = _authorize(bid, "view")
-    favorite = parse_body(router, FavoriteBody).favorite
-    table().update_item(
-        Key={"PK": _pk(bid), "SK": f"MEMBER#{sub}"},
-        UpdateExpression="SET favorite = :f",
-        ExpressionAttributeValues={":f": favorite},
-    )
-    return {"favorite": favorite}
-
-
 @router.get("/boards/<bid>/activity")
 def activity(bid: str) -> dict[str, Any]:
     """최근 활동 (?cardId= 면 그 카드만), 최신순 최대 50개"""
@@ -507,74 +429,6 @@ def activity(bid: str) -> dict[str, Any]:
         if not start:
             break
     return {"activity": [_strip(i) for i in out[:ACTIVITY_LIMIT]]}
-
-
-# ── 멤버 ─────────────────────────────────────────────
-
-@router.get("/boards/<bid>/candidates")
-def candidates(bid: str) -> dict[str, Any]:
-    """초대할 수 있는 계정 (이미 멤버인 계정 제외)"""
-    _authorize(bid, "owner")
-    members = set(Snapshot(bid).members)
-    out = []
-    for p in _active_profiles():
-        if p["sub"] not in members and _can_join(p["sub"]) is not None:
-            out.append(_person(p, p["sub"]))
-    out.sort(key=lambda p: p["name"])
-    return {"candidates": out}
-
-
-def _active_profiles() -> list[dict[str, Any]]:
-    return _query_all(IndexName="GSI1", KeyConditionExpression=Key("GSI1PK").eq(f"STATUS#{Status.ACTIVE}"))
-
-
-@router.post("/boards/<bid>/members")
-def add_member(bid: str) -> dict[str, Any]:
-    _authorize(bid, "owner")
-    body = parse_body(router, MemberAdd)
-    if table().get_item(Key={"PK": _pk(bid), "SK": f"MEMBER#{body.sub}"}).get("Item"):
-        raise BadRequestError("already a member")
-    profile = _can_join(body.sub)
-    if profile is None:
-        raise BadRequestError("this account cannot join boards")
-    table().put_item(Item=_member_item(bid, body.sub, body.role))
-    return {**_person(profile, body.sub), "role": body.role}
-
-
-@router.patch("/boards/<bid>/members/<msub>")
-def patch_member(bid: str, msub: str) -> dict[str, Any]:
-    _authorize(bid, "owner")
-    body = parse_body(router, MemberPatch)
-    member = table().get_item(Key={"PK": _pk(bid), "SK": f"MEMBER#{msub}"}).get("Item")
-    if member is None:
-        raise NotFoundError("member not found")
-    if member["role"] == "owner":
-        raise BadRequestError("owner role cannot be changed")
-    table().put_item(Item={**member, "role": body.role})
-    return {"sub": msub, "role": body.role}
-
-
-@router.delete("/boards/<bid>/members/<msub>")
-def remove_member(bid: str, msub: str) -> dict[str, Any]:
-    """소유자가 내보내거나, 멤버가 스스로 나간다. 소유자는 나갈 수 없다 (보드 삭제)"""
-    access = current_access(router)
-    me = access.identity.sub
-    mine = table().get_item(Key={"PK": _pk(bid), "SK": f"MEMBER#{me}"}).get("Item")
-    if mine is None:
-        raise NotFoundError("board not found")
-    if msub != me and _effective(mine["role"], access.level) != "owner":
-        raise ForbiddenError("only the board owner can do this")
-    snap = Snapshot(bid)
-    target = snap.members.get(msub)
-    if target is None:
-        raise NotFoundError("member not found")
-    if target["role"] == "owner":
-        raise BadRequestError("owner cannot leave; delete the board instead")
-    table().delete_item(Key={"PK": _pk(bid), "SK": f"MEMBER#{msub}"})
-    for card in snap.cards + snap.archived:
-        if card.get("assignee") == msub:
-            _update_card_fields(bid, card["id"], {"assignee": None})
-    return {"removed": msub}
 
 
 # ── 컬럼 ─────────────────────────────────────────────
@@ -787,3 +641,16 @@ def delete_comment(bid: str, card_id: str, comment_id: str) -> dict[str, Any]:
         raise ForbiddenError("only the author or the board owner can delete this comment")
     table().delete_item(Key={"PK": comment["PK"], "SK": comment["SK"]})
     return {"deleted": comment_id}
+
+
+# ── 멤버·즐겨찾기 (domains/sharing.py) ──────────────
+
+def _clear_assignee(bid: str, sub: str) -> None:
+    """나간 멤버가 담당인 카드(보관 포함)는 담당자를 비운다"""
+    snap = Snapshot(bid)
+    for card in snap.cards + snap.archived:
+        if card.get("assignee") == sub:
+            _update_card_fields(bid, card["id"], {"assignee": None})
+
+
+SPACE.register_member_routes("/boards/<rid>", on_remove=_clear_assignee)

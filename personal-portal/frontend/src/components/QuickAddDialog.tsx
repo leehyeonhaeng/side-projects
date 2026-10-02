@@ -10,7 +10,7 @@ import { todayStr } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { MODULE_BY_ID, type ModuleId } from "@/modules/meta";
+import type { ModuleId } from "@/modules/meta";
 
 type Kind = { id: string; label: string; module: ModuleId; placeholder: string };
 
@@ -22,7 +22,7 @@ const KINDS: Kind[] = [
   { id: "note", label: "메모", module: "notes", placeholder: "빠른 메모" },
 ];
 
-/** 빠른 추가 틀. 실제 저장은 각 모듈 Phase에서 연결한다. */
+/** 빠른 추가: 할 일(오늘), 식단(AI 계산 화면으로), 지출(오늘), 메모 */
 export function QuickAddDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const me = useMe();
   const kinds = KINDS.filter((k) => me.data?.perms[k.module] === "edit");
@@ -115,13 +115,9 @@ export function QuickAddDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                   {expense ? `오늘 지출 ${won(expense.amount)} 저장` : "금액을 입력하세요"}
                 </Button>
               </div>
-            ) : kind.id === "note" ? (
+            ) : (
               <Button type="submit" disabled={!text.trim() || createNote.isPending}>
                 메모 저장
-              </Button>
-            ) : (
-              <Button type="submit" disabled>
-                저장 (Phase {MODULE_BY_ID[kind.module].phase}에서 연결)
               </Button>
             )}
             {saved && <p className="text-xs text-muted-foreground">{saved}</p>}

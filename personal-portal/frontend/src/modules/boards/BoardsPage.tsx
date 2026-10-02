@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { PlusIcon, SquareKanbanIcon, StarIcon, UsersIcon, XIcon } from "lucide-react";
-import { type BoardRole, type BoardSummary, useBoards, useCreateBoard, useDeleteTemplate, useSetFavorite, useTemplates } from "@/api/boards";
+import { type BoardSummary, useBoards, useCreateBoard, useDeleteTemplate, useSetFavorite, useTemplates } from "@/api/boards";
 import { useMe } from "@/api/me";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { NativeSelect } from "@/components/NativeSelect";
@@ -9,9 +9,10 @@ import { ErrorAlert, InlineSpinner } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { ROLE_LABEL } from "@/components/SharedMembersDialog";
 import { ProgressBar } from "./ProgressBar";
 
-export const ROLE_LABEL: Record<BoardRole, string> = { owner: "소유자", editor: "편집자", viewer: "열람자" };
+export { ROLE_LABEL } from "@/components/SharedMembersDialog";
 
 /** DESIGN.md 5장 /boards: 내가 멤버인 보드 목록 (즐겨찾기 먼저) */
 export function BoardsPage() {

@@ -4,6 +4,8 @@ import { AppLayout } from "./components/AppLayout";
 import { AdminPage } from "./modules/admin/AdminPage";
 import { BoardPage } from "./modules/boards/BoardPage";
 import { BoardsPage } from "./modules/boards/BoardsPage";
+import { ChecklistPage } from "./modules/checklists/ChecklistPage";
+import { ChecklistsPage } from "./modules/checklists/ChecklistsPage";
 import { HubPage } from "./modules/hub/HubPage";
 import { LedgerPage } from "./modules/ledger/LedgerPage";
 import { NoteEditorPage } from "./modules/notes/NoteEditorPage";
@@ -17,10 +19,8 @@ import { HomePage } from "./modules/home/HomePage";
 import { NotFoundPage } from "./modules/home/NotFoundPage";
 import { CalendarPage } from "./modules/calendar/CalendarPage";
 import { HealthPage } from "./modules/health/HealthPage";
-import { MODULES } from "./modules/meta";
 import { RequireModule } from "./modules/RequireModule";
 import { TodoPage } from "./modules/todo/TodoPage";
-import { ModulePlaceholderPage } from "./modules/ModulePlaceholderPage";
 import { SettingsPage } from "./modules/settings/SettingsPage";
 
 export const router = createBrowserRouter([
@@ -44,8 +44,8 @@ export const router = createBrowserRouter([
       { path: "/notes/:id", element: <RequireModule module="notes"><NoteEditorPage /></RequireModule> },
       { path: "/ledger", element: <RequireModule module="ledger"><LedgerPage /></RequireModule> },
       { path: "/hub", element: <RequireModule module="hub"><HubPage /></RequireModule> },
-      // 나머지 모듈 화면은 해당 Phase에서 실제 페이지로 바꾼다
-      ...MODULES.filter((m) => !["todo", "calendar", "health", "boards", "notes", "ledger", "hub"].includes(m.id)).map((m) => ({ path: m.path, element: <ModulePlaceholderPage module={m.id} /> })),
+      { path: "/checklists", element: <RequireModule module="checklists"><ChecklistsPage /></RequireModule> },
+      { path: "/checklists/:id", element: <RequireModule module="checklists"><ChecklistPage /></RequireModule> },
     ],
   },
   { path: "*", element: <NotFoundPage /> },

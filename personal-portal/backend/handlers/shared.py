@@ -3,10 +3,11 @@ from typing import Any
 from aws_lambda_powertools.utilities.typing import LambdaContext
 
 from common.app import create_app
-from domains import boards
+from domains import boards, checklists
 
 app, logger = create_app("shared")
 app.include_router(boards.router)
+app.include_router(checklists.router)
 
 
 @logger.inject_lambda_context
