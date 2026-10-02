@@ -12,7 +12,7 @@ from aws_lambda_powertools.event_handler.exceptions import ForbiddenError, Unaut
 from aws_lambda_powertools.event_handler.middlewares import NextMiddleware
 
 from common import users
-from common.perms import Status, allows, required_permission
+from common.perms import Level, Status, allows, required_permission
 
 API_PREFIX = "/api/v1"
 PUBLIC_PATHS = {"/health"}
@@ -32,6 +32,7 @@ class Identity:
 class Access:
     identity: Identity
     profile: dict[str, Any]
+    level: Level  # 요청 모듈에 대한 권한 (Host는 edit). 공유 리소스의 역할과 함께 쓴다
 
 
 def identity_from_event(event: dict[str, Any]) -> Identity | None:
@@ -65,7 +66,8 @@ def access_control(app: APIGatewayHttpResolver, next_middleware: NextMiddleware)
     if required and not identity.is_host and not allows(granted, required[1]):
         raise ForbiddenError(f"no permission: {required[0]}")
 
-    app.append_context(access=Access(identity=identity, profile=profile))
+    level = Level.EDIT if identity.is_host else granted
+    app.append_context(access=Access(identity=identity, profile=profile, level=level))
     return next_middleware(app)
 
 
