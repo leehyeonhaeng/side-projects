@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { useMe } from "@/api/me";
+import { parseQuickExpense, useCategories, useLedgerMutations, won } from "@/api/ledger";
 import { useNoteMutations } from "@/api/notes";
+import { NativeSelect } from "@/components/NativeSelect";
 import { useCreateTodo } from "@/api/todos";
 import { ErrorAlert } from "@/components/states";
 import { todayStr } from "@/lib/dates";
@@ -29,6 +31,12 @@ export function QuickAddDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const [saved, setSaved] = useState<string | null>(null);
   const createTodo = useCreateTodo();
   const createNote = useNoteMutations().create;
+  const saveTxn = useLedgerMutations().saveTxn;
+  const canLedger = me.data?.perms.ledger === "edit";
+  const categories = useCategories(open && canLedger);
+  const expenseCats = categories.data?.filter((c) => c.type === "expense") ?? [];
+  const [categoryId, setCategoryId] = useState("");
+  const expense = parseQuickExpense(text);
   const navigate = useNavigate();
   const kind = kinds.find((k) => k.id === kindId) ?? kinds[0];
 
@@ -51,6 +59,15 @@ export function QuickAddDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 onOpenChange(false);
                 setText("");
                 navigate(`/health?draft=${encodeURIComponent(value)}`);
+                return;
+              }
+              if (kind.id === "expense") {
+                const cat = categoryId || expenseCats[0]?.id;
+                if (!expense || !cat) return;
+                saveTxn.mutate(
+                  { input: { date: todayStr(), type: "expense", amount: expense.amount, categoryId: cat, method: "", memo: expense.memo } },
+                  { onSuccess: () => (setText(""), setSaved(`가계부에 저장했습니다: ${expense.memo || "지출"} ${won(expense.amount)}`)) },
+                );
                 return;
               }
               if (kind.id === "note") {
@@ -85,6 +102,19 @@ export function QuickAddDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               <Button type="submit" disabled={!text.trim()}>
                 식단 화면에서 AI 계산
               </Button>
+            ) : kind.id === "expense" ? (
+              <div className="flex gap-1">
+                <NativeSelect aria-label="카테고리" value={categoryId || expenseCats[0]?.id || ""} onChange={(e) => setCategoryId(e.target.value)} className="h-9">
+                  {expenseCats.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </NativeSelect>
+                <Button type="submit" className="h-9 flex-1" disabled={!expense || !expenseCats.length || saveTxn.isPending}>
+                  {expense ? `오늘 지출 ${won(expense.amount)} 저장` : "금액을 입력하세요"}
+                </Button>
+              </div>
             ) : kind.id === "note" ? (
               <Button type="submit" disabled={!text.trim() || createNote.isPending}>
                 메모 저장
@@ -95,7 +125,7 @@ export function QuickAddDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               </Button>
             )}
             {saved && <p className="text-xs text-muted-foreground">{saved}</p>}
-            <ErrorAlert error={createTodo.error ?? createNote.error} />
+            <ErrorAlert error={createTodo.error ?? createNote.error ?? saveTxn.error ?? categories.error} />
           </form>
         )}
       </DialogContent>

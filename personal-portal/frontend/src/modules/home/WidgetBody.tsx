@@ -1,5 +1,5 @@
 import { type MouseEvent, useState } from "react";
-import { Line, LineChart, ReferenceLine, ResponsiveContainer, YAxis } from "recharts";
+import { Cell, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, YAxis } from "recharts";
 import { useNavigate } from "react-router";
 import { CheckIcon } from "lucide-react";
 import { colorHex, useEvents } from "@/api/events";
@@ -9,6 +9,7 @@ import { useSettings } from "@/api/preferences";
 import { useWeights, withMovingAverage } from "@/api/weights";
 import { useBoards } from "@/api/boards";
 import { noteTitle, notePreview, useNotes } from "@/api/notes";
+import { categoryColor, expenseByCategory, totals, useBudget, useCategories, useTxns, won } from "@/api/ledger";
 import { isPlanDone, mondayOf, useGymSessions, usePrograms, useRuns } from "@/api/exercise";
 import { TodayTraining, useProgramRecords } from "@/modules/health/exercise/ProgramPanel";
 import type { LayoutItem } from "@/api/preferences";
@@ -28,6 +29,7 @@ export function WidgetBody({ item }: { item: LayoutItem }) {
   if (item.widget === "exercise") return <ExerciseWidget w={item.w} h={item.h} />;
   if (item.widget === "boards") return <BoardsWidget w={item.w} h={item.h} />;
   if (item.widget === "notes") return <NotesWidget w={item.w} h={item.h} />;
+  if (item.widget === "ledger") return <LedgerWidget w={item.w} h={item.h} />;
   const def = item.widget ? WIDGET_BY_KEY[item.widget] : undefined;
   const compact = item.w === 1;
   return (
@@ -394,6 +396,71 @@ function NotesWidget({ w, h }: { w: number; h: number }) {
           {h === 2 && notePreview(n) && <span className="line-clamp-2 text-[11px] text-muted-foreground">{notePreview(n)}</span>}
         </button>
       ))}
+    </div>
+  );
+}
+
+// ── 가계부: 1×1 이번 달 지출 / 2×1 예산 게이지 / 2×2 카테고리 차트 (DESIGN.md 6.8) ──
+function LedgerWidget({ w, h }: { w: number; h: number }) {
+  const month = todayStr().slice(0, 7);
+  const txns = useTxns(month);
+  const budget = useBudget(month, w > 1 && h === 1);
+  const categories = useCategories(w > 1);
+  const list = txns.data ?? [];
+  const expense = totals(list).expense;
+
+  if (w === 1)
+    return (
+      <div className="mt-1 grid flex-1 content-center">
+        <p className="truncate text-lg font-semibold tabular-nums">{txns.data ? won(expense) : "…"}</p>
+        <p className="text-[10px] text-muted-foreground">이번 달 지출</p>
+      </div>
+    );
+
+  if (h === 1) {
+    const amounts = budget.data?.amounts ?? {};
+    const ids = Object.keys(amounts);
+    const total = ids.reduce((s, id) => s + (amounts[id] ?? 0), 0);
+    const spent = list.filter((t) => t.type === "expense" && ids.includes(t.categoryId)).reduce((s, t) => s + t.amount, 0);
+    if (budget.data && total === 0) return <p className="mt-1 text-xs text-muted-foreground">이번 달 지출 {won(expense)} · 예산 없음</p>;
+    const pct = total ? Math.min(100, (spent / total) * 100) : 0;
+    const over = spent > total;
+    return (
+      <div className="mt-1 grid flex-1 content-center gap-1 text-xs">
+        <p className="tabular-nums">
+          <b className={cn("text-sm", over && "text-red-600 dark:text-red-400")}>{won(spent)}</b> <span className="text-muted-foreground">/ {won(total)}</span>
+        </p>
+        <div className="h-2 overflow-hidden rounded-full bg-muted">
+          <div className={cn("h-full rounded-full", over ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-primary")} style={{ width: `${pct}%` }} />
+        </div>
+        <p className="text-[10px] text-muted-foreground">{over ? `${won(spent - total)} 초과` : `${won(total - spent)} 남음`}</p>
+      </div>
+    );
+  }
+
+  const byCat = expenseByCategory(list).slice(0, 5);
+  const cats = categories.data ?? [];
+  const name = (id: string) => cats.find((c) => c.id === id)?.name ?? "(삭제됨)";
+  if (txns.data && byCat.length === 0) return <p className="mt-1 text-xs text-muted-foreground">이번 달 지출이 없습니다.</p>;
+  return (
+    <div className="mt-1 grid min-h-0 flex-1 grid-cols-[auto_1fr] items-center gap-2 overflow-hidden text-[11px]">
+      <PieChart width={80} height={80}>
+        <Pie data={byCat} dataKey="amount" innerRadius={22} outerRadius={38} stroke="var(--card)" isAnimationActive={false}>
+          {byCat.map((c) => (
+            <Cell key={c.categoryId} fill={categoryColor(cats, c.categoryId)} />
+          ))}
+        </Pie>
+      </PieChart>
+      <ul className="grid min-w-0 gap-0.5">
+        {byCat.map((c) => (
+          <li key={c.categoryId} className="flex items-center gap-1">
+            <span className="size-2 shrink-0 rounded-full" style={{ background: categoryColor(cats, c.categoryId) }} />
+            <span className="flex-1 truncate">{name(c.categoryId)}</span>
+            <span className="tabular-nums">{won(c.amount)}</span>
+          </li>
+        ))}
+        <li className="text-muted-foreground tabular-nums">합계 {won(expense)}</li>
+      </ul>
     </div>
   );
 }

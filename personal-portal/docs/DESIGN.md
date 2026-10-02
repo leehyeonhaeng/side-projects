@@ -451,11 +451,17 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 - 기능: 고정 지출 매월 자동 생성, 카테고리별 월 예산 + 초과 표시, 검색, CSV 내보내기
 - 홈 위젯: 1×1 이번 달 지출 / 2×1 예산 게이지 / 2×2 카테고리 차트
 
-**미리 정한 것 (Phase 7b)**
+**구현 결정 (Phase 7b)**
 - 고정 지출: 가계부를 열 때 이번 달까지 빠진 회차를 생성 (스케줄러 리소스 없음)
 - 예산: 한 번 정하면 이후 달에도 계속 적용, 바꾼 달부터 새 값 (`BUDGET#<yyyy-mm>`은 "이 달부터 적용"하는 값)
 - 기본 카테고리: 지출 식비·카페·간식·교통·주거·통신·생활용품·쇼핑·의료·문화·여가·경조사·기타 / 수입 급여·부수입·기타 (추가·수정·삭제 가능)
 - 금액은 원 단위 정수. 결제 수단은 직접 입력 + 이전 입력값 자동완성. CSV는 엑셀 한글이 깨지지 않게 UTF-8 BOM
+- 고정 회차: 그 달 n일(짧은 달은 말일)이 오늘 이전이면 생성. 회차 내역 id `r<고정id>-<YYYYMM>` + 조건부 저장으로 중복 방지. `lastMonth` 이후만 보므로 지운 회차는 다시 만들지 않음. 고정 지출을 고치면 다음 회차부터, 지워도 만든 내역은 남음. 수입(급여 등)도 등록 가능
+- 카테고리: 지워도 내역은 남고 "삭제된 카테고리"로 표시. 유형별 마지막 하나는 삭제 불가. 최대 50개
+- 예산 게이지(홈·예산 탭 전체): 예산을 정한 카테고리의 지출 합 / 예산 합. 80% 이상 주황, 초과 빨강
+- 검색: 전체 기간에서 메모·결제 수단·카테고리 이름 (서버, 최신 200건)
+- 빠른 추가 "지출": "점심 12000"처럼 입력 → 숫자는 금액, 나머지는 메모, 카테고리 선택 후 오늘 날짜로 저장
+- 홈 위젯: 1×1 이번 달 지출 / 2×1 이번 달 예산 게이지 / 2×2 이번 달 카테고리 도넛 + 상위 5개
 
 ### 6.9 스니펫·링크 허브
 
@@ -637,6 +643,19 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | `GET /notes/{id}`, `POST /notes` `{title?, body?, tags?, pinned?}`, `PATCH /notes/{id}` | 조회·생성(제목이나 본문 필수)·수정(휴지통 메모는 복구 후) |
 | `DELETE /notes/{id}` | 휴지통으로. 휴지통 메모이거나 `?permanent=true`면 영구 삭제 |
 | `POST /notes/{id}/restore` | 휴지통에서 복구 |
+
+**가계부** (ledger 모듈)
+
+| 메서드 · 경로 | 내용 |
+|---|---|
+| `GET /txns?month=YYYY-MM` · `GET /txns?from&to` | 내역 (기간은 400일 이내) |
+| `GET /txns/summary?months=6` | 최근 n개월(최대 12) 수입·지출 합계 + 최근 결제 수단 |
+| `GET /txns/search?q=` | 메모·결제 수단·카테고리 이름 검색 (최신 200건) |
+| `POST /txns`, `PUT` · `DELETE /txns/{id}?date=` | 내역 `{date, type, amount, categoryId, method, memo}` (날짜 변경 가능) |
+| `GET` · `POST /categories`, `PATCH` · `DELETE /categories/{id}` | 카테고리 (없으면 기본 카테고리 생성) |
+| `GET` · `POST /recurring`, `PUT` · `DELETE /recurring/{id}` | 고정 지출 `{type, amount, categoryId, method, memo, day, startMonth, endMonth?}` |
+| `POST /recurring/apply` | 오늘까지 빠진 고정 회차 생성 (가계부를 열 때) |
+| `GET` · `PUT /budgets/{YYYY-MM}` `{amounts: {categoryId: 금액}}` | 그 달에 적용되는 예산(`from` = 설정한 달) / 이 달부터 적용 |
 
 **작업 보드** (boards 모듈, shared Lambda)
 

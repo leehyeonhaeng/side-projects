@@ -4,6 +4,7 @@ import { AppLayout } from "./components/AppLayout";
 import { AdminPage } from "./modules/admin/AdminPage";
 import { BoardPage } from "./modules/boards/BoardPage";
 import { BoardsPage } from "./modules/boards/BoardsPage";
+import { LedgerPage } from "./modules/ledger/LedgerPage";
 import { NoteEditorPage } from "./modules/notes/NoteEditorPage";
 import { NotesPage } from "./modules/notes/NotesPage";
 import { ConfirmSignupPage } from "./modules/auth/ConfirmSignupPage";
@@ -40,8 +41,9 @@ export const router = createBrowserRouter([
       { path: "/boards/:id", element: <RequireModule module="boards"><BoardPage /></RequireModule> },
       { path: "/notes", element: <RequireModule module="notes"><NotesPage /></RequireModule> },
       { path: "/notes/:id", element: <RequireModule module="notes"><NoteEditorPage /></RequireModule> },
+      { path: "/ledger", element: <RequireModule module="ledger"><LedgerPage /></RequireModule> },
       // 나머지 모듈 화면은 해당 Phase에서 실제 페이지로 바꾼다
-      ...MODULES.filter((m) => !["todo", "calendar", "health", "boards", "notes"].includes(m.id)).map((m) => ({ path: m.path, element: <ModulePlaceholderPage module={m.id} /> })),
+      ...MODULES.filter((m) => !["todo", "calendar", "health", "boards", "notes", "ledger"].includes(m.id)).map((m) => ({ path: m.path, element: <ModulePlaceholderPage module={m.id} /> })),
     ],
   },
   { path: "*", element: <NotFoundPage /> },
