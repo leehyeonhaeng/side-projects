@@ -13,7 +13,7 @@
 - 2026-10-01: Phase 3 완료 (홈 위젯 그리드·편집 모드·섹션·테마·하단 바·빠른 추가 틀·설정, PC↔폰 레이아웃 동기화 확인)
 - 2026-10-01: Phase 4 완료 (할 일·캘린더·반복·예정 회차 미리보기·공휴일·홈 위젯 연결)
 - 2026-10-01: Phase 5 완료 (식단 + AI 칼로리 추정(Bedrock Claude Haiku 4.5), 체중, 운동(러닝·헬스·훈련 프로그램), 순섭취량)
-- 2026-10-02: Phase 7a 메모, 7b 가계부(내역·월간 요약·카테고리 차트·월별 추이·고정 지출·예산·검색·CSV·빠른 추가·홈 위젯) dev 배포. 7c 스니펫·링크 남음
+- 2026-10-02: Phase 7 구현·dev 배포 (7a 메모, 7b 가계부, 7c 스니펫·링크 허브: 문법 강조·원탭 복사·컬렉션·즐겨찾기·홈 위젯). 사용 확인 후 완료 처리
 - 2026-10-02: Phase 6 완료 (작업 보드: 보드·컬럼·카드·멤버 초대·드래그/이동·진행률, 댓글·활동 기록·보관·필터·템플릿·즐겨찾기·홈 위젯). 폰 실사용 확인은 나중에
 
 ## 모듈
@@ -72,7 +72,7 @@ side-projects/
    ├─ backend/                Python Lambda (한 패키지를 4개 함수가 공유)
    │  ├─ handlers/            personal, shared, admin, ai, auth_trigger(Cognito)
    │  ├─ common/              여러 Lambda 공통: 앱 골격, 권한 미들웨어(access), 모듈·권한(perms), 사용자·활동 로그, 검증·직렬화
-│  ├─ domains/             도메인 로직·라우터 (todos, events, recurrence, meals, weights, exercise, notes, ledger, boards, ai) → handlers에서 include
+│  ├─ domains/             도메인 로직·라우터 (todos, events, recurrence, meals, weights, exercise, notes, ledger, hub, boards, ai) → handlers에서 include
 │  ├─ requirements-ai.txt  ai Lambda 전용 레이어 의존성 (build_ai_layer.py로 빌드)
    │  └─ tests/
    ├─ infra/

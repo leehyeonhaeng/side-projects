@@ -9,7 +9,7 @@ from common.access import current_access
 from common.app import create_app
 from common.http import parse_body
 from common.perms import all_edit
-from domains import events, exercise, ledger, meals, notes, todos, weights
+from domains import events, exercise, hub, ledger, meals, notes, todos, weights
 
 app, logger = create_app("personal")
 # 모듈 권한은 공통 미들웨어가 경로로 판단한다 (todos→todo, events·event-series→calendar, meals·foods·meal-sets→health)
@@ -20,6 +20,7 @@ app.include_router(weights.router)
 app.include_router(exercise.router)
 app.include_router(notes.router)
 app.include_router(ledger.router)
+app.include_router(hub.router)
 
 
 def me_view() -> dict[str, Any]:

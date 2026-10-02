@@ -472,9 +472,13 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 - 개인 전용
 - 홈 위젯: 1×1 검색창 / 2×1 즐겨찾기 링크 / 2×2 즐겨찾기 스니펫
 
-**미리 정한 것 (Phase 7c)**
-- 컬렉션: 항목 하나는 컬렉션 하나에만 (폴더), 여러 군데 걸치는 분류는 태그
-- 문법 강조: highlight.js (허브 화면에서만 불러옴). Terraform(HCL)은 공식 지원이 없어 강조 없이 표시
+**구현 결정 (Phase 7c)**
+- 컬렉션: 항목 하나는 컬렉션 하나에만 (폴더), 여러 군데 걸치는 분류는 태그. 컬렉션을 지우면 항목은 "컬렉션 없음"으로
+- 문법 강조: highlight.js core + 14개 언어만 등록, 코드 블록이 처음 보일 때 동적 import(별도 청크, gzip 약 24KB). Terraform(HCL)은 공식 지원이 없어 강조 없이 표시. 색은 index.css에 라이트·다크 토큰
+- 원탭 복사: 스니펫 코드 블록 오른쪽 위 복사 버튼, 링크는 URL 복사. 복사는 HTTPS에서만 동작(클립보드 API)
+- 종류(스니펫/링크)는 만든 뒤 바꿀 수 없다. 목록은 즐겨찾기 먼저, 그다음 최근 수정순. 최대 1000개, 컬렉션 50개
+- 필터: 유형, 즐겨찾기만, 컬렉션(전체·각 컬렉션·없음), 태그. 검색은 화면에서 제목·코드·URL·설명·태그
+- 홈 위젯: 1×1 검색창(엔터 → /hub?q=) / 2×1 즐겨찾기 링크 3개(새 탭) / 2×2 즐겨찾기 스니펫 5개(누르면 코드 복사)
 
 ### 6.10 공용 체크리스트
 
@@ -517,7 +521,8 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | 가계부 카테고리 | `CAT#<id>` |
 | 고정 지출 | `RECUR#<id>` |
 | 월 예산 | `BUDGET#<yyyy-mm>` |
-| 스니펫·링크 | `HUB#<id>` |
+| 스니펫·링크 (`kind`: snippet / link, 즐겨찾기 `favorite`, `collectionId`) | `HUB#<id>` |
+| 허브 컬렉션 | `HUBCOL#<id>` |
 | AI 호출 횟수 | `AIUSAGE#<date>` (TTL) |
 
 ### 7.2 공유 데이터
@@ -656,6 +661,14 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | `GET` · `POST /recurring`, `PUT` · `DELETE /recurring/{id}` | 고정 지출 `{type, amount, categoryId, method, memo, day, startMonth, endMonth?}` |
 | `POST /recurring/apply` | 오늘까지 빠진 고정 회차 생성 (가계부를 열 때) |
 | `GET` · `PUT /budgets/{YYYY-MM}` `{amounts: {categoryId: 금액}}` | 그 달에 적용되는 예산(`from` = 설정한 달) / 이 달부터 적용 |
+
+**스니펫·링크 허브** (hub 모듈, 개인 전용)
+
+| 메서드 · 경로 | 내용 |
+|---|---|
+| `GET /hub`, `POST /hub` `{kind, title, lang?, code?, url?, description?, tags?, favorite?, collectionId?}` | 목록(최근 수정순) / 생성 (스니펫은 code, 링크는 url 필수) |
+| `PATCH` · `DELETE /hub/{id}` | 수정(`collectionId: null`은 컬렉션에서 빼기, 종류 변경 불가) / 삭제 |
+| `GET` · `POST /hub/collections`, `PATCH` · `DELETE /hub/collections/{id}` | 컬렉션 `{name, order}`. 삭제 시 항목은 컬렉션 없음으로 |
 
 **작업 보드** (boards 모듈, shared Lambda)
 

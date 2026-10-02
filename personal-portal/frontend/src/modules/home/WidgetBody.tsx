@@ -9,6 +9,7 @@ import { useSettings } from "@/api/preferences";
 import { useWeights, withMovingAverage } from "@/api/weights";
 import { useBoards } from "@/api/boards";
 import { noteTitle, notePreview, useNotes } from "@/api/notes";
+import { copyText, useHubItems } from "@/api/hub";
 import { categoryColor, expenseByCategory, totals, useBudget, useCategories, useTxns, won } from "@/api/ledger";
 import { isPlanDone, mondayOf, useGymSessions, usePrograms, useRuns } from "@/api/exercise";
 import { TodayTraining, useProgramRecords } from "@/modules/health/exercise/ProgramPanel";
@@ -30,6 +31,7 @@ export function WidgetBody({ item }: { item: LayoutItem }) {
   if (item.widget === "boards") return <BoardsWidget w={item.w} h={item.h} />;
   if (item.widget === "notes") return <NotesWidget w={item.w} h={item.h} />;
   if (item.widget === "ledger") return <LedgerWidget w={item.w} h={item.h} />;
+  if (item.widget === "hub") return <HubWidget w={item.w} h={item.h} />;
   const def = item.widget ? WIDGET_BY_KEY[item.widget] : undefined;
   const compact = item.w === 1;
   return (
@@ -461,6 +463,59 @@ function LedgerWidget({ w, h }: { w: number; h: number }) {
         ))}
         <li className="text-muted-foreground tabular-nums">합계 {won(expense)}</li>
       </ul>
+    </div>
+  );
+}
+
+// ── 스니펫·링크: 1×1 검색창 / 2×1 즐겨찾기 링크 / 2×2 즐겨찾기 스니펫(누르면 복사) (DESIGN.md 6.9) ──
+function HubWidget({ w, h }: { w: number; h: number }) {
+  const navigate = useNavigate();
+  const items = useHubItems(w > 1);
+  const [q, setQ] = useState("");
+  const [copied, setCopied] = useState<string | null>(null);
+
+  if (w === 1)
+    return (
+      <form
+        className="mt-1 grid flex-1 content-center"
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault();
+          void navigate(q.trim() ? `/hub?q=${encodeURIComponent(q.trim())}` : "/hub");
+        }}
+      >
+        <input aria-label="스니펫·링크 검색" placeholder="검색" value={q} onChange={(e) => setQ(e.target.value)} className="h-7 w-full rounded-md border bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50" />
+      </form>
+    );
+
+  const kind = h === 1 ? "link" : "snippet";
+  const favs = (items.data ?? []).filter((i) => i.favorite && i.kind === kind).slice(0, h === 1 ? 3 : 5);
+  return (
+    <div className="mt-1 grid min-h-0 flex-1 content-start gap-1 overflow-hidden text-xs">
+      {items.data && favs.length === 0 && <p className="text-muted-foreground">즐겨찾기한 {kind === "link" ? "링크" : "스니펫"}가 없습니다.</p>}
+      {favs.map((i) =>
+        i.kind === "link" ? (
+          <a key={i.id} href={i.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="truncate text-primary hover:underline">
+            {i.title}
+          </a>
+        ) : (
+          <button
+            key={i.id}
+            type="button"
+            onClick={async (e) => {
+              e.stopPropagation();
+              if (i.code && (await copyText(i.code))) {
+                setCopied(i.id);
+                setTimeout(() => setCopied(null), 1200);
+              }
+            }}
+            className="flex min-w-0 items-center gap-1.5 text-left"
+          >
+            <span className="truncate font-medium">{i.title}</span>
+            <span className={cn("ml-auto shrink-0 text-[10px]", copied === i.id ? "text-primary" : "text-muted-foreground")}>{copied === i.id ? "복사됨" : "복사"}</span>
+          </button>
+        ),
+      )}
     </div>
   );
 }
