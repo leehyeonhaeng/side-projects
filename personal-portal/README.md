@@ -13,6 +13,7 @@
 - 2026-10-01: Phase 3 완료 (홈 위젯 그리드·편집 모드·섹션·테마·하단 바·빠른 추가 틀·설정, PC↔폰 레이아웃 동기화 확인)
 - 2026-10-01: Phase 4 완료 (할 일·캘린더·반복·예정 회차 미리보기·공휴일·홈 위젯 연결)
 - 2026-10-01: Phase 5 완료 (식단 + AI 칼로리 추정(Bedrock Claude Haiku 4.5), 체중, 운동(러닝·헬스·훈련 프로그램), 순섭취량)
+- 2026-10-06: 행컴퍼니 C2 — 거래처, 품목(기기 모델·소모품)·재고, 기기 기초 등록(고유번호 자동)·상태·이력, 계좌 (dev)
 - 2026-10-06: 행컴퍼니(회사 업무 공간) C1 — 회사 개설·전용 화면, 직원 초대 가입·역할·영역별 권한·금액 숨김, 회사 설정, 활동 기록 (dev)
 - 2026-10-06: Phase 9 진행 — PWA(설치·새 버전 배너), 보안 헤더(CSP), prod 환경·배포 버튼 준비
 - 2026-10-02: 디자인 전면 개편 1차 (따뜻한 톤 + 파랑 포인트, Pretendard, PC 사이드바·폰 하단 탭, 모듈 색)
@@ -76,7 +77,7 @@ side-projects/
    ├─ backend/                Python Lambda (한 패키지를 4개 함수가 공유)
    │  ├─ handlers/            personal, shared, admin, ai, auth_trigger(Cognito)
    │  ├─ common/              여러 Lambda 공통: 앱 골격, 권한 미들웨어(access), 모듈·권한(perms), 사용자·활동 로그, 검증·직렬화
-│  ├─ domains/             도메인 로직·라우터 (todos, events, recurrence, meals, weights, exercise, notes, ledger, hub, boards, checklists, sharing, company_core, ai) → handlers에서 include
+│  ├─ domains/             도메인 로직·라우터 (todos, events, recurrence, meals, weights, exercise, notes, ledger, hub, boards, checklists, sharing, company_core, company_master, ai) → handlers에서 include
 │  ├─ requirements-ai.txt  ai Lambda 전용 레이어 의존성 (build_ai_layer.py로 빌드)
    │  └─ tests/
    ├─ infra/

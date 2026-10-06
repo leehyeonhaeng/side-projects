@@ -61,6 +61,16 @@ const SCREENS = [
   ["company-audit", "/company/cp1/audit"],
   ["company-settings", "/company/cp1/settings"],
   ["invite", "/invite/abcDEF123456"],
+  ["company-partners", "/company/cp1/partners"],
+  ["company-partner", "/company/cp1/partners/pa3"],
+  ["company-partner-new", "/company/cp1/partners", async (p) => p.getByRole("button", { name: "거래처 추가" }).click()],
+  ["company-items", "/company/cp1/items"],
+  ["company-item-new", "/company/cp1/items", async (p) => p.getByRole("button", { name: "품목 추가" }).click()],
+  ["company-assets", "/company/cp1/assets"],
+  ["company-asset", "/company/cp1/assets/as4"],
+  ["company-asset-register", "/company/cp1/assets", async (p) => p.getByRole("button", { name: "기기 등록" }).click()],
+  ["company-accounts", "/company/cp1/accounts"],
+  ["company-more", "/company/cp1/more"],
 ];
 
 /** 페이지 안에서 실행: 문제 요소 찾기 */

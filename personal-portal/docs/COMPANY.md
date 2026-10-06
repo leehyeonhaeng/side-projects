@@ -2,7 +2,7 @@
 
 > 인쇄·사무기기 임대 업체용 소규모 ERP. 행포털 안의 별도 공간으로 들어가 거래처·기기·재고·임대 계약·돈·증빙 문서를 **하나의 흐름**으로 관리한다.
 > 행포털 공통 설계(로그인, 권한 미들웨어, 단일 테이블, 배포)는 `DESIGN.md`를 따르고, 이 문서는 회사 공간만 다룬다.
-> 상태: 설계 확정(2026-10-06), **C1 구현·dev 배포** (2026-10-06)
+> 상태: 설계 확정(2026-10-06), **C1·C2 구현·dev 배포** (2026-10-06)
 
 ---
 
@@ -199,6 +199,21 @@
 | `GET` · `POST /company/{cid}/invites`, `DELETE …/invites/{code}` | 초대 (관리자) |
 | `GET /invite/{code}` (로그인 없음), `POST /company/invites/{code}/accept` | 초대 정보 / 기존 계정으로 참여 |
 | `GET /company/{cid}/audit` | 회사 활동 기록 최근 200개 (관리자) |
+
+### C2 기준 정보 (2026-10-06)
+
+| 항목 | 구현 |
+|---|---|
+| 코드 | `backend/domains/company_master.py` / `frontend/src/modules/company/` (PartnersPage, ItemsPage, AssetsPage, AccountsPage, CompanyMorePage, ui.tsx) |
+| 삭제 원칙 | 거래처·품목·계좌는 "사용 안 함"(`active=false`)으로 숨김. 한 번도 쓰이지 않은 것만 삭제(거래처: 나가 있는 기기·`used` 표시 없음 / 품목: 기기·`used` 없음). C3 거래가 `used`를 표시한다 |
+| 거래처 | 이름 중복 불가, 구분(매출처·매입처·둘 다), 사업자번호·대표·담당자·전화·휴대폰·이메일·주소·메모. 잔액(미수·선수·미지급)은 0으로 시작, C3가 갱신. 상세에 나가 있는 기기 |
+| 품목 | 관리 방식(개체/수량)은 만든 뒤 변경 불가. 개체 품목: 기본 월 임대료, 대수(상태별) 계산 / 수량 품목: 기초 재고(만들 때만), 최소 재고(부족 표시), 호환 기종(개체 품목 id). 판매 정가·기준 매입가. 재고 수량은 PATCH로 못 바꿈(거래로만) |
+| 기기 | 기초 등록(한 번에 최대 50대, 제조번호는 줄마다·선택, 중복 불가) → 고유번호 `<assetPrefix>-<6자리>`(회사 설정, 기본 A), 순번은 `SEQ#asset` 원자적 증가. 상태 직접 변경은 창고·수리·폐기만(임대 중은 출고·수거 거래로). 이력 `ASSET#<id>#LOG#<ts>`. 삭제는 등록 이후 이력이 없을 때만 |
+| 계좌 | 현금·은행·카드, 기초 잔액(만들 때만) → `balance`는 C3 거래가 갱신. 돈 영역 권한 |
+| 금액 숨김 | 금액 보기가 꺼진 직원: 거래처 잔액, 품목 정가·임대료·매입가, 기기 매입가, 계좌 잔액을 API가 보내지 않음. 금액 입력도 거절 |
+| 폰 화면 | 회사 하단 탭: 홈·기기·거래처·품목 + 전체(나머지 메뉴) |
+
+**API (C2)**: `GET` · `POST /company/{cid}/partners`, `GET` · `PATCH` · `DELETE …/partners/{id}` / `GET` · `POST …/items`, `PATCH` · `DELETE …/items/{id}` / `GET` · `POST …/assets`(기초 등록 `{itemId, count, serials, acquiredAt, cost, location, memo}`), `GET` · `PATCH` · `DELETE …/assets/{id}`(상세는 이력 포함) / `GET` · `POST …/accounts`, `PATCH …/accounts/{id}`
 
 ## 13. 나중에 (지금 범위 밖)
 

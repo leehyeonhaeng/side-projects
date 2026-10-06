@@ -7,7 +7,12 @@ import { BoardsPage } from "./modules/boards/BoardsPage";
 import { ChecklistPage } from "./modules/checklists/ChecklistPage";
 import { ChecklistsPage } from "./modules/checklists/ChecklistsPage";
 import { HubPage } from "./modules/hub/HubPage";
+import { AccountsPage } from "./modules/company/AccountsPage";
+import { AssetDetailPage, AssetsPage } from "./modules/company/AssetsPage";
 import { CompanyAuditPage } from "./modules/company/CompanyAuditPage";
+import { CompanyMorePage } from "./modules/company/CompanyMorePage";
+import { ItemsPage } from "./modules/company/ItemsPage";
+import { PartnerDetailPage, PartnersPage } from "./modules/company/PartnersPage";
 import { CompanyHomePage } from "./modules/company/CompanyHomePage";
 import { CompanyLayout } from "./modules/company/CompanyLayout";
 import { CompanyListPage } from "./modules/company/CompanyListPage";
@@ -46,6 +51,13 @@ export const router = createBrowserRouter([
       { path: "members", element: <CompanyMembersPage /> },
       { path: "audit", element: <CompanyAuditPage /> },
       { path: "settings", element: <CompanySettingsPage /> },
+      { path: "partners", element: <PartnersPage /> },
+      { path: "partners/:pid", element: <PartnerDetailPage /> },
+      { path: "items", element: <ItemsPage /> },
+      { path: "assets", element: <AssetsPage /> },
+      { path: "assets/:aid", element: <AssetDetailPage /> },
+      { path: "accounts", element: <AccountsPage /> },
+      { path: "more", element: <CompanyMorePage /> },
     ],
   },
   { path: "/mfa-setup", element: <RequireAuth><MfaSetupPage /></RequireAuth> },

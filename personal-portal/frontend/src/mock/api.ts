@@ -119,6 +119,38 @@ const companyRoles = [
 ];
 
 
+// 행컴퍼니 C2 기준 정보
+const cpPartners = [
+  { id: "pa1", name: "서울중앙초등학교", kind: "customer", contactName: "김행정", phone: "02-111-2222", address: "서울 중구 세종대로 1", active: true, receivable: 240000, advance: 0, payable: 0, createdAt: now },
+  { id: "pa2", name: "한빛정형외과의원", kind: "customer", contactName: "이원무", phone: "02-333-4444", mobile: "010-1234-5678", active: true, receivable: 0, advance: 50000, payable: 0, createdAt: now },
+  { id: "pa3", name: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", kind: "customer", contactName: "박실장", phone: "02-555-6666", active: true, receivable: 1320000, advance: 0, payable: 0, createdAt: now },
+  { id: "pa4", name: "(주)대한오피스솔루션", kind: "supplier", contactName: "최영업", phone: "031-777-8888", bizNo: "111-22-33333", active: true, receivable: 0, advance: 0, payable: 3500000, createdAt: now },
+  { id: "pa5", name: "구 거래처", kind: "both", active: false, receivable: 0, advance: 0, payable: 0, createdAt: now },
+];
+const cpItems = [
+  { id: "it1", name: "신도리코 D420 컬러복합기", tracking: "asset", category: "복합기", maker: "신도리코", modelNo: "D420", spec: "A3 컬러, 분당 42매", unit: "대", price: 4500000, rentPrice: 120000, cost: 3200000, active: true, assetCounts: { in_stock: 2, rented: 5, repair: 1, retired: 0 }, createdAt: now },
+  { id: "it2", name: "캐논 iR2630 흑백복합기", tracking: "asset", category: "복합기", maker: "캐논", modelNo: "iR2630", unit: "대", price: 2200000, rentPrice: 60000, active: true, assetCounts: { in_stock: 1, rented: 3, repair: 0, retired: 1 }, createdAt: now },
+  { id: "it3", name: "HP 레이저젯 M404 프린터", tracking: "asset", category: "프린터", maker: "HP", unit: "대", price: 450000, rentPrice: 25000, active: true, assetCounts: { in_stock: 4, rented: 2, repair: 0, retired: 0 }, createdAt: now },
+  { id: "it4", name: "D420 토너 검정", tracking: "stock", category: "토너", maker: "신도리코", unit: "개", price: 85000, cost: 52000, qty: 3, minStock: 5, compatibleWith: ["it1"], active: true, createdAt: now },
+  { id: "it5", name: "D420 토너 파랑", tracking: "stock", category: "토너", unit: "개", price: 95000, qty: 8, minStock: 3, compatibleWith: ["it1"], active: true, createdAt: now },
+  { id: "it6", name: "엡손 정품 잉크 (액상) 블랙 70ml", tracking: "stock", category: "잉크", unit: "병", price: 18000, qty: 24, minStock: 10, active: true, createdAt: now },
+  { id: "it7", name: "A4 복사용지 80g (2500매)", tracking: "stock", category: "용지", unit: "박스", price: 28000, qty: 42, minStock: 20, active: true, createdAt: now },
+  { id: "it8", name: "D420 정착기 유닛", tracking: "stock", category: "부품", unit: "개", price: 320000, qty: 1, minStock: 1, compatibleWith: ["it1"], active: true, createdAt: now },
+];
+const cpAssets = [
+  { id: "as1", code: "A-000001", itemId: "it1", itemName: "신도리코 D420 컬러복합기", serial: "SD420-23A0001", status: "rented", partnerId: "pa1", partnerName: "서울중앙초등학교", location: "", acquiredAt: "2025-03-02", cost: 3200000, memo: "", createdAt: now },
+  { id: "as2", code: "A-000002", itemId: "it1", itemName: "신도리코 D420 컬러복합기", serial: "SD420-23A0002", status: "rented", partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", location: "", cost: 3200000, memo: "", createdAt: now },
+  { id: "as3", code: "A-000003", itemId: "it1", itemName: "신도리코 D420 컬러복합기", serial: "", status: "in_stock", location: "본사 창고 2층", memo: "", createdAt: now },
+  { id: "as4", code: "A-000004", itemId: "it1", itemName: "신도리코 D420 컬러복합기", serial: "SD420-23A0004", status: "repair", location: "수리실", memo: "급지 불량", createdAt: now },
+  { id: "as5", code: "A-000005", itemId: "it2", itemName: "캐논 iR2630 흑백복합기", serial: "CN2630-998877", status: "rented", partnerId: "pa2", partnerName: "한빛정형외과의원", location: "", memo: "", createdAt: now },
+  { id: "as6", code: "A-000006", itemId: "it3", itemName: "HP 레이저젯 M404 프린터", serial: "VNB3K12345", status: "retired", location: "", memo: "폐기 처리", createdAt: now },
+];
+const cpAccounts = [
+  { id: "ac1", name: "국민 주거래", kind: "bank", bank: "국민은행", number: "123456-01-234567", holder: "행컴퍼니", active: true, openingBalance: 12000000, balance: 15840000, createdAt: now },
+  { id: "ac2", name: "현금 시재", kind: "cash", active: true, openingBalance: 300000, balance: 185000, createdAt: now },
+];
+
+
 type Handler = (q: URLSearchParams, parts: string[]) => unknown;
 const GET: [RegExp, Handler][] = [
   [/^\/me$/, () => me],
@@ -191,6 +223,18 @@ const GET: [RegExp, Handler][] = [
     ],
   })],
   [/^\/invite\/[^/]+$/, () => ({ companyName: "행컴퍼니", roleName: "현장 기사", expiresAt: Math.floor(Date.now() / 1000) + 6 * 86400 })],
+  [/^\/company\/[^/]+\/partners$/, () => ({ partners: cpPartners })],
+  [/^\/company\/[^/]+\/partners\/[^/]+$/, (_q, p) => ({ partner: cpPartners.find((x) => x.id === p[3]) ?? cpPartners[0], assets: cpAssets.filter((a) => a.partnerId === p[3]) })],
+  [/^\/company\/[^/]+\/items$/, () => ({ items: cpItems })],
+  [/^\/company\/[^/]+\/assets$/, () => ({ assets: cpAssets })],
+  [/^\/company\/[^/]+\/assets\/[^/]+$/, (_q, p) => ({
+    asset: cpAssets.find((x) => x.id === p[3]) ?? cpAssets[0],
+    logs: [
+      { at: now, actor: "u6", action: "status", from: "rented", to: "repair" },
+      { at: now, actor: "mock-host", action: "registered", note: "기초 등록" },
+    ],
+  })],
+  [/^\/company\/[^/]+\/accounts$/, () => ({ accounts: cpAccounts })],
   [/^\/health$/, () => ({ status: "ok", service: "mock" })],
 ];
 

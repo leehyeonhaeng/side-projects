@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from common.access import current_access
 from common.aws import table
 from common.http import parse_body
-from common.serialize import to_plain
+from common.serialize import to_dynamo, to_plain
 from common.users import now_iso, user_pk
 from domains.sharing import person, profiles, query_all
 
@@ -122,7 +122,7 @@ def redact(ctx: CompanyCtx, item: dict[str, Any], money_fields: tuple[str, ...])
 def company_audit(cid: str, actor: str, action: str, target: str = "", detail: dict[str, Any] | None = None) -> dict[str, Any]:
     """회사 활동 기록 항목 (트랜잭션에 같이 넣을 수 있게 저장하지 않고 돌려준다)"""
     at = now_iso()
-    return {"PK": pk(cid), "SK": f"AUDIT#{at}#{uuid4().hex[:6]}", "at": at, "actor": actor, "action": action, "target": target, "detail": detail or {}}
+    return {"PK": pk(cid), "SK": f"AUDIT#{at}#{uuid4().hex[:6]}", "at": at, "actor": actor, "action": action, "target": target, "detail": to_dynamo(detail or {})}
 
 
 def _member_item(cid: str, sub: str, role_id: str, role: dict[str, Any]) -> dict[str, Any]:
@@ -168,6 +168,7 @@ class CompanyInfo(BaseModel):
     bizItem: str | None = Field(default=None, max_length=50)  # 종목
     bankAccount: str | None = Field(default=None, max_length=100)  # 입금 계좌 (문서에 표시)
     vatDefault: Literal["included", "excluded", "exempt"] | None = None
+    assetPrefix: str | None = Field(default=None, pattern=r"^[A-Z0-9]{1,5}$")  # 기기 고유번호 앞글자 (예: A → A-000001)
 
 
 class RoleBody(BaseModel):

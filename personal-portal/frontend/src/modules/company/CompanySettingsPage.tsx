@@ -19,6 +19,7 @@ const FIELDS: { key: keyof Omit<Form, "vatDefault">; label: string; placeholder?
   { key: "email", label: "이메일" },
   { key: "address", label: "주소", wide: true },
   { key: "bankAccount", label: "입금 계좌 (문서에 표시)", placeholder: "OO은행 123-456-789012 (예금주)", wide: true },
+  { key: "assetPrefix", label: "기기 고유번호 앞글자 (영문 대문자·숫자 5자 이내)", placeholder: "A → A-000001" },
 ];
 
 /** 회사 정보: 영수증·명세서에 찍히는 값 (COMPANY.md 7장). 직인·문서 번호는 C5 */
@@ -37,6 +38,7 @@ export function CompanySettingsPage() {
     bizType: c.bizType ?? "",
     bizItem: c.bizItem ?? "",
     bankAccount: c.bankAccount ?? "",
+    assetPrefix: c.assetPrefix ?? "",
     vatDefault: c.vatDefault,
   }));
   const [saved, setSaved] = useState(false);

@@ -8,7 +8,6 @@ import { useCompanyOutlet } from "./CompanyLayout";
 
 // COMPANY.md 11장 구현 단계 — 대시보드가 생기기 전까지 홈에서 진행 상황을 보여 준다
 const COMING = [
-  { phase: "C2", items: "거래처 · 품목·재고 · 기기 등록 · 계좌" },
   { phase: "C3", items: "판매 · 매입 · 임대 출고·수거 · 입금·지급 · 장부" },
   { phase: "C4", items: "임대 계약 · 정기 청구 · 카운터 검침 · A/S" },
   { phase: "C5", items: "직인 영수증·명세서·청구서 PDF · 기기 라벨 QR" },

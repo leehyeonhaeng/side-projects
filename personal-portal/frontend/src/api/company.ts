@@ -34,6 +34,7 @@ export type CompanyInfo = {
   bizType?: string;
   bizItem?: string;
   bankAccount?: string;
+  assetPrefix?: string;
   vatDefault: VatMode;
   createdAt: string;
 };
@@ -132,3 +133,125 @@ const ACTION_LABEL: Record<string, string> = {
   invite_accept: "초대로 참여",
 };
 export const actionLabel = (a: string) => ACTION_LABEL[a] ?? a;
+
+// ── C2 기준 정보 (backend/domains/company_master.py) ──
+
+export type PartnerKind = "customer" | "supplier" | "both";
+export const PARTNER_KIND_LABEL: Record<PartnerKind, string> = { customer: "매출처", supplier: "매입처", both: "매출·매입" };
+export type Partner = {
+  id: string;
+  name: string;
+  kind: PartnerKind;
+  bizNo?: string;
+  ceo?: string;
+  contactName?: string;
+  phone?: string;
+  mobile?: string;
+  email?: string;
+  address?: string;
+  memo?: string;
+  active: boolean;
+  // 금액 보기가 꺼져 있으면 오지 않는다
+  receivable?: number;
+  advance?: number;
+  payable?: number;
+  createdAt: string;
+};
+export type PartnerInput = Partial<Omit<Partner, "id" | "createdAt" | "receivable" | "advance" | "payable">>;
+
+export type Tracking = "asset" | "stock";
+export type Item = {
+  id: string;
+  name: string;
+  tracking: Tracking;
+  category?: string;
+  maker?: string;
+  modelNo?: string;
+  spec?: string;
+  unit: string;
+  price?: number;
+  rentPrice?: number;
+  cost?: number;
+  qty?: number; // 수량 품목
+  minStock?: number;
+  compatibleWith?: string[];
+  memo?: string;
+  active: boolean;
+  assetCounts?: Record<AssetStatus, number>; // 개체 품목
+  createdAt: string;
+};
+export type ItemInput = Partial<Omit<Item, "id" | "createdAt" | "assetCounts" | "qty" | "tracking">> & { tracking?: Tracking; openingQty?: number };
+
+export type AssetStatus = "in_stock" | "rented" | "repair" | "retired";
+export const ASSET_STATUS_LABEL: Record<AssetStatus, string> = { in_stock: "창고", rented: "임대 중", repair: "수리", retired: "폐기" };
+export const ASSET_STATUS_TONE: Record<AssetStatus, string> = {
+  in_stock: "bg-emerald-100 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-300",
+  rented: "bg-sky-100 text-sky-700 dark:bg-sky-400/15 dark:text-sky-300",
+  repair: "bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300",
+  retired: "bg-zinc-200 text-zinc-600 dark:bg-zinc-500/20 dark:text-zinc-400",
+};
+export type Asset = {
+  id: string;
+  code: string;
+  itemId: string;
+  itemName: string;
+  serial: string;
+  status: AssetStatus;
+  partnerId?: string;
+  partnerName?: string;
+  location: string;
+  acquiredAt?: string;
+  cost?: number;
+  memo: string;
+  createdAt: string;
+};
+export type AssetLog = { at: string; actor: string; action: string; from?: string; to?: string; note?: string };
+
+export type AccountKind = "cash" | "bank" | "card";
+export const ACCOUNT_KIND_LABEL: Record<AccountKind, string> = { cash: "현금", bank: "은행", card: "카드" };
+export type Account = { id: string; name: string; kind: AccountKind; bank?: string; number?: string; holder?: string; memo?: string; active: boolean; openingBalance?: number; balance?: number; createdAt: string };
+
+const sub = (cid: string, ...k: string[]) => ["company", cid, ...k];
+
+export function usePartners(cid: string, enabled = true) {
+  return useQuery({ queryKey: sub(cid, "partners"), queryFn: () => api.get<{ partners: Partner[] }>(`/company/${cid}/partners`), select: (d) => d.partners, enabled });
+}
+export function usePartner(cid: string, pid: string) {
+  return useQuery({ queryKey: sub(cid, "partners", pid), queryFn: () => api.get<{ partner: Partner; assets: Asset[] }>(`/company/${cid}/partners/${pid}`) });
+}
+export function useItems(cid: string, enabled = true) {
+  return useQuery({ queryKey: sub(cid, "items"), queryFn: () => api.get<{ items: Item[] }>(`/company/${cid}/items`), select: (d) => d.items, enabled });
+}
+export function useAssets(cid: string, enabled = true) {
+  return useQuery({ queryKey: sub(cid, "assets"), queryFn: () => api.get<{ assets: Asset[] }>(`/company/${cid}/assets`), select: (d) => d.assets, enabled });
+}
+export function useAsset(cid: string, aid: string) {
+  return useQuery({ queryKey: sub(cid, "assets", aid), queryFn: () => api.get<{ asset: Asset; logs: AssetLog[] }>(`/company/${cid}/assets/${aid}`) });
+}
+export function useAccounts(cid: string, enabled = true) {
+  return useQuery({ queryKey: sub(cid, "accounts"), queryFn: () => api.get<{ accounts: Account[] }>(`/company/${cid}/accounts`), select: (d) => d.accounts, enabled });
+}
+
+export function useMasterMutations(cid: string) {
+  const qc = useQueryClient();
+  const settled = () => void qc.invalidateQueries({ queryKey: ["company", cid] });
+  const m = <V, R>(fn: (v: V) => Promise<R>) => ({ mutationFn: fn, onSettled: settled });
+  return {
+    createPartner: useMutation(m((body: PartnerInput & { name: string }) => api.post<Partner>(`/company/${cid}/partners`, body))),
+    patchPartner: useMutation(m(({ id, ...body }: PartnerInput & { id: string }) => api.patch<Partner>(`/company/${cid}/partners/${id}`, body))),
+    deletePartner: useMutation(m((id: string) => api.del(`/company/${cid}/partners/${id}`))),
+    createItem: useMutation(m((body: ItemInput & { name: string; tracking: Tracking }) => api.post<Item>(`/company/${cid}/items`, body))),
+    patchItem: useMutation(m(({ id, ...body }: ItemInput & { id: string }) => api.patch<Item>(`/company/${cid}/items/${id}`, body))),
+    deleteItem: useMutation(m((id: string) => api.del(`/company/${cid}/items/${id}`))),
+    registerAssets: useMutation(
+      m((body: { itemId: string; count: number; serials: string[]; acquiredAt?: string; cost?: number; location: string; memo: string }) => api.post<{ assets: Asset[] }>(`/company/${cid}/assets`, body)),
+    ),
+    patchAsset: useMutation(m(({ id, ...body }: { id: string; serial?: string; status?: AssetStatus; location?: string; acquiredAt?: string | null; cost?: number | null; memo?: string }) => api.patch<Asset>(`/company/${cid}/assets/${id}`, body))),
+    deleteAsset: useMutation(m((id: string) => api.del(`/company/${cid}/assets/${id}`))),
+    createAccount: useMutation(m((body: { name: string; kind: AccountKind; bank?: string; number?: string; holder?: string; memo?: string; openingBalance: number }) => api.post<Account>(`/company/${cid}/accounts`, body))),
+    patchAccount: useMutation(m(({ id, ...body }: { id: string; name?: string; kind?: AccountKind; bank?: string; number?: string; holder?: string; memo?: string; active?: boolean }) => api.patch<Account>(`/company/${cid}/accounts/${id}`, body))),
+  };
+}
+
+/** 품목 분류 예시 (자유 입력, 자동완성용) */
+export const ITEM_CATEGORIES = ["복합기", "프린터", "플로터", "토너", "잉크", "드럼", "용지", "부품", "라벨지", "기타"];

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, NavLink, Outlet, useOutletContext, useParams } from "react-router";
-import { ArrowLeftIcon, Building2Icon, HistoryIcon, HouseIcon, SettingsIcon, UsersIcon } from "lucide-react";
+import { ArrowLeftIcon, Building2Icon, ContactIcon, HistoryIcon, HouseIcon, LandmarkIcon, LayoutGridIcon, PackageIcon, PrinterIcon, SettingsIcon, UsersIcon } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { type CompanyDetail, useCompany } from "@/api/company";
 import { ErrorAlert, PageSpinner } from "@/components/states";
@@ -10,11 +10,16 @@ import { cn } from "@/lib/utils";
 export type CompanyOutlet = { cid: string; detail: CompanyDetail };
 export const useCompanyOutlet = () => useOutletContext<CompanyOutlet>();
 
-type NavItem = { to: string; label: string; icon: ReactNode; show: (d: CompanyDetail) => boolean; end?: boolean };
+type NavItem = { to: string; label: string; icon: ReactNode; show: (d: CompanyDetail) => boolean; end?: boolean; phone?: boolean };
+const can = (area: keyof CompanyDetail["me"]["perms"]) => (d: CompanyDetail) => d.me.perms[area] !== "none";
 
 /** 회사 메뉴 (COMPANY.md 4장). 단계마다 메뉴가 늘어난다 — 권한 없는 메뉴는 숨김 */
-const NAV: NavItem[] = [
-  { to: "", label: "홈", icon: <HouseIcon />, show: () => true, end: true },
+export const COMPANY_NAV: NavItem[] = [
+  { to: "", label: "홈", icon: <HouseIcon />, show: () => true, end: true, phone: true },
+  { to: "assets", label: "기기", icon: <PrinterIcon />, show: can("assets"), phone: true },
+  { to: "partners", label: "거래처", icon: <ContactIcon />, show: can("partners"), phone: true },
+  { to: "items", label: "품목·재고", icon: <PackageIcon />, show: can("items"), phone: true },
+  { to: "accounts", label: "계좌", icon: <LandmarkIcon />, show: can("money") },
   { to: "members", label: "직원·권한", icon: <UsersIcon />, show: (d) => d.me.isAdmin },
   { to: "audit", label: "활동 기록", icon: <HistoryIcon />, show: (d) => d.me.isAdmin },
   { to: "settings", label: "회사 설정", icon: <SettingsIcon />, show: (d) => d.me.perms.settings !== "none" },
@@ -38,7 +43,9 @@ export function CompanyLayout() {
     );
   }
 
-  const items = NAV.filter((n) => n.show(company.data));
+  const items = COMPANY_NAV.filter((n) => n.show(company.data));
+  // 폰 하단 탭: 자주 쓰는 것 최대 4개 + 전체
+  const phoneTabs: NavItem[] = [...items.filter((n) => n.phone).slice(0, 4), { to: "more", label: "전체", icon: <LayoutGridIcon />, show: () => true }];
   const base = `/company/${cid}`;
   return (
     <div className="min-h-dvh">
@@ -84,7 +91,7 @@ export function CompanyLayout() {
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-20 flex border-t bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
-        {items.map((n) => (
+        {phoneTabs.map((n) => (
           <NavLink
             key={n.to}
             to={n.to ? `${base}/${n.to}` : base}
