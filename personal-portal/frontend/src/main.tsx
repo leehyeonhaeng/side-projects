@@ -3,6 +3,7 @@ import { signOut } from "aws-amplify/auth";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router";
+import { UpdateBanner } from "./components/UpdateBanner";
 import { ApiError } from "./api/client";
 import { configureAuth } from "./auth/amplify";
 import "./index.css";
@@ -42,6 +43,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
+      <UpdateBanner />
     </QueryClientProvider>
   </StrictMode>,
 );

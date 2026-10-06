@@ -1,24 +1,31 @@
-name: portal-deploy
+name: portal-deploy-prod
 
-# main push 시 dev 자동 배포: 테스트 → portal-deploy-env.yml (prod는 portal-deploy-prod.yml 수동 실행)
+# prod 배포는 버튼으로만 (DESIGN.md 9.5): Actions → portal-deploy-prod → Run workflow, 확인란에 prod 입력
+# dev에서 확인한 main을 그대로 올린다
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "personal-portal/backend/**"
-      - "personal-portal/frontend/**"
-      - "personal-portal/infra/modules/**"
-      - "personal-portal/infra/envs/dev/**"
-      - ".github/workflows/portal-deploy.yml"
-      - ".github/workflows/portal-deploy-env.yml"
+    inputs:
+      confirm:
+        description: "prod에 배포하려면 prod 를 입력"
+        required: true
+        type: string
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm input
+        if: ${{ inputs.confirm != 'prod' || github.ref != 'refs/heads/main' }}
+        run: |
+          echo "확인란에 prod를 입력하고 main 브랜치에서 실행해야 합니다." >&2
+          exit 1
+
   test:
+    needs: check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -49,5 +56,5 @@ jobs:
     needs: test
     uses: ./.github/workflows/portal-deploy-env.yml
     with:
-      environment: dev
+      environment: prod
     secrets: inherit

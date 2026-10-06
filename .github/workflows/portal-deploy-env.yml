@@ -1,0 +1,76 @@
+name: portal-deploy-env
+
+# 환경 하나를 배포하는 공통 작업 (portal-deploy.yml → dev, portal-deploy-prod.yml → prod)
+# terraform apply(Lambda 포함) → 프론트 빌드 → S3 업로드 → CloudFront 무효화
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: portal-deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-northeast-2
+          mask-aws-account-id: true
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Build ai Lambda layer
+        run: python personal-portal/backend/build_ai_layer.py ${{ inputs.environment }}
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform apply
+        id: tf
+        working-directory: personal-portal/infra/envs/${{ inputs.environment }}
+        env:
+          TF_VAR_host_email: ${{ secrets.HOST_EMAIL }}
+        run: |
+          terraform init -input=false
+          terraform apply -input=false -auto-approve
+          {
+            echo "api_endpoint=$(terraform output -raw api_endpoint)"
+            echo "web_bucket=$(terraform output -raw web_bucket)"
+            echo "distribution_id=$(terraform output -raw web_distribution_id)"
+            echo "user_pool_id=$(terraform output -raw user_pool_id)"
+            echo "user_pool_client_id=$(terraform output -raw user_pool_client_id)"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: personal-portal/frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: personal-portal/frontend
+        env:
+          VITE_API_BASE_URL: ${{ steps.tf.outputs.api_endpoint }}
+          VITE_USER_POOL_ID: ${{ steps.tf.outputs.user_pool_id }}
+          VITE_USER_POOL_CLIENT_ID: ${{ steps.tf.outputs.user_pool_client_id }}
+        run: |
+          npm ci
+          npm run build
+
+      - name: Upload to S3 + invalidate CloudFront
+        working-directory: personal-portal/frontend
+        run: bash scripts/upload-web.sh "${{ steps.tf.outputs.web_bucket }}" "${{ steps.tf.outputs.distribution_id }}"

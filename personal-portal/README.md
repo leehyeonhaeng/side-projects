@@ -13,6 +13,7 @@
 - 2026-10-01: Phase 3 완료 (홈 위젯 그리드·편집 모드·섹션·테마·하단 바·빠른 추가 틀·설정, PC↔폰 레이아웃 동기화 확인)
 - 2026-10-01: Phase 4 완료 (할 일·캘린더·반복·예정 회차 미리보기·공휴일·홈 위젯 연결)
 - 2026-10-01: Phase 5 완료 (식단 + AI 칼로리 추정(Bedrock Claude Haiku 4.5), 체중, 운동(러닝·헬스·훈련 프로그램), 순섭취량)
+- 2026-10-06: Phase 9 진행 — PWA(설치·새 버전 배너), 보안 헤더(CSP), prod 환경·배포 버튼 준비
 - 2026-10-02: 디자인 전면 개편 1차 (따뜻한 톤 + 파랑 포인트, Pretendard, PC 사이드바·폰 하단 탭, 모듈 색)
 - 2026-10-02: Phase 8 공용 체크리스트 (멤버 공유·체크한 사람 기록·일괄 삭제·전체 해제·템플릿·즐겨찾기·홈 위젯) dev 배포
 - 2026-10-02: Phase 7 완료 (7a 메모, 7b 가계부, 7c 스니펫·링크 허브). 실사용 확인은 디자인 개편 뒤
@@ -80,7 +81,7 @@ side-projects/
    ├─ infra/
    │  ├─ bootstrap/           상태 버킷, OIDC, CI Role, Budgets (로컬에서만 apply)
    │  ├─ modules/             dynamodb, cognito, lambda, api, hosting
-   │  └─ envs/dev/            dev 조합 (prod는 Phase 9)
+   │  └─ envs/dev, envs/prod/ 환경별 조합 (prod: 삭제 방지·PITR)
    ├─ README.md
    └─ DEVLOG.md
 ```
@@ -98,12 +99,15 @@ aws sts get-caller-identity          # 계정 확인 후 진행
 
 | 작업 | 방법 |
 |---|---|
-| terraform 변수 | `infra/bootstrap`, `infra/envs/dev`의 `terraform.tfvars.example`을 `terraform.tfvars`로 복사해 이메일 입력 (git 제외) |
-| ai Lambda 레이어 | **terraform plan 전에** `python backend/build_ai_layer.py dev` (결과는 `infra/envs/dev/.build/`, git 제외). CI는 자동 |
+| terraform 변수 | `infra/bootstrap`, `infra/envs/dev`, `infra/envs/prod`의 `terraform.tfvars.example`을 `terraform.tfvars`로 복사해 이메일 입력 (git 제외) |
+| ai Lambda 레이어 | **terraform plan 전에** `python backend/build_ai_layer.py <dev|prod>` (결과는 `infra/envs/<env>/.build/`, git 제외). CI는 자동 |
 | 백엔드 테스트 | `cd backend` → `python -m venv .venv` → `.venvScriptspip install -r requirements-dev.txt` → `.venvScriptspytest` |
 | 프론트 로컬 실행 | `frontend/.env.example`을 `.env.development.local`로 복사해 `terraform output`의 `api_endpoint`, `user_pool_id`, `user_pool_client_id` 입력 → `npm install` → `npm run dev` |
 | dev 배포 | main에 push하면 `portal-deploy.yml`이 자동 배포 (GitHub Secrets: `AWS_ROLE_ARN`, `HOST_EMAIL`) |
 | dev 주소 | `infra/envs/dev`에서 `terraform output web_url` / `api_endpoint` |
+| 배포 | main push → dev 자동. prod는 GitHub Actions `portal-deploy-prod` → Run workflow, 확인란에 `prod` |
+| 로컬 프론트 배포 | `npm run build` 후 `bash scripts/upload-web.sh <web_bucket> <distribution_id>` |
+| 앱 아이콘 교체 | `frontend/public/logo.svg`(또는 `pwa-assets.config.ts`의 images)를 바꾸고 `npm run icons` |
 | bootstrap 변경 | 로컬에서 `terraform -chdir=infra/bootstrap plan` → 승인 → `apply` |
 
 ## 주요 설계 결정

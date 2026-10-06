@@ -657,3 +657,38 @@ Phase 7 완료 처리, Phase 8 (공용 체크리스트). AWS 리소스 추가 �
 - 2차: 화면별 다듬기 (로그인·가입 화면, 홈 위젯 카드, 빈 상태 문구·일러스트, 폼 간격) — 사용자 피드백 받아서
 - 그다음 Phase 9 (PWA 설치·업데이트, 보안 점검, prod 배포, 문서 정리)
 
+## Day 17 — 2026-10-06 (화)
+
+Phase 9 시작: 9a PWA, 9b 보안 점검, 9c prod 준비. 순서는 사용자 결정(추천): 디자인 개편 → Phase 9. 디자인 세부 수정은 사용자가 따로 요청.
+
+### 한 일
+- **결정** (사용자): prod 빈 상태로 시작, main push → dev 자동·prod는 버튼, prod DB 백업(PITR) 켜기, 앱 아이콘은 사용자가 이미지 제공(그전까지 임시 아이콘)
+- **9a PWA** (dev 배포)
+  - vite-plugin-pwa(prompt), manifest(이름·색·standalone), 서비스워커(앱 껍데기만 미리 받기, 글꼴은 쓸 때 캐시), 새 버전 배너(`UpdateBanner`, 30분마다 + 앱 복귀 시 확인)
+  - 임시 아이콘 `public/logo.svg` → `npm run icons`로 PNG·favicon·maskable·apple 아이콘 생성
+  - iOS 홈 화면 메타 태그
+  - `frontend/scripts/upload-web.sh`: S3 업로드 + 무효화 공용 스크립트(sw.js·manifest·아이콘 no-cache)
+- **9b 보안 점검** (DESIGN 9.4)
+  - CloudFront 응답 헤더 정책 신설(CSP + HSTS·nosniff·DENY·Referrer), 인라인 테마 스크립트를 `theme-init.js`로 분리. dev apply(추가 1: 응답 헤더 정책, 무료) 후 브라우저에서 홈·캘린더가 CSP 오류 없이 동작 확인
+  - 비밀값·계정 ID 스캔(없음), npm audit fix, pip-audit, 권한·로그 검토
+- **9c prod 준비**
+  - `infra/envs/prod` 생성(삭제 방지·PITR·Cognito 삭제 방지·force_destroy 끔·CORS localhost 제외), plan: 추가 89 / 변경·삭제 0
+  - 워크플로우: `portal-deploy-env.yml`(공통) + `portal-deploy.yml`(dev 자동) + `portal-deploy-prod.yml`(수동, 확인란 prod)
+
+### 결정 메모
+- CSP connect-src는 API 주소 대신 `*.execute-api.ap-northeast-2.amazonaws.com`: API CORS가 CloudFront 주소를 참조해서 반대로 참조하면 순환 의존
+- `style-src 'unsafe-inline'`는 FullCalendar 등 런타임 스타일 때문에 허용(스크립트는 엄격)
+- 남은 npm audit 경고(shadcn CLI 의존성)는 빌드 도구라 그대로 둠. 고치려면 shadcn 1.0으로 내려야 해서 오히려 위험
+
+### 트러블슈팅
+**1. 아이콘에 글자가 안 그려짐**
+- 원인: 아이콘 생성기(sharp)가 SVG의 `<text>` 글꼴을 못 찾음
+- 해결: 'P'를 path 도형으로 그림
+**2. pip-audit이 requirements 파일을 못 읽음 (cp949)**
+- 해결: `PYTHONUTF8=1`로 실행
+
+### 다음 할 일
+- prod apply (사용자 승인 대기) → prod 프론트 배포 → prod에서 Host 이메일로 가입 → 폰 홈 화면 설치 확인 (Phase 9 완료 기준)
+- 사용자 앱 아이콘 받으면 교체
+- 9d 문서 정리
+

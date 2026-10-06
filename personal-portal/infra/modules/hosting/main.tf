@@ -40,8 +40,33 @@ data "aws_cloudfront_cache_policy" "optimized" {
   name = "Managed-CachingOptimized"
 }
 
-data "aws_cloudfront_response_headers_policy" "security" {
-  name = "Managed-SecurityHeadersPolicy"
+# 관리형 SecurityHeadersPolicy와 같은 헤더 + CSP (DESIGN.md 9.4 보안 점검)
+resource "aws_cloudfront_response_headers_policy" "security" {
+  name    = "${var.name}-security"
+  comment = "security headers + CSP"
+
+  security_headers_config {
+    content_security_policy {
+      content_security_policy = var.content_security_policy
+      override                = true
+    }
+    strict_transport_security {
+      access_control_max_age_sec = 31536000
+      include_subdomains         = true
+      override                   = true
+    }
+    content_type_options {
+      override = true
+    }
+    frame_options {
+      frame_option = "DENY"
+      override     = true
+    }
+    referrer_policy {
+      referrer_policy = "strict-origin-when-cross-origin"
+      override        = true
+    }
+  }
 }
 
 resource "aws_cloudfront_distribution" "web" {
@@ -65,7 +90,7 @@ resource "aws_cloudfront_distribution" "web" {
     cached_methods             = ["GET", "HEAD"]
     compress                   = true
     cache_policy_id            = data.aws_cloudfront_cache_policy.optimized.id
-    response_headers_policy_id = data.aws_cloudfront_response_headers_policy.security.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
   }
 
   custom_error_response {

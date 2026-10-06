@@ -825,6 +825,9 @@ side-projects/
 | 비용 보호 | AWS Budgets 월 1만 원 알림 |
 | 로그 | CloudWatch Logs 보관 14일 |
 | PWA 업데이트 | 배포 후 서비스워커가 새 버전 감지 → "새 버전 있음, 새로고침" 배너 |
+| PWA 구현 (Phase 9) | vite-plugin-pwa `registerType: prompt`. 앱 껍데기(JS·CSS·HTML·아이콘)만 미리 받고 글꼴 조각은 쓸 때 캐시(오프라인 동작은 범위 밖). 30분마다 + 앱으로 돌아올 때 새 버전 확인 → `UpdateBanner` |
+| 앱 아이콘 | 원본 `frontend/public/logo.svg`(임시: 파랑 둥근 사각형 + P, 사용자 이미지로 교체 예정) → `npm run icons`(@vite-pwa/assets-generator)로 크기별 PNG·favicon 생성 |
+| 캐시 헤더 | `frontend/scripts/upload-web.sh`(CI·로컬 공용): 해시 붙은 파일은 1년 immutable, index.html·sw.js·manifest·theme-init.js·아이콘은 no-cache |
 
 ### 9.3 bootstrap (Phase 0)
 
@@ -838,6 +841,27 @@ side-projects/
 | CI Role ARN | GitHub Secret `AWS_ROLE_ARN` (계정 ID를 레포에 남기지 않음) |
 | 예산 알림 이메일 | 레포에 남기지 않음. 로컬 `bootstrap/terraform.tfvars`, CI는 Secret `HOST_EMAIL` |
 
+### 9.4 보안 점검 (Phase 9, 2026-10-06)
+
+| 항목 | 결과 |
+|---|---|
+| 응답 헤더 | CloudFront 응답 헤더 정책(`modules/hosting`): CSP(`script-src 'self'`, 연결은 같은 출처·API Gateway·Cognito만, `frame-ancestors 'none'`, `object-src 'none'`), HSTS 1년, nosniff, X-Frame-Options DENY, Referrer-Policy. 인라인 테마 스크립트는 `public/theme-init.js`로 분리. `style-src`는 FullCalendar·차트가 넣는 스타일 때문에 `'unsafe-inline'` 허용 |
+| API | 모든 라우트 Cognito JWT(`/health`만 제외), 공통 미들웨어(상태 active → 모듈 권한 → 공유 리소스 멤버), 관리자 API는 Host + MFA. 단계 스로틀링, CORS는 웹 주소만(prod는 localhost 제외) |
+| 데이터 | 개인 데이터는 JWT의 sub로만 키 생성(다른 사람 데이터 접근 경로 없음), 공유 리소스는 멤버가 아니면 404. 입력은 전부 Pydantic 검증, 링크는 http(s)만, 마크다운은 HTML 렌더링 안 함 |
+| IAM | Lambda별 최소 권한(테이블 ARN 한정, Bedrock은 ai만, Cognito 관리는 admin·auth-trigger만) |
+| 저장소 | S3 공개 차단 + OAC + 암호화. 레포에 비밀값·계정 ID·Host 이메일 없음(스캔), tfvars·tfstate 무시 |
+| 의존성 | npm audit: 남은 경고는 `shadcn` CLI(빌드 도구, 브라우저 번들에 안 들어감)뿐. pip-audit: 런타임 패키지(Powertools·pydantic·anthropic) 문제 없음, 경고는 로컬 개발용 pip·pytest뿐 |
+| 로그 | 개인 데이터(메모·식단 내용 등)를 로그에 남기지 않음. CloudWatch 14일 보관 |
+
+### 9.5 prod 환경 (Phase 9)
+
+| 항목 | 결정 |
+|---|---|
+| 구성 | `infra/envs/prod` = dev와 같은 모듈, 별도 테이블·Cognito·API·CloudFront. 데이터는 빈 상태로 시작(사용자 결정), Host 이메일로 다시 가입하면 Host |
+| 보호 | DynamoDB 삭제 방지 + 시점 복구(PITR, 35일), Cognito 삭제 방지, 웹 버킷 force_destroy 끔, CORS에 localhost 없음 |
+| 배포 | main push → dev 자동(`portal-deploy.yml`). prod는 Actions에서 `portal-deploy-prod` 수동 실행 + 확인란에 `prod` 입력(main 브랜치만). 공통 작업은 `portal-deploy-env.yml` |
+| 최초 생성 | 로컬에서 plan 확인 후 사용자 승인으로 apply |
+
 ---
 
 ## 10. 예상 비용 (소규모 사용 기준, 추정)
@@ -850,6 +874,7 @@ side-projects/
 | API Gateway (HTTP API) | 수십 원 수준 |
 | S3 + CloudFront | 무료 범위 내 |
 | Bedrock (Haiku 계열) | 사용량에 따라 월 수백 원 수준 |
+| prod 추가 | dev와 같은 구성이라 대부분 무료 범위. PITR은 저장 용량 기준(GB당 월 약 0.2달러, 개인 사용량이면 수십 원) |
 | SNS | 사실상 0 |
 | 합계 | 월 1만 원 이하 목표, Budgets 알림으로 감시 |
 

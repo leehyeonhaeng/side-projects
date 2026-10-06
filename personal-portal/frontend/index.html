@@ -4,16 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Portal" />
+    <!-- 아이콘·manifest·theme-color는 vite-plugin-pwa가 넣는다 (pwa-assets.config.ts) -->
     <title>Personal Portal</title>
-    <script>
-      // 첫 렌더 전에 마지막 테마를 적용해 깜빡임을 막는다 (src/lib/theme.ts)
-      (function () {
-        var t = localStorage.getItem("theme");
-        if (t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches)) {
-          document.documentElement.classList.add("dark");
-        }
-      })();
-    </script>
+    <!-- 첫 렌더 전에 마지막 테마를 적용해 깜빡임을 막는다 (src/lib/theme.ts). CSP 때문에 인라인 대신 파일 -->
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

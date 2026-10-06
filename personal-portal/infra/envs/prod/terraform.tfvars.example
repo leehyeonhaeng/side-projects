@@ -1,0 +1,2 @@
+# terraform.tfvars 로 복사해서 사용 (*.tfvars 는 git에서 제외됨)
+host_email = "you@example.com"
