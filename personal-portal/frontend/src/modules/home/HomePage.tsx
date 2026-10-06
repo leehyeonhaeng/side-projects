@@ -311,8 +311,8 @@ function TodayBanner() {
   return (
     <Link to="/calendar" className="flex items-center gap-2 rounded-xl border bg-primary/5 px-3 py-2 text-sm hover:bg-primary/10">
       <CalendarDaysIcon className="size-4 shrink-0 text-primary" />
-      <span className="font-medium">오늘 일정 {list.length}개</span>
-      <span className="truncate text-muted-foreground">
+      <span className="shrink-0 font-medium whitespace-nowrap">오늘 일정 {list.length}개</span>
+      <span className="min-w-0 truncate text-muted-foreground">
         {list
           .slice(0, 2)
           .map((e) => (e.allDay ? e.title : `${e.startTime} ${e.title}`))

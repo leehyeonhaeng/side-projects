@@ -18,6 +18,8 @@ type Props = {
 export function SectionGrid({ items, editing, selectedId, onSelect, onPositions }: Props) {
   const { width, containerRef, mounted } = useContainerWidth();
   const cell = Math.max(48, (width - GAP * (GRID_COLS - 1)) / GRID_COLS);
+  // 폰(칸 너비 100px 미만)은 정사각형이면 위젯 내용이 잘려서 줄 높이를 1.4배로 (배치는 그대로, 높이만)
+  const rowHeight = cell < 100 ? Math.round(cell * 1.4) : cell;
 
   return (
     <div ref={containerRef}>
@@ -25,7 +27,7 @@ export function SectionGrid({ items, editing, selectedId, onSelect, onPositions 
         <ReactGridLayout
           width={width}
           layout={items.map((i) => ({ i: i.id, x: i.x, y: i.y, w: i.w, h: i.h }))}
-          gridConfig={{ cols: GRID_COLS, rowHeight: cell, margin: [GAP, GAP], containerPadding: [0, 0] }}
+          gridConfig={{ cols: GRID_COLS, rowHeight, margin: [GAP, GAP], containerPadding: [0, 0] }}
           dragConfig={{ enabled: editing, handle: ".drag-handle", bounded: true }}
           resizeConfig={{ enabled: false }}
           compactor={verticalCompactor}

@@ -199,7 +199,8 @@ function ItemCard({ item: i, collectionName, readOnly, onFavorite, onEdit }: { i
 
       {i.kind === "snippet" && i.code && (
         <div className="relative">
-          <CodeBlock code={i.code} lang={i.lang ?? "plaintext"} className={cn(!expanded && long && "max-h-44 overflow-hidden")} />
+          {/* 위쪽에 복사 버튼 자리를 비워 둬서 버튼이 코드를 가리지 않게 */}
+          <CodeBlock code={i.code} lang={i.lang ?? "plaintext"} className={cn("pt-11", !expanded && long && "max-h-52 overflow-hidden")} />
           <CopyButton text={i.code} className="absolute top-1.5 right-1.5 h-7 bg-background/90" />
           {long && (
             <Button size="xs" variant="ghost" className="mt-1" onClick={() => setExpanded(!expanded)}>

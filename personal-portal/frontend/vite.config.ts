@@ -4,12 +4,14 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
-export default defineConfig({
+// --mode mock: 로그인·API 없이 가짜 데이터로 띄우는 화면 점검 모드 (scripts/screens.mjs). 배포에는 쓰지 않는다
+export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     tailwindcss(),
     // DESIGN.md 9.2: 홈 화면 설치 + 새 버전 감지 → "새로고침" 배너 (오프라인 동작은 범위 밖)
     VitePWA({
+      disable: mode === "mock",
       registerType: "prompt",
       injectRegister: false,
       pwaAssets: { config: true, overrideManifestIcons: true },
@@ -42,6 +44,14 @@ export default defineConfig({
     }),
   ],
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    alias: [
+      ...(mode === "mock"
+        ? [
+            { find: /^aws-amplify\/auth$/, replacement: fileURLToPath(new URL("./src/mock/amplify-auth.ts", import.meta.url)) },
+            { find: /^aws-amplify$/, replacement: fileURLToPath(new URL("./src/mock/amplify.ts", import.meta.url)) },
+          ]
+        : []),
+      { find: "@", replacement: fileURLToPath(new URL("./src", import.meta.url)) },
+    ],
   },
-});
+}));

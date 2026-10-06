@@ -75,8 +75,8 @@ export function TodoRow({ todo, listName, readOnly, onToggle, onPostpone, onOpen
         >
           {todo.done && <CheckIcon className="size-3" />}
         </button>
-        <button type="button" className="grid min-w-0 flex-1 gap-0.5 text-left" onClick={onOpen}>
-          <span className={cn("flex items-center gap-1.5 text-sm", todo.done && "text-muted-foreground line-through")}>
+        <button type="button" className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-0.5 text-left" onClick={onOpen}>
+          <span className={cn("flex min-w-0 items-center gap-1.5 text-sm", todo.done && "text-muted-foreground line-through")}>
             <span className={cn("size-1.5 shrink-0 rounded-full", PRIORITY_DOT[todo.priority])} />
             <span className="truncate">{todo.title}</span>
           </span>

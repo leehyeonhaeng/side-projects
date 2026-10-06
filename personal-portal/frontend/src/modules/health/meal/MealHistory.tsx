@@ -39,7 +39,7 @@ export function MealHistory({ goal }: { goal: number | null }) {
       ) : (
         <div className="h-44">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 8, right: 4, left: -16, bottom: 0 }}>
+            <BarChart data={data} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
               <XAxis dataKey="day" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} interval={days === 30 ? 4 : 0} tickLine={false} axisLine={false} />
               <YAxis tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} width={44} />

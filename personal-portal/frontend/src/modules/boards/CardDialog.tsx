@@ -213,8 +213,8 @@ export function CardDialog({ card, data, mut, readOnly, onClose }: Props) {
             ))}
           </ul>
           {!readOnly && links.length < 20 && (
-            <div className="flex gap-1">
-              <Input placeholder="이름 (선택)" maxLength={100} value={newLink.title} onChange={(e) => setNewLink({ ...newLink, title: e.target.value })} className="h-8 w-28" />
+            <div className="grid grid-cols-[1fr_auto] gap-1 sm:flex">
+              <Input placeholder="이름 (선택)" maxLength={100} value={newLink.title} onChange={(e) => setNewLink({ ...newLink, title: e.target.value })} className="col-span-2 h-8 sm:w-28" />
               <Input placeholder="https://" type="url" maxLength={1000} value={newLink.url} onChange={(e) => setNewLink({ ...newLink, url: e.target.value })} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addLink())} className="h-8" />
               <Button type="button" size="icon-sm" variant="outline" aria-label="링크 추가" disabled={!/^https?:\/\//.test(newLink.url.trim())} onClick={addLink}>
                 <PlusIcon />

@@ -75,7 +75,7 @@ export const ItemCard = memo(function ItemCard({ item, editing, selected, onSele
 
   if (editing) {
     return (
-      <button type="button" className={cn(frame, "p-3 text-left")} onClick={() => onSelect(item.id)}>
+      <button type="button" className={cn(frame, "p-2.5 text-left sm:p-3")} onClick={() => onSelect(item.id)}>
         {handle}
         {header}
         {/* 편집 중에는 위젯 안 버튼·입력이 눌리지 않게 */}
@@ -93,7 +93,7 @@ export const ItemCard = memo(function ItemCard({ item, editing, selected, onSele
       role="link"
       tabIndex={0}
       aria-label={`${def?.title ?? module.label} 열기`}
-      className={cn(frame, "cursor-pointer p-3 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none")}
+      className={cn(frame, "cursor-pointer p-2.5 hover:shadow-md sm:p-3 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none")}
       onClick={() => navigate(module.path)}
       onKeyDown={(e) => {
         if (e.key === "Enter" && e.target === e.currentTarget) navigate(module.path);

@@ -204,7 +204,7 @@ function WeightChart({ data, goal }: { data: (WeightEntry & { avg7: number })[];
   return (
     <div className="h-56">
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={rows} margin={{ top: 8, right: hasInbody ? 0 : 8, left: -16, bottom: 0 }}>
+        <ComposedChart data={rows} margin={{ top: 8, right: hasInbody ? 0 : 8, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
           <XAxis dataKey="label" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} minTickGap={16} />
           <YAxis yAxisId="w" domain={[min, max]} tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} width={44} />

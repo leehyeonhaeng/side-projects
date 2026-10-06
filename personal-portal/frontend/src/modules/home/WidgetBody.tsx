@@ -425,8 +425,9 @@ function LedgerWidget({ w, h }: { w: number; h: number }) {
     const over = spent > total;
     return (
       <div className="mt-1 grid flex-1 content-center gap-1 text-xs">
-        <p className="tabular-nums">
-          <b className={cn("text-sm", over && "text-red-600 dark:text-red-400")}>{won(spent)}</b> <span className="text-muted-foreground">/ {won(total)}</span>
+        <p className="flex flex-wrap items-baseline gap-x-1 leading-tight tabular-nums">
+          <b className={cn("text-sm", over && "text-red-600 dark:text-red-400")}>{won(spent)}</b>
+          <span className="text-muted-foreground">/ {won(total)}</span>
         </p>
         <div className="h-2 overflow-hidden rounded-full bg-muted">
           <div className={cn("h-full rounded-full", over ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-primary")} style={{ width: `${pct}%` }} />

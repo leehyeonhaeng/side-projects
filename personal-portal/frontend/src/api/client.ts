@@ -30,6 +30,8 @@ async function authHeader(): Promise<Record<string, string>> {
 
 /** 모든 API 호출의 단일 진입점 */
 export async function apiFetch<T>(path: string, { method = "GET", body, auth = true }: Options = {}): Promise<T> {
+  // 화면 점검용 mock 모드(vite --mode mock)에서만 가짜 데이터. 배포 빌드에서는 이 분기가 통째로 빠진다
+  if (import.meta.env.MODE === "mock") return (await import("@/mock/api")).mockFetch<T>(path, method, body);
   const res = await fetch(`${baseUrl}/api/v1${path}`, {
     method,
     headers: { "content-type": "application/json", ...(auth ? await authHeader() : {}) },

@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "icons": "pwa-assets-generator"
+    "icons": "pwa-assets-generator",
+    "dev:mock": "vite --mode mock --port 5174",
+    "screens": "node scripts/screens.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -42,6 +44,7 @@
     "@types/react-dom": "^19.3.0",
     "@vite-pwa/assets-generator": "^2.0.0",
     "@vitejs/plugin-react": "^6.1.1",
+    "playwright-core": "^1.63.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vite": "^8.3.1",

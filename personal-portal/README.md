@@ -107,6 +107,8 @@ aws sts get-caller-identity          # 계정 확인 후 진행
 | dev 주소 | `infra/envs/dev`에서 `terraform output web_url` / `api_endpoint` |
 | 배포 | main push → dev 자동. prod는 GitHub Actions `portal-deploy-prod` → Run workflow, 확인란에 `prod` |
 | 로컬 프론트 배포 | `VITE_APP_ENV=dev|prod`(+ API·Cognito 값)로 `npm run build` 후 `bash scripts/upload-web.sh <web_bucket> <distribution_id>` |
+| 폰 화면 점검 | `frontend`에서 `npm run screens` (다크: `npm run screens -- --dark`, 일부: `-- --only=calendar`). 가짜 데이터(mock 모드, 로그인 없음)로 앱을 띄워 모든 화면·주요 다이얼로그를 390px·360px로 캡처(`.screens/`, git 제외)하고 넘침·잘림·겹침 목록 출력. 이 PC의 Chrome 사용 |
+| 가짜 데이터로 띄우기 | `npm run dev:mock` → http://localhost:5174 (화면 수정할 때 확인용) |
 | 앱 아이콘 교체 | `frontend/public/app-icon.png`(1024px 정사각형, 모서리 투명)를 바꾸고 `npm run icons` |
 | bootstrap 변경 | 로컬에서 `terraform -chdir=infra/bootstrap plan` → 승인 → `apply` |
 

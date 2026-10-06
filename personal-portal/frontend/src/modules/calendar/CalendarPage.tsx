@@ -18,6 +18,7 @@ import { ErrorAlert } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { addDays, formatDay, toDateStr, todayStr } from "@/lib/dates";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import { EventEditor } from "./EventEditor";
 import { useHolidays } from "./holidays";
 
@@ -30,6 +31,8 @@ export function CalendarPage() {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  // 폰: 주 보기(7칸)는 칸이 너무 좁아 3일 보기로 대신한다
+  const narrow = useMediaQuery("(max-width: 639px)");
 
   const canTodo = me.data ? me.data.perms.todo !== "none" : false;
   const readOnly = me.data?.perms.calendar === "none";
@@ -82,7 +85,8 @@ export function CalendarPage() {
       });
     }
     for (const [day, names] of Object.entries(holidays)) {
-      list.push({ id: `holiday-${day}`, title: names.join(", "), allDay: true, start: day, display: "background", extendedProps: { kind: "holiday" } });
+      // 배경 칠하기용은 제목 없이 (제목을 넣으면 칸 왼쪽 위에 한 번 더 찍혀 날짜 숫자와 겹친다), 이름은 아래 라벨 이벤트로
+      list.push({ id: `holiday-${day}`, title: "", allDay: true, start: day, display: "background", extendedProps: { kind: "holiday" } });
       list.push({
         id: `holiday-label-${day}`,
         title: names.join(", "),
@@ -147,10 +151,30 @@ export function CalendarPage() {
           plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin, classicThemePlugin]}
           locale={koLocale}
           initialView="dayGridMonth"
-          headerToolbar={{ start: "prev,next today", center: "title", end: "dayGridMonth,timeGridWeek,listMonth" }}
+          key={narrow ? "narrow" : "wide"}
+          headerToolbar={{ start: "prev,next today", center: "title", end: narrow ? "dayGridMonth,timeGrid3,listMonth" : "dayGridMonth,timeGridWeek,listMonth" }}
+          scrollTime="07:00:00"
+          buttons={{ timeGrid3: { text: "3일" } }}
           height="auto"
           fixedWeekCount={false}
           dayMaxEvents={3}
+          views={{
+            // 월 보기: 폰에서 칸이 좁으므로 날짜는 숫자만, 일정 글자는 작게 + 넘치면 말줄임
+            dayGridMonth: {
+              dayCellTopContent: (arg: { dayNumberText: string }) => arg.dayNumberText.replace("일", ""),
+              eventContent: (arg: { timeText: string; event: { title: string } }) => (
+                <div className="min-w-0 overflow-hidden px-0.5 text-[10px] leading-4 text-ellipsis whitespace-nowrap sm:text-xs sm:leading-5">
+                  {arg.timeText && <span className="mr-1 hidden opacity-70 sm:inline">{arg.timeText}</span>}
+                  {arg.event.title}
+                </div>
+              ),
+            },
+            timeGrid3: { type: "timeGrid", duration: { days: 3 } },
+            // 목록 보기: 긴 제목은 줄바꿈
+            listMonth: {
+              eventContent: (arg: { event: { title: string } }) => <span className="break-words whitespace-normal">{arg.event.title}</span>,
+            },
+          }}
           events={fcEvents}
           datesSet={(info) => {
             // FullCalendar end는 배타적이라 하루 뺀다
