@@ -687,8 +687,10 @@ Phase 9 시작: 9a PWA, 9b 보안 점검, 9c prod 준비. 순서는 사용자 �
 **2. pip-audit이 requirements 파일을 못 읽음 (cp949)**
 - 해결: `PYTHONUTF8=1`로 실행
 
+- **prod apply** (사용자 승인 "prod apply 해"): 추가 89 / 변경·삭제 0. prod 프론트 배포, 웹 200·API /health 200, PITR ENABLED·삭제 방지 확인
+
 ### 다음 할 일
-- prod apply (사용자 승인 대기) → prod 프론트 배포 → prod에서 Host 이메일로 가입 → 폰 홈 화면 설치 확인 (Phase 9 완료 기준)
+- prod에서 Host 이메일로 가입, prod SNS 구독 확인 메일 Confirm → 폰 홈 화면 설치 확인 (Phase 9 완료 기준)
 - 사용자 앱 아이콘 받으면 교체
 - 9d 문서 정리
 
