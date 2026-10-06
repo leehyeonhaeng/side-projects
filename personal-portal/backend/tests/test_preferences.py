@@ -75,7 +75,7 @@ class TestLayout:
 class TestSettingsAndProfile:
     def test_settings_default_and_patch(self, ctx: FakeContext) -> None:
         empty_goals = {"goalKcal": None, "goalCarb": None, "goalProtein": None, "goalFat": None, "goalWeight": None}
-        assert call(ctx, "GET", "/settings") == (200, {"theme": "system", **empty_goals})
+        assert call(ctx, "GET", "/settings") == (200, {"theme": "system", **empty_goals, "navTabs": ["todo", "calendar"]})
         assert call(ctx, "PATCH", "/settings", {"theme": "dark"})[1]["theme"] == "dark"
         assert call(ctx, "GET", "/settings")[1]["theme"] == "dark"
         assert call(ctx, "PATCH", "/settings", {"theme": "pink"})[0] == 400
@@ -95,3 +95,16 @@ class TestSettingsAndProfile:
         assert (status, body["name"]) == (200, "새 이름")
         assert call(ctx, "PATCH", "/me", {"name": "   "})[0] == 400
         assert call(ctx, "PATCH", "/me", {"name": "x" * 51})[0] == 400
+
+
+
+@pytest.mark.usefixtures("aws", "member")
+class TestNavTabs:
+    def test_default_and_patch(self, ctx: FakeContext) -> None:
+        assert call(ctx, "GET", "/settings")[1]["navTabs"] == ["todo", "calendar"]
+        assert call(ctx, "PATCH", "/settings", {"navTabs": ["ledger", "notes"]})[1]["navTabs"] == ["ledger", "notes"]
+        assert call(ctx, "GET", "/settings")[1]["navTabs"] == ["ledger", "notes"]
+        # 테마만 바꿔도 탭은 유지, null은 무시
+        assert call(ctx, "PATCH", "/settings", {"theme": "dark", "navTabs": None})[1]["navTabs"] == ["ledger", "notes"]
+        for bad in (["notes", "notes"], ["notes"], ["admin", "notes"]):
+            assert call(ctx, "PATCH", "/settings", {"navTabs": bad})[0] == 400

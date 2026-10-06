@@ -23,7 +23,7 @@ export function ChecklistPage() {
   if (list.isPending) return <main className="p-4"><InlineSpinner /></main>;
   if (list.isError) {
     return (
-      <main className="mx-auto grid max-w-2xl justify-items-start gap-3 p-4">
+      <main className="mx-auto grid max-w-2xl justify-items-start gap-3 p-4 md:p-6">
         {list.error instanceof ApiError && list.error.status === 404 ? <p className="text-sm text-muted-foreground">리스트가 없거나 참여하지 않은 리스트입니다.</p> : <ErrorAlert error={list.error} />}
         <Button variant="outline" size="sm" nativeButton={false} render={<Link to="/checklists" />}>
           리스트 목록
@@ -56,7 +56,7 @@ function ListView({ data, refetch, refreshing }: { data: ChecklistDetail; refetc
   };
 
   return (
-    <main className="mx-auto grid max-w-2xl gap-3 p-4">
+    <main className="mx-auto grid max-w-2xl gap-3 p-4 md:p-6">
       <header className="flex flex-wrap items-center gap-1">
         <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link to="/checklists" aria-label="리스트 목록" />}>
           <ArrowLeftIcon />

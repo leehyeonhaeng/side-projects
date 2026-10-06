@@ -1,4 +1,5 @@
 import { useSearchParams } from "react-router";
+import { PageTitle } from "@/components/ModuleIcon";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExerciseTab } from "./exercise/ExerciseTab";
 import { MealTab } from "./meal/MealTab";
@@ -11,8 +12,8 @@ export function HealthPage() {
   const draft = params.get("draft") ?? undefined;
 
   return (
-    <main className="mx-auto grid max-w-3xl gap-4 p-4 pb-28 sm:pb-8">
-      <h1 className="text-xl font-semibold">식단·체중·운동</h1>
+    <main className="mx-auto grid max-w-3xl gap-4 p-4 md:p-6">
+      <PageTitle module="health" />
       <Tabs defaultValue={params.get("tab") ?? "meal"}>
         <TabsList>
           <TabsTrigger value="meal">식단</TabsTrigger>

@@ -43,7 +43,7 @@ export const ItemCard = memo(function ItemCard({ item, editing, selected, onSele
     );
     const body = (
       <>
-        <span className="grid aspect-square w-3/5 max-w-14 place-items-center rounded-2xl bg-primary/10 text-primary">
+        <span className={cn("grid aspect-square w-3/5 max-w-14 place-items-center rounded-2xl shadow-sm", module.tone)}>
           <Icon className="size-1/2" />
         </span>
         <span className="line-clamp-2 text-center text-[11px] leading-tight">{module.label}</span>
@@ -66,7 +66,9 @@ export const ItemCard = memo(function ItemCard({ item, editing, selected, onSele
   const compact = item.w === 1;
   const header = (
     <div className={cn("flex items-center gap-1.5", compact && "flex-col justify-center text-center", editing && !compact && "pl-6")}>
-      <Icon className="size-4 shrink-0 text-primary" />
+      <span className={cn("grid size-6 shrink-0 place-items-center rounded-lg", module.tone)}>
+        <Icon className="size-3.5" />
+      </span>
       <span className="truncate text-sm font-medium">{def?.title ?? module.label}</span>
     </div>
   );

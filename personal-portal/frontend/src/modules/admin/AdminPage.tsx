@@ -13,8 +13,8 @@ export function AdminPage() {
   const pendingCount = pending.data?.length ?? 0;
 
   return (
-    <main className="mx-auto grid max-w-5xl gap-4 p-4">
-      <h1 className="text-xl font-semibold">관리자</h1>
+    <main className="mx-auto grid max-w-5xl gap-4 p-4 md:p-6">
+      <h1 className="text-xl font-bold tracking-tight">관리자</h1>
       <Tabs defaultValue="pending">
         <div className="overflow-x-auto">
           <TabsList>

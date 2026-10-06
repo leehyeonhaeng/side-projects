@@ -31,6 +31,7 @@ export type Settings = {
   goalProtein: number | null;
   goalFat: number | null;
   goalWeight: number | null; // kg
+  navTabs: ModuleId[]; // 폰 하단 탭 가운데 두 칸
 };
 
 export function useLayout() {

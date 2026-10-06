@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { ChevronLeftIcon, ChevronRightIcon, WalletIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { addMonths, monthLabel, monthOf, totals, useApplyRecurring, useCategories, useTxns, won } from "@/api/ledger";
 import { useMe } from "@/api/me";
+import { PageTitle } from "@/components/ModuleIcon";
 import { ErrorAlert, InlineSpinner } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -31,12 +32,9 @@ export function LedgerPage() {
   const sum = totals(txns.data ?? []);
 
   return (
-    <main className="mx-auto grid max-w-3xl gap-4 p-4">
+    <main className="mx-auto grid max-w-3xl gap-4 p-4 md:p-6">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="flex items-center gap-2 text-xl font-semibold">
-          <WalletIcon className="size-5 text-primary" />
-          가계부
-        </h1>
+        <PageTitle module="ledger" />
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon-sm" aria-label="이전 달" onClick={() => setMonth(addMonths(month, -1))}>
             <ChevronLeftIcon />

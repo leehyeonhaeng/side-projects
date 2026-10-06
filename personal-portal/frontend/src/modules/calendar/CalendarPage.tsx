@@ -13,6 +13,7 @@ import { SearchIcon, XIcon } from "lucide-react";
 import { type CalEvent, colorHex, useEventMutations, useEvents, useSearchEvents } from "@/api/events";
 import { useMe } from "@/api/me";
 import { useDueTodos } from "@/api/todos";
+import { PageTitle } from "@/components/ModuleIcon";
 import { ErrorAlert } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,9 +99,9 @@ export function CalendarPage() {
   const openEvent = (e: CalEvent) => setEditing({ event: e, date: e.start });
 
   return (
-    <main className="mx-auto grid max-w-5xl gap-3 p-4 pb-28 sm:pb-8">
+    <main className="mx-auto grid max-w-5xl gap-3 p-4 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">캘린더</h1>
+        <PageTitle module="calendar" />
         <div className="flex gap-1">
           <Button size="sm" variant="outline" onClick={() => setSearchOpen((v) => !v)}>
             {searchOpen ? <XIcon data-icon="inline-start" /> : <SearchIcon data-icon="inline-start" />}

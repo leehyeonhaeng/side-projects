@@ -72,6 +72,16 @@ class Layout(BaseModel):
         return self
 
 
+# 폰 하단 탭의 가운데 두 칸 (홈·빠른 추가·전체는 고정)
+NavTabs = Annotated[list[Module], Field(min_length=2, max_length=2)]
+
+
+def _distinct(tabs: list[Module] | None) -> list[Module] | None:
+    if tabs is not None and len(set(tabs)) != len(tabs):
+        raise ValueError("navTabs must be different modules")
+    return tabs
+
+
 Goal = Annotated[int, Field(ge=0, le=20000)]
 GoalWeight = Annotated[float, Field(ge=20, le=300)]
 
@@ -86,6 +96,7 @@ class Settings(BaseModel):
     goalProtein: Goal | None = None
     goalFat: Goal | None = None
     goalWeight: GoalWeight | None = None  # 목표 체중 kg (DESIGN.md 6.4)
+    navTabs: NavTabs = Field(default_factory=lambda: [Module.TODO, Module.CALENDAR])
 
 
 class SettingsPatch(BaseModel):
@@ -99,6 +110,12 @@ class SettingsPatch(BaseModel):
     goalProtein: Goal | None = None
     goalFat: Goal | None = None
     goalWeight: GoalWeight | None = None  # 목표 체중 kg (DESIGN.md 6.4)
+    navTabs: NavTabs | None = None
+
+    @model_validator(mode="after")
+    def check_tabs(self) -> "SettingsPatch":
+        _distinct(self.navTabs)
+        return self
 
 
 def get_layout(sub: str) -> dict[str, Any]:
@@ -126,10 +143,11 @@ def get_settings(sub: str) -> Settings:
 
 def patch_settings(sub: str, patch: SettingsPatch) -> Settings:
     sent = patch.model_dump(exclude_unset=True)
-    if sent.get("theme", "") is None:
-        sent.pop("theme")  # 테마는 비울 수 없다
+    for field in ("theme", "navTabs"):
+        if field in sent and sent[field] is None:
+            sent.pop(field)  # 비울 수 없는 설정
     merged = get_settings(sub).model_copy(update=sent)
-    stored = {k: v for k, v in merged.model_dump().items() if v is not None}
+    stored = {k: v for k, v in merged.model_dump(mode="json").items() if v is not None}
     # 목표 체중은 실수라 DynamoDB용으로 Decimal 변환
     table().put_item(Item=to_dynamo({"PK": user_pk(sub), "SK": "SETTINGS", **stored, "updatedAt": now_iso()}))
     return merged

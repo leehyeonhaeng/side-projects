@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { ListChecksIcon, PlusIcon, UsersIcon, XIcon } from "lucide-react";
+import { PlusIcon, UsersIcon, XIcon } from "lucide-react";
 import { type ChecklistSummary, LIST_ICONS, useChecklistActions, useChecklists, useListTemplates } from "@/api/checklists";
 import { useMe } from "@/api/me";
+import { PageTitle } from "@/components/ModuleIcon";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { NativeSelect } from "@/components/NativeSelect";
 import { ROLE_LABEL } from "@/components/SharedMembersDialog";
@@ -35,11 +36,8 @@ export function ChecklistsPage() {
   const sorted = [...(lists.data ?? [])].sort((a, b) => Number(b.favorite) - Number(a.favorite));
 
   return (
-    <main className="mx-auto grid max-w-3xl gap-4 p-4">
-      <h1 className="flex items-center gap-2 text-xl font-semibold">
-        <ListChecksIcon className="size-5 text-primary" />
-        공용 체크리스트
-      </h1>
+    <main className="mx-auto grid max-w-3xl gap-4 p-4 md:p-6">
+      <PageTitle module="checklists" />
 
       {canCreate && (
         <form

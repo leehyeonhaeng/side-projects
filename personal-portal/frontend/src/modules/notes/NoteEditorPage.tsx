@@ -25,7 +25,7 @@ export function NoteEditorPage() {
     if (note.isPending) return <main className="p-4"><InlineSpinner /></main>;
     if (note.isError) {
       return (
-        <main className="mx-auto grid max-w-3xl justify-items-start gap-3 p-4">
+        <main className="mx-auto grid max-w-3xl justify-items-start gap-3 p-4 md:p-6">
           {note.error instanceof ApiError && note.error.status === 404 ? <p className="text-sm text-muted-foreground">메모가 없거나 휴지통에 있습니다.</p> : <ErrorAlert error={note.error} />}
           <Button variant="outline" size="sm" nativeButton={false} render={<Link to="/notes" />}>
             메모 목록
@@ -130,7 +130,7 @@ function NoteEditor({ initial }: { initial: Note | null }) {
   const statusText = { idle: savedAt ? `${formatTime(savedAt)} 저장됨` : "", saving: "저장 중…", saved: savedAt ? `${formatTime(savedAt)} 저장됨` : "저장됨", error: "저장 실패" }[status];
 
   return (
-    <main className="mx-auto grid max-w-3xl gap-3 p-4">
+    <main className="mx-auto grid max-w-3xl gap-3 p-4 md:p-6">
       <header className="flex items-center gap-1">
         <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link to="/notes" aria-label="메모 목록" />}>
           <ArrowLeftIcon />

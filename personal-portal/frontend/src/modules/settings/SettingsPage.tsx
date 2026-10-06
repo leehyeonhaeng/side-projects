@@ -14,15 +14,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { setTheme } from "@/lib/theme";
+import { allowedModules, bottomTabs } from "@/components/AppLayout";
+import { NativeSelect } from "@/components/NativeSelect";
+import type { ModuleId } from "@/modules/meta";
 
-/** DESIGN.md 5장 /settings: 프로필, 테마, 비밀번호, MFA (목표치는 Phase 5) */
+/** DESIGN.md 5장 /settings: 테마, 하단 탭, 목표치, 프로필, 비밀번호, MFA */
 export function SettingsPage() {
   const me = useMe();
   if (!me.data) return <InlineSpinner />;
   return (
-    <main className="mx-auto grid max-w-2xl gap-4 p-4 pb-24 sm:pb-8">
-      <h1 className="text-xl font-semibold">설정</h1>
+    <main className="mx-auto grid max-w-2xl gap-4 p-4 md:p-6">
+      <h1 className="text-xl font-bold tracking-tight">설정</h1>
       <ThemeCard />
+      <NavTabsCard />
       {me.data.perms.health !== "none" && <GoalsCard />}
       <ProfileCard name={me.data.name} email={me.data.email} />
       <PasswordCard />
@@ -48,6 +52,39 @@ const THEMES: { value: ThemePref; label: string; icon: ReactNode }[] = [
   { value: "light", label: "라이트", icon: <SunIcon data-icon="inline-start" /> },
   { value: "dark", label: "다크", icon: <MoonIcon data-icon="inline-start" /> },
 ];
+
+/** 폰 하단 탭 가운데 두 칸 (홈·빠른 추가·전체는 고정) */
+function NavTabsCard() {
+  const me = useMe();
+  const settings = useSettings();
+  const patch = usePatchSettings();
+  const tabs = bottomTabs(me.data, settings.data);
+  const options = allowedModules(me.data);
+  const change = (index: 0 | 1, id: ModuleId) => {
+    const next = [...tabs] as ModuleId[];
+    const other = next[1 - index];
+    next[index] = id;
+    if (other === id) next[1 - index] = tabs[index] ?? id; // 같은 걸 고르면 자리를 바꾼다
+    patch.mutate({ navTabs: next });
+  };
+  if (options.length < 2) return null;
+  return (
+    <Section title="하단 탭" description="폰 아래쪽 탭에 바로 보일 모듈 두 개 (홈·빠른 추가·전체는 고정)">
+      <div className="flex flex-wrap gap-2">
+        {([0, 1] as const).map((i) => (
+          <NativeSelect key={i} value={tabs[i] ?? ""} disabled={patch.isPending} onChange={(e) => change(i, e.target.value as ModuleId)} aria-label={`${i + 1}번째 탭`}>
+            {options.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </NativeSelect>
+        ))}
+      </div>
+      <ErrorAlert error={patch.error} />
+    </Section>
+  );
+}
 
 function ThemeCard() {
   const settings = useSettings();

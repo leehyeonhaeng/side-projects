@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router";
 import { CheckIcon, CodeXmlIcon, CopyIcon, ExternalLinkIcon, FolderIcon, LinkIcon, PencilIcon, PlusIcon, SearchIcon, StarIcon } from "lucide-react";
 import { type HubItem, type HubKind, copyText, langLabel, matchesHub, useCollections, useHubItems, useHubMutations } from "@/api/hub";
 import { useMe } from "@/api/me";
+import { PageTitle } from "@/components/ModuleIcon";
 import { ErrorAlert, InlineSpinner } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,12 +48,9 @@ export function HubPage() {
   const colName = (id?: string) => collections.data.find((c) => c.id === id)?.name;
 
   return (
-    <main className="mx-auto grid max-w-3xl gap-4 p-4">
+    <main className="mx-auto grid max-w-3xl gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="flex items-center gap-2 text-xl font-semibold">
-          <CodeXmlIcon className="size-5 text-primary" />
-          스니펫·링크
-        </h1>
+        <PageTitle module="hub" />
         {!readOnly && (
           <div className="flex gap-1">
             <Button size="sm" onClick={() => setEditing({ kind: "snippet", item: null })}>

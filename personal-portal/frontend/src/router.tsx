@@ -16,6 +16,7 @@ import { LoginPage } from "./modules/auth/LoginPage";
 import { MfaSetupPage } from "./modules/auth/MfaSetupPage";
 import { SignupPage } from "./modules/auth/SignupPage";
 import { HomePage } from "./modules/home/HomePage";
+import { MenuPage } from "./modules/home/MenuPage";
 import { NotFoundPage } from "./modules/home/NotFoundPage";
 import { CalendarPage } from "./modules/calendar/CalendarPage";
 import { HealthPage } from "./modules/health/HealthPage";
@@ -34,6 +35,7 @@ export const router = createBrowserRouter([
     children: [
       { path: "/", element: <HomePage /> },
       { path: "/settings", element: <SettingsPage /> },
+      { path: "/menu", element: <MenuPage /> },
       { path: "/admin", element: <RequireHost><AdminPage /></RequireHost> },
       { path: "/todo", element: <RequireModule module="todo"><TodoPage /></RequireModule> },
       { path: "/calendar", element: <RequireModule module="calendar"><CalendarPage /></RequireModule> },

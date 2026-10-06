@@ -17,6 +17,7 @@ import {
   useTodos,
   useUpdateTodo,
 } from "@/api/todos";
+import { PageTitle } from "@/components/ModuleIcon";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { NativeSelect } from "@/components/NativeSelect";
 import { ErrorAlert, InlineSpinner } from "@/components/states";
@@ -79,9 +80,9 @@ export function TodoPage() {
   );
 
   return (
-    <main className="mx-auto grid max-w-2xl gap-4 p-4 pb-28 sm:pb-8">
+    <main className="mx-auto grid max-w-2xl gap-4 p-4 md:p-6">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">할 일</h1>
+        <PageTitle module="todo" />
         {!readOnly && (
           <Button size="sm" variant="outline" onClick={() => setEditing({ todo: null, key: Date.now() })}>
             <PlusIcon data-icon="inline-start" />

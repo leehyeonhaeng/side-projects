@@ -1,11 +1,11 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 
 @custom-variant dark (&:is(.dark *));
 
-/* 다크모드: <html class="dark"> 기준. 지금은 시스템 설정을 따른다 (src/lib/theme.ts). 수동 토글은 Phase 3 */
+/* 디자인 (DESIGN.md 4.4): 따뜻·부드러운 톤 + 파랑 포인트. 다크모드는 <html class="dark"> (src/lib/theme.ts) */
 
 @layer base {
   body {
@@ -23,7 +23,7 @@
 
   --font-heading: var(--font-sans);
 
-  --font-sans: 'Geist Variable', sans-serif;
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
 
   --color-sidebar-ring: var(--sidebar-ring);
 
@@ -103,135 +103,76 @@
 }
 
 :root {
-
-  --background: oklch(1 0 0);
-
-  --foreground: oklch(0.145 0 0);
-
-  --card: oklch(1 0 0);
-
-  --card-foreground: oklch(0.145 0 0);
-
-  --popover: oklch(1 0 0);
-
-  --popover-foreground: oklch(0.145 0 0);
-
-  --primary: oklch(0.205 0 0);
-
-  --primary-foreground: oklch(0.985 0 0);
-
-  --secondary: oklch(0.97 0 0);
-
-  --secondary-foreground: oklch(0.205 0 0);
-
-  --muted: oklch(0.97 0 0);
-
-  --muted-foreground: oklch(0.556 0 0);
-
-  --accent: oklch(0.97 0 0);
-
-  --accent-foreground: oklch(0.205 0 0);
-
-  --destructive: oklch(0.577 0.245 27.325);
-
-  --border: oklch(0.922 0 0);
-
-  --input: oklch(0.922 0 0);
-
-  --ring: oklch(0.708 0 0);
-
-  --chart-1: oklch(0.87 0 0);
-
-  --chart-2: oklch(0.556 0 0);
-
-  --chart-3: oklch(0.439 0 0);
-
-  --chart-4: oklch(0.371 0 0);
-
-  --chart-5: oklch(0.269 0 0);
-
-  --radius: 0.625rem;
-
-  --sidebar: oklch(0.985 0 0);
-
-  --sidebar-foreground: oklch(0.145 0 0);
-
-  --sidebar-primary: oklch(0.205 0 0);
-
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-
-  --sidebar-accent: oklch(0.97 0 0);
-
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-
-  --sidebar-border: oklch(0.922 0 0);
-
-  --sidebar-ring: oklch(0.708 0 0);
+  /* 따뜻한 미색 바탕, 흰 카드, 부드러운 파랑 포인트 */
+  --background: oklch(0.982 0.008 80);
+  --foreground: oklch(0.27 0.02 60);
+  --card: oklch(0.998 0.003 80);
+  --card-foreground: oklch(0.27 0.02 60);
+  --popover: oklch(0.998 0.003 80);
+  --popover-foreground: oklch(0.27 0.02 60);
+  --primary: oklch(0.6 0.14 252);
+  --primary-foreground: oklch(0.99 0.005 252);
+  --secondary: oklch(0.95 0.022 252);
+  --secondary-foreground: oklch(0.38 0.1 252);
+  --muted: oklch(0.955 0.01 75);
+  --muted-foreground: oklch(0.53 0.02 60);
+  --accent: oklch(0.95 0.022 252);
+  --accent-foreground: oklch(0.32 0.08 252);
+  --destructive: oklch(0.6 0.19 25);
+  --border: oklch(0.915 0.012 75);
+  --input: oklch(0.895 0.012 75);
+  --ring: oklch(0.72 0.11 252);
+  --chart-1: oklch(0.65 0.13 252);
+  --chart-2: oklch(0.72 0.12 160);
+  --chart-3: oklch(0.78 0.12 75);
+  --chart-4: oklch(0.7 0.13 20);
+  --chart-5: oklch(0.68 0.12 300);
+  --radius: 0.875rem;
+  --shadow-soft: 0 1px 2px oklch(0.4 0.03 60 / 0.05), 0 4px 16px -4px oklch(0.4 0.03 60 / 0.08);
+  --sidebar: oklch(0.97 0.01 78);
+  --sidebar-foreground: oklch(0.27 0.02 60);
+  --sidebar-primary: oklch(0.6 0.14 252);
+  --sidebar-primary-foreground: oklch(0.99 0.005 252);
+  --sidebar-accent: oklch(0.93 0.025 252);
+  --sidebar-accent-foreground: oklch(0.32 0.08 252);
+  --sidebar-border: oklch(0.915 0.012 75);
+  --sidebar-ring: oklch(0.72 0.11 252);
 }
 
 .dark {
-
-  --background: oklch(0.145 0 0);
-
-  --foreground: oklch(0.985 0 0);
-
-  --card: oklch(0.205 0 0);
-
-  --card-foreground: oklch(0.985 0 0);
-
-  --popover: oklch(0.205 0 0);
-
-  --popover-foreground: oklch(0.985 0 0);
-
-  --primary: oklch(0.922 0 0);
-
-  --primary-foreground: oklch(0.205 0 0);
-
-  --secondary: oklch(0.269 0 0);
-
-  --secondary-foreground: oklch(0.985 0 0);
-
-  --muted: oklch(0.269 0 0);
-
-  --muted-foreground: oklch(0.708 0 0);
-
-  --accent: oklch(0.269 0 0);
-
-  --accent-foreground: oklch(0.985 0 0);
-
-  --destructive: oklch(0.704 0.191 22.216);
-
-  --border: oklch(1 0 0 / 10%);
-
-  --input: oklch(1 0 0 / 15%);
-
-  --ring: oklch(0.556 0 0);
-
-  --chart-1: oklch(0.87 0 0);
-
-  --chart-2: oklch(0.556 0 0);
-
-  --chart-3: oklch(0.439 0 0);
-
-  --chart-4: oklch(0.371 0 0);
-
-  --chart-5: oklch(0.269 0 0);
-
-  --sidebar: oklch(0.205 0 0);
-
-  --sidebar-foreground: oklch(0.985 0 0);
-
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-
-  --sidebar-accent: oklch(0.269 0 0);
-
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-
-  --sidebar-border: oklch(1 0 0 / 10%);
-
-  --sidebar-ring: oklch(0.556 0 0);
+  /* 따뜻한 짙은 회갈색 바탕 (순검정 대신) */
+  --background: oklch(0.2 0.012 60);
+  --foreground: oklch(0.94 0.01 80);
+  --card: oklch(0.245 0.013 60);
+  --card-foreground: oklch(0.94 0.01 80);
+  --popover: oklch(0.265 0.014 60);
+  --popover-foreground: oklch(0.94 0.01 80);
+  --primary: oklch(0.72 0.12 252);
+  --primary-foreground: oklch(0.2 0.03 252);
+  --secondary: oklch(0.31 0.035 252);
+  --secondary-foreground: oklch(0.9 0.03 252);
+  --muted: oklch(0.29 0.012 60);
+  --muted-foreground: oklch(0.72 0.015 70);
+  --accent: oklch(0.31 0.035 252);
+  --accent-foreground: oklch(0.94 0.01 252);
+  --destructive: oklch(0.7 0.17 25);
+  --border: oklch(1 0.01 80 / 9%);
+  --input: oklch(1 0.01 80 / 14%);
+  --ring: oklch(0.6 0.1 252);
+  --chart-1: oklch(0.72 0.12 252);
+  --chart-2: oklch(0.75 0.11 160);
+  --chart-3: oklch(0.8 0.11 75);
+  --chart-4: oklch(0.72 0.13 20);
+  --chart-5: oklch(0.72 0.11 300);
+  --shadow-soft: 0 1px 2px oklch(0 0 0 / 0.25), 0 6px 20px -6px oklch(0 0 0 / 0.35);
+  --sidebar: oklch(0.225 0.012 60);
+  --sidebar-foreground: oklch(0.94 0.01 80);
+  --sidebar-primary: oklch(0.72 0.12 252);
+  --sidebar-primary-foreground: oklch(0.2 0.03 252);
+  --sidebar-accent: oklch(0.3 0.03 252);
+  --sidebar-accent-foreground: oklch(0.94 0.01 252);
+  --sidebar-border: oklch(1 0.01 80 / 9%);
+  --sidebar-ring: oklch(0.6 0.1 252);
 }
 /* react-grid-layout 드래그 자리 표시 (기본 빨간색 대신 테마 색) */
 .react-grid-item.react-grid-placeholder {
@@ -288,3 +229,8 @@
 .dark .hljs-number, .dark .hljs-symbol, .dark .hljs-bullet, .dark .hljs-variable, .dark .hljs-template-variable { color: #79c0ff; }
 .dark .hljs-title, .dark .hljs-title.function_, .dark .hljs-section, .dark .hljs-built_in { color: #d2a8ff; }
 .dark .hljs-attr, .dark .hljs-attribute, .dark .hljs-name, .dark .hljs-tag, .dark .hljs-selector-class, .dark .hljs-selector-id { color: #7ee787; }
+
+/* 부드러운 카드 그림자 (화면 곳곳의 rounded-2xl border bg-card 카드) */
+.bg-card.border {
+  box-shadow: var(--shadow-soft);
+}

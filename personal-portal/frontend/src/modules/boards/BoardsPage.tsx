@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { PlusIcon, SquareKanbanIcon, StarIcon, UsersIcon, XIcon } from "lucide-react";
+import { PlusIcon, StarIcon, UsersIcon, XIcon } from "lucide-react";
 import { type BoardSummary, useBoards, useCreateBoard, useDeleteTemplate, useSetFavorite, useTemplates } from "@/api/boards";
 import { useMe } from "@/api/me";
+import { PageTitle } from "@/components/ModuleIcon";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { NativeSelect } from "@/components/NativeSelect";
 import { ErrorAlert, InlineSpinner } from "@/components/states";
@@ -30,11 +31,8 @@ export function BoardsPage() {
   const sorted = [...(boards.data?.boards ?? [])].sort((a, b) => Number(b.favorite) - Number(a.favorite));
 
   return (
-    <main className="mx-auto grid max-w-3xl gap-4 p-4">
-      <h1 className="flex items-center gap-2 text-xl font-semibold">
-        <SquareKanbanIcon className="size-5 text-primary" />
-        작업 보드
-      </h1>
+    <main className="mx-auto grid max-w-3xl gap-4 p-4 md:p-6">
+      <PageTitle module="boards" />
 
       {canCreate && (
         <form

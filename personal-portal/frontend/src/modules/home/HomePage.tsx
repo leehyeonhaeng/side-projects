@@ -78,9 +78,9 @@ export function HomePage() {
     });
 
   return (
-    <main className="mx-auto grid max-w-2xl gap-5 p-4 pb-28 sm:pb-8">
+    <main className="mx-auto grid max-w-2xl gap-5 p-4 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">{editing ? "홈 편집" : `${me.data.name}님, 안녕하세요`}</h1>
+        <h1 className="text-xl font-bold tracking-tight">{editing ? "홈 편집" : `${me.data.name}님, 안녕하세요`}</h1>
         {hasAnyModule && (
           <div className="flex gap-1">
             {editing ? (

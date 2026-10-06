@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { PinIcon, PlusIcon, SearchIcon, StickyNoteIcon } from "lucide-react";
+import { PinIcon, PlusIcon, SearchIcon } from "lucide-react";
 import { useMe } from "@/api/me";
 import { type Note, TRASH_DAYS, noteTitle, notePreview, useNoteMutations, useNotes } from "@/api/notes";
+import { PageTitle } from "@/components/ModuleIcon";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { ErrorAlert, InlineSpinner } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -17,12 +18,9 @@ export function NotesPage() {
   const canEdit = me.data?.perms.notes === "edit";
 
   return (
-    <main className="mx-auto grid max-w-3xl gap-4 p-4">
+    <main className="mx-auto grid max-w-3xl gap-4 p-4 md:p-6">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="flex items-center gap-2 text-xl font-semibold">
-          <StickyNoteIcon className="size-5 text-primary" />
-          메모
-        </h1>
+        <PageTitle module="notes" />
         {canEdit && (
           <Button nativeButton={false} render={<Link to="/notes/new" />}>
             <PlusIcon /> 새 메모

@@ -47,7 +47,7 @@ export function BoardPage() {
   if (board.isError) {
     const gone = board.error instanceof ApiError && board.error.status === 404;
     return (
-      <main className="mx-auto grid max-w-3xl justify-items-start gap-3 p-4">
+      <main className="mx-auto grid max-w-3xl justify-items-start gap-3 p-4 md:p-6">
         {gone ? <p className="text-sm text-muted-foreground">보드가 없거나 멤버가 아닙니다.</p> : <ErrorAlert error={board.error} />}
         <Button variant="outline" size="sm" nativeButton={false} render={<Link to="/boards" />}>
           보드 목록
