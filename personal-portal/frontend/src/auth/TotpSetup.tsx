@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
+import { OTP_ISSUER } from "@/lib/env";
 import { setUpTOTP, updateMFAPreference, verifyTOTPSetup } from "aws-amplify/auth";
 import { authErrorMessage } from "@/auth/errors";
 import { ErrorAlert, FormError, InlineSpinner } from "@/components/states";
@@ -19,7 +20,7 @@ export function TotpSetup({ email, onDone }: { email: string; onDone: () => void
   if (setup.isPending) return <InlineSpinner />;
   if (setup.isError) return <ErrorAlert error={setup.error} />;
 
-  const uri = setup.data.getSetupUri("Personal Portal", email).toString();
+  const uri = setup.data.getSetupUri(OTP_ISSUER, email).toString();
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();

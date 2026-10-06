@@ -4,6 +4,9 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router";
 import { UpdateBanner } from "./components/UpdateBanner";
+import { IS_PROD } from "./lib/env";
+
+if (!IS_PROD) document.title = "[DEV] Personal Portal";
 import { ApiError } from "./api/client";
 import { configureAuth } from "./auth/amplify";
 import "./index.css";

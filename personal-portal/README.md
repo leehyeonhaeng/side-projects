@@ -106,8 +106,8 @@ aws sts get-caller-identity          # 계정 확인 후 진행
 | dev 배포 | main에 push하면 `portal-deploy.yml`이 자동 배포 (GitHub Secrets: `AWS_ROLE_ARN`, `HOST_EMAIL`) |
 | dev 주소 | `infra/envs/dev`에서 `terraform output web_url` / `api_endpoint` |
 | 배포 | main push → dev 자동. prod는 GitHub Actions `portal-deploy-prod` → Run workflow, 확인란에 `prod` |
-| 로컬 프론트 배포 | `npm run build` 후 `bash scripts/upload-web.sh <web_bucket> <distribution_id>` |
-| 앱 아이콘 교체 | `frontend/public/logo.svg`(또는 `pwa-assets.config.ts`의 images)를 바꾸고 `npm run icons` |
+| 로컬 프론트 배포 | `VITE_APP_ENV=dev|prod`(+ API·Cognito 값)로 `npm run build` 후 `bash scripts/upload-web.sh <web_bucket> <distribution_id>` |
+| 앱 아이콘 교체 | `frontend/public/app-icon.png`(1024px 정사각형, 모서리 투명)를 바꾸고 `npm run icons` |
 | bootstrap 변경 | 로컬에서 `terraform -chdir=infra/bootstrap plan` → 승인 → `apply` |
 
 ## 주요 설계 결정

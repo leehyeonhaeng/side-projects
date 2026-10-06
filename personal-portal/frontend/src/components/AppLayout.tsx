@@ -6,6 +6,7 @@ import { type Settings, useSettings } from "@/api/preferences";
 import { useSignOut } from "@/auth/session";
 import { ModuleIcon } from "@/components/ModuleIcon";
 import { Button } from "@/components/ui/button";
+import { IS_PROD } from "@/lib/env";
 import { setTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { MODULES, MODULE_BY_ID, type ModuleId } from "@/modules/meta";
@@ -54,8 +55,9 @@ export function AppLayout() {
       {/* PC 사이드바 */}
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r bg-sidebar md:flex">
         <Link to="/" className="flex h-14 items-center gap-2 px-5 text-base font-bold tracking-tight">
-          <span className="grid size-7 place-items-center rounded-lg bg-primary text-sm text-primary-foreground">P</span>
+          <img src="/pwa-64x64.png" alt="" className="size-7 rounded-lg" />
           Personal Portal
+          {!IS_PROD && <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">DEV</span>}
         </Link>
         <nav className="grid flex-1 content-start gap-0.5 overflow-y-auto px-3 py-2">
           <SideLink to="/" end label="홈" icon={<span className="grid size-7 place-items-center rounded-lg bg-primary/10 text-primary [&_svg]:size-4"><HouseIcon /></span>} />

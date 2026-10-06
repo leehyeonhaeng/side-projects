@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 
 # 해시가 붙은 정적 파일(assets/, workbox-*.js)은 오래 캐시.
 # index.html·서비스워커·manifest·아이콘은 매번 확인 — sw.js가 캐시되면 새 버전을 못 찾는다 (DESIGN.md 9.2)
-NO_CACHE=(index.html sw.js manifest.webmanifest theme-init.js logo.svg favicon.ico)
+NO_CACHE=(index.html sw.js manifest.webmanifest theme-init.js favicon.ico)
 for f in dist/*.png; do NO_CACHE+=("$(basename "$f")"); done
 
 EXCLUDES=()

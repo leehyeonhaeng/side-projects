@@ -67,6 +67,7 @@ jobs:
           VITE_API_BASE_URL: ${{ steps.tf.outputs.api_endpoint }}
           VITE_USER_POOL_ID: ${{ steps.tf.outputs.user_pool_id }}
           VITE_USER_POOL_CLIENT_ID: ${{ steps.tf.outputs.user_pool_client_id }}
+          VITE_APP_ENV: ${{ inputs.environment }}
         run: |
           npm ci
           npm run build

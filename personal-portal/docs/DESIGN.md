@@ -826,7 +826,7 @@ side-projects/
 | 로그 | CloudWatch Logs 보관 14일 |
 | PWA 업데이트 | 배포 후 서비스워커가 새 버전 감지 → "새 버전 있음, 새로고침" 배너 |
 | PWA 구현 (Phase 9) | vite-plugin-pwa `registerType: prompt`. 앱 껍데기(JS·CSS·HTML·아이콘)만 미리 받고 글꼴 조각은 쓸 때 캐시(오프라인 동작은 범위 밖). 30분마다 + 앱으로 돌아올 때 새 버전 확인 → `UpdateBanner` |
-| 앱 아이콘 | 원본 `frontend/public/logo.svg`(임시: 파랑 둥근 사각형 + P, 사용자 이미지로 교체 예정) → `npm run icons`(@vite-pwa/assets-generator)로 크기별 PNG·favicon 생성 |
+| 앱 아이콘 | 사용자 제공 이미지(캐릭터 + 체크리스트, 어두운 둥근 사각형). 원본에서 안쪽 둥근 사각형만 잘라 모서리를 투명하게 한 `frontend/public/app-icon.png`(1024px) → `npm run icons`(@vite-pwa/assets-generator)로 크기별 PNG·maskable·apple·favicon 생성. 사이드바 로고도 같은 아이콘 |
 | 캐시 헤더 | `frontend/scripts/upload-web.sh`(CI·로컬 공용): 해시 붙은 파일은 1년 immutable, index.html·sw.js·manifest·theme-init.js·아이콘은 no-cache |
 
 ### 9.3 bootstrap (Phase 0)

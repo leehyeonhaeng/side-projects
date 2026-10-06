@@ -5,6 +5,7 @@ import { useMe } from "@/api/me";
 import { allowedModules, useLogout } from "@/components/AppLayout";
 import { ModuleIcon } from "@/components/ModuleIcon";
 import { Button } from "@/components/ui/button";
+import { IS_PROD } from "@/lib/env";
 
 /** 폰 하단 탭 "전체": 모든 모듈 + 설정·관리자·로그아웃 */
 export function MenuPage() {
@@ -13,7 +14,10 @@ export function MenuPage() {
   return (
     <main className="mx-auto grid max-w-2xl gap-5 p-4 md:p-6">
       <div>
-        <h1 className="text-xl font-bold tracking-tight">전체</h1>
+        <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight">
+          전체
+          {!IS_PROD && <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">DEV</span>}
+        </h1>
         <p className="text-sm text-muted-foreground">{me.data?.name}님</p>
       </div>
       <ul className="grid grid-cols-2 gap-2">
