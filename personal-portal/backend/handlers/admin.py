@@ -237,9 +237,9 @@ def get_preset(preset_id: str) -> dict[str, Any]:
 @app.get("/admin/presets")
 def list_presets() -> dict[str, Any]:
     items = list_presets_raw()
-    if not items:
-        # 최초 조회 시 기본 프리셋(가족, 팀)을 만든다
-        items = [put_preset(str(p["id"]), str(p["name"]), p["perms"]) for p in DEFAULT_PRESETS]  # type: ignore[arg-type]
+    # 기본 프리셋(가족, 팀, 회사 직원) 중 없는 것을 만든다 (나중에 추가된 기본 프리셋도 채워짐)
+    have = {i["id"] for i in items}
+    items += [put_preset(str(p["id"]), str(p["name"]), p["perms"]) for p in DEFAULT_PRESETS if p["id"] not in have]  # type: ignore[arg-type]
     return {"presets": [preset_view(i) for i in sorted(items, key=lambda i: i["name"])]}
 
 

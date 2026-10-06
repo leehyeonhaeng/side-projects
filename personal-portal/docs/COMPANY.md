@@ -2,7 +2,7 @@
 
 > 인쇄·사무기기 임대 업체용 소규모 ERP. 행포털 안의 별도 공간으로 들어가 거래처·기기·재고·임대 계약·돈·증빙 문서를 **하나의 흐름**으로 관리한다.
 > 행포털 공통 설계(로그인, 권한 미들웨어, 단일 테이블, 배포)는 `DESIGN.md`를 따르고, 이 문서는 회사 공간만 다룬다.
-> 상태: **설계 초안 (2026-10-06)** — 사용자 확인 후 확정
+> 상태: 설계 확정(2026-10-06), **C1 구현·dev 배포** (2026-10-06)
 
 ---
 
@@ -171,7 +171,36 @@
 | C6 대시보드·보고서 | 홈, 보고서, CSV, 알림(연체·재고 부족·계약 만료·점검) |
 | C7 데모·마무리 | 데모 데이터, 폰 화면 점검(`npm run screens`), 시연 흐름 정리 |
 
-## 12. 나중에 (지금 범위 밖)
+## 12. 구현 기록
+
+### C1 기반 (2026-10-06)
+
+| 항목 | 구현 |
+|---|---|
+| 코드 | `backend/domains/company_core.py`, `handlers/company.py` / `frontend/src/modules/company/`, `api/company.ts` |
+| 회사 개설 | Host만 (`/company` 화면). 개설한 사람이 첫 관리자. Host는 모든 회사에서 관리자로 취급 |
+| 회사 목록 | 일반 사용자는 GSI1 `USER#<sub>`/`COMPANY#`, Host는 GSI1 `COMPANIES` |
+| 역할 프리셋 | 관리자·경리·사무·현장 기사 기본값, 회사별로 `META.roles`에 수정본 저장(관리자 역할은 고정). 역할은 "지정할 때 채워지는 기본값" — 고쳐도 기존 직원 권한은 그대로 |
+| 직원 권한 | 멤버 항목에 영역별 권한·금액 보기·관리자 여부를 직접 저장(역할 변경 시 역할 값으로 덮어쓰고, 직원별로 따로 조정 가능). 마지막 관리자는 해제·삭제 불가 |
+| 초대 | `PK=INVITE#<code>`(코드로 바로 조회, 12자 무작위), 7일 TTL, 한 번만 사용(조건부 갱신). 로그인 전 `GET /invite/{code}`(API Gateway 인증 없음, 미들웨어 공개 경로) |
+| 초대 가입 | 가입 화면 `?invite=` → 코드 보관 → 이메일 인증 때 `clientMetadata.inviteCode`로 전달 → 가입 확정 트리거가 확인 후 Host 승인 없이 활성 + 회사 멤버 + 행포털 "회사 직원"(staff) 프리셋. 무효면 일반 가입(승인 대기). 이미 계정이 있으면 `/invite/{code}`에서 "참여하기" |
+| 행포털 개인 권한 | 기본 프리셋에 "회사 직원"(일정·할 일·메모·체크리스트) 추가. Host가 관리자 화면에서 수정 |
+| 화면 | `/company`(목록·개설), `/company/:cid` 회사 전용 틀(PC 왼쪽 메뉴·폰 하단 탭·행포털로 돌아가기): 홈(내 권한·준비 중 기능), 직원·권한(직원/초대/역할), 활동 기록, 회사 설정(문서에 찍히는 회사 정보·부가세 기본값). 행포털 사이드바·전체·홈에 회사 바로가기 |
+| 인프라 | Lambda `company` 추가(테이블 권한만), 라우트 `/api/v1/company`, `/api/v1/company/{proxy+}`, `GET /api/v1/invite/{code}`(인증 없음). 가입 트리거에 GetItem·UpdateItem 권한 |
+
+**API (C1)**
+
+| 메서드 · 경로 | 내용 |
+|---|---|
+| `GET /company` · `POST /company` `{name}` | 내 회사 목록 / 회사 개설(Host) |
+| `GET` · `PATCH /company/{cid}` | 회사 정보 + 내 권한(`me`) / 회사 정보 수정(설정 편집) |
+| `GET /company/{cid}/roles`, `PUT /company/{cid}/roles/{rid}` | 역할 프리셋 (관리자) |
+| `GET /company/{cid}/members`, `PATCH` · `DELETE …/members/{sub}` | 직원 목록·권한 변경·내보내기(본인은 나가기) |
+| `GET` · `POST /company/{cid}/invites`, `DELETE …/invites/{code}` | 초대 (관리자) |
+| `GET /invite/{code}` (로그인 없음), `POST /company/invites/{code}/accept` | 초대 정보 / 기존 계정으로 참여 |
+| `GET /company/{cid}/audit` | 회사 활동 기록 최근 200개 (관리자) |
+
+## 13. 나중에 (지금 범위 밖)
 
 - 보증금 (고객 요청 시)
 - 세금계산서·현금영수증 국세청 발행 연동 (지금은 "발행함" 기록만)

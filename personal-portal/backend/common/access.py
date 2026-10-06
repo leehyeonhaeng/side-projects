@@ -16,6 +16,8 @@ from common.perms import Level, Status, allows, required_permission
 
 API_PREFIX = "/api/v1"
 PUBLIC_PATHS = {"/health"}
+# 로그인 없이 부르는 경로 (앞부분 일치): 회사 초대 링크 정보 (COMPANY.md 8장)
+PUBLIC_PREFIXES = ("/invite/",)
 
 
 @dataclass(frozen=True)
@@ -52,7 +54,7 @@ def relative_path(path: str) -> str:
 def access_control(app: APIGatewayHttpResolver, next_middleware: NextMiddleware) -> Response:
     event = app.current_event
     path = relative_path(event.path)
-    if path in PUBLIC_PATHS:
+    if path in PUBLIC_PATHS or path.startswith(PUBLIC_PREFIXES):
         return next_middleware(app)
 
     identity = identity_from_event(event.raw_event)

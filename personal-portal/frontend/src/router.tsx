@@ -7,6 +7,13 @@ import { BoardsPage } from "./modules/boards/BoardsPage";
 import { ChecklistPage } from "./modules/checklists/ChecklistPage";
 import { ChecklistsPage } from "./modules/checklists/ChecklistsPage";
 import { HubPage } from "./modules/hub/HubPage";
+import { CompanyAuditPage } from "./modules/company/CompanyAuditPage";
+import { CompanyHomePage } from "./modules/company/CompanyHomePage";
+import { CompanyLayout } from "./modules/company/CompanyLayout";
+import { CompanyListPage } from "./modules/company/CompanyListPage";
+import { CompanyMembersPage } from "./modules/company/CompanyMembersPage";
+import { CompanySettingsPage } from "./modules/company/CompanySettingsPage";
+import { InvitePage } from "./modules/company/InvitePage";
 import { LedgerPage } from "./modules/ledger/LedgerPage";
 import { NoteEditorPage } from "./modules/notes/NoteEditorPage";
 import { NotesPage } from "./modules/notes/NotesPage";
@@ -29,6 +36,18 @@ export const router = createBrowserRouter([
   { path: "/signup", element: <GuestOnly><SignupPage /></GuestOnly> },
   { path: "/signup/confirm", element: <ConfirmSignupPage /> },
   { path: "/forgot-password", element: <ForgotPasswordPage /> },
+  { path: "/invite/:code", element: <InvitePage /> },
+  // 행컴퍼니 (docs/COMPANY.md): 회사 안은 행포털 메뉴 대신 회사 메뉴
+  {
+    path: "/company/:cid",
+    element: <RequireAuth><CompanyLayout /></RequireAuth>,
+    children: [
+      { index: true, element: <CompanyHomePage /> },
+      { path: "members", element: <CompanyMembersPage /> },
+      { path: "audit", element: <CompanyAuditPage /> },
+      { path: "settings", element: <CompanySettingsPage /> },
+    ],
+  },
   { path: "/mfa-setup", element: <RequireAuth><MfaSetupPage /></RequireAuth> },
   {
     element: <RequireAuth><AppLayout /></RequireAuth>,
@@ -36,6 +55,7 @@ export const router = createBrowserRouter([
       { path: "/", element: <HomePage /> },
       { path: "/settings", element: <SettingsPage /> },
       { path: "/menu", element: <MenuPage /> },
+      { path: "/company", element: <CompanyListPage /> },
       { path: "/admin", element: <RequireHost><AdminPage /></RequireHost> },
       { path: "/todo", element: <RequireModule module="todo"><TodoPage /></RequireModule> },
       { path: "/calendar", element: <RequireModule module="calendar"><CalendarPage /></RequireModule> },

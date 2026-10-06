@@ -106,6 +106,19 @@ const adminUsers = [
   { sub: "u4", email: "pending@example.com", name: "대기중", signupNote: "회사 동료 아주 긴 가입 메모가 들어가면 어떻게 보이나", status: "pending", role: "member", createdAt: now },
 ];
 
+// 행컴퍼니 (docs/COMPANY.md)
+const AREA_IDS = ["partners", "assets", "items", "contracts", "txns", "money", "docs", "reports", "settings"];
+const allAreas = (lv: string) => Object.fromEntries(AREA_IDS.map((a) => [a, lv]));
+const areas = (over: Record<string, string>) => ({ ...allAreas("none"), ...over });
+const companyInfo = { id: "cp1", name: "행컴퍼니", bizNo: "123-45-67890", ceo: "이대표", address: "서울특별시 중구 세종대로 110 아주 긴 주소 테스트빌딩 12층", phone: "02-123-4567", email: "office@example.com", bankAccount: "국민은행 123456-01-234567 (행컴퍼니)", vatDefault: "excluded", createdAt: now };
+const companyRoles = [
+  { id: "admin", name: "관리자", isAdmin: true, showAmounts: true, perms: allAreas("edit") },
+  { id: "accountant", name: "경리", isAdmin: false, showAmounts: true, perms: areas({ partners: "edit", assets: "view", items: "view", contracts: "view", txns: "edit", money: "edit", docs: "edit", reports: "edit" }) },
+  { id: "office", name: "사무", isAdmin: false, showAmounts: true, perms: areas({ partners: "edit", assets: "edit", items: "edit", contracts: "edit", txns: "edit", money: "view", docs: "edit", reports: "view" }) },
+  { id: "field", name: "현장 기사", isAdmin: false, showAmounts: false, perms: areas({ partners: "view", assets: "edit", items: "view", contracts: "view", txns: "edit", docs: "view" }) },
+];
+
+
 type Handler = (q: URLSearchParams, parts: string[]) => unknown;
 const GET: [RegExp, Handler][] = [
   [/^\/me$/, () => me],
@@ -159,6 +172,25 @@ const GET: [RegExp, Handler][] = [
   [/^\/admin\/permissions$/, () => ({ users: adminUsers.map((u) => ({ ...u, perms: allEdit })) })],
   [/^\/admin\/presets$/, () => ({ presets: [{ id: "family", name: "가족", perms: allEdit }, { id: "team", name: "팀", perms: allEdit }] })],
   [/^\/admin\/audit$/, () => ({ logs: [{ at: now, action: "approve", actor: "mock-host", actorEmail: "host@example.com", target: "u2", detail: { presetId: "family" } }] })],
+  [/^\/company$/, () => ({ companies: [{ id: "cp1", name: "행컴퍼니", isAdmin: true }] })],
+  [/^\/company\/[^/]+$/, () => ({ company: companyInfo, me: { isAdmin: true, perms: allAreas("edit"), showAmounts: true }, areas: AREA_IDS })],
+  [/^\/company\/[^/]+\/roles$/, () => ({ roles: companyRoles })],
+  [/^\/company\/[^/]+\/members$/, () => ({
+    members: [
+      { sub: "mock-host", name: "이현행", email: "host@example.com", roleId: "admin", isAdmin: true, showAmounts: true, perms: allAreas("edit"), joinedAt: now },
+      { sub: "u5", name: "김경리", email: "account@example.com", roleId: "accountant", isAdmin: false, showAmounts: true, perms: companyRoles[1]!.perms, joinedAt: now },
+      { sub: "u6", name: "박기사 (현장 아주 긴 이름 테스트)", email: "field-engineer-long-address@example.com", roleId: "field", isAdmin: false, showAmounts: false, perms: companyRoles[3]!.perms, joinedAt: now },
+    ],
+  })],
+  [/^\/company\/[^/]+\/invites$/, () => ({ invites: [{ code: "abcDEF123456", cid: "cp1", companyName: "행컴퍼니", roleId: "field", roleName: "현장 기사", note: "신입 기사", createdAt: now, expiresAt: Math.floor(Date.now() / 1000) + 6 * 86400 }] })],
+  [/^\/company\/[^/]+\/audit$/, () => ({
+    logs: [
+      { at: now, actor: "mock-host", actorName: "이현행", action: "member_change", target: "u6", targetName: "박기사", detail: { showAmounts: "True→False" } },
+      { at: now, actor: "u6", actorName: "박기사", action: "invite_accept", target: "u6", targetName: "박기사", detail: { role: "현장 기사", note: "신입 기사" } },
+      { at: now, actor: "mock-host", actorName: "이현행", action: "company_create", target: "", detail: { name: "행컴퍼니" } },
+    ],
+  })],
+  [/^\/invite\/[^/]+$/, () => ({ companyName: "행컴퍼니", roleName: "현장 기사", expiresAt: Math.floor(Date.now() / 1000) + 6 * 86400 })],
   [/^\/health$/, () => ({ status: "ok", service: "mock" })],
 ];
 

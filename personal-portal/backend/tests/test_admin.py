@@ -58,7 +58,7 @@ def test_host_without_mfa_is_forbidden(env: dict[str, str], ctx: FakeContext, mo
 def test_approve_with_preset(env: dict[str, str], ctx: FakeContext) -> None:
     status, body = req(ctx, "GET", "/admin/presets")
     assert status == 200
-    assert {p["id"] for p in body["presets"]} == {"family", "team"}
+    assert {p["id"] for p in body["presets"]} == {"family", "team", "staff"}
 
     pending = req(ctx, "GET", "/admin/users", query={"status": "pending"})[1]["users"]
     assert [u["email"] for u in pending] == ["m@x.com"]

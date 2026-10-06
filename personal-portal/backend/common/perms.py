@@ -112,4 +112,19 @@ DEFAULT_PRESETS: list[dict[str, object]] = [
             Module.LEDGER: Level.NONE,
         },
     },
+    {
+        # 행컴퍼니 초대로 가입한 직원의 행포털 개인 기능 (COMPANY.md 8장). Host가 관리자 화면에서 고칠 수 있다
+        "id": "staff",
+        "name": "회사 직원",
+        "perms": {
+            Module.CALENDAR: Level.EDIT,
+            Module.TODO: Level.EDIT,
+            Module.NOTES: Level.EDIT,
+            Module.CHECKLISTS: Level.EDIT,
+            Module.HUB: Level.NONE,
+            Module.BOARDS: Level.NONE,
+            Module.HEALTH: Level.NONE,
+            Module.LEDGER: Level.NONE,
+        },
+    },
 ]

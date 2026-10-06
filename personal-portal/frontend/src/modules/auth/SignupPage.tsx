@@ -1,7 +1,8 @@
 import { type FormEvent, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { signUp } from "aws-amplify/auth";
 import { authErrorMessage, normalizeEmail, PASSWORD_RULE } from "@/auth/errors";
+import { clearPendingInvite, savePendingInvite, useInviteInfo } from "@/api/company";
 import { FormError } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,10 @@ import { AuthCard, Field } from "./AuthCard";
 
 export function SignupPage() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const inviteCode = params.get("invite");
+  const invite = useInviteInfo(inviteCode);
+  const invited = Boolean(invite.data);
   const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "", note: "" });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -26,6 +31,9 @@ export function SignupPage() {
     const email = normalizeEmail(form.email);
     setBusy(true);
     try {
+      // 초대 가입: 이메일 인증 화면에서 코드를 같이 보내야 승인 없이 회사 직원이 된다
+      if (invited && inviteCode) savePendingInvite(inviteCode);
+      else clearPendingInvite();
       await signUp({
         username: email,
         password: form.password,
@@ -42,7 +50,11 @@ export function SignupPage() {
   };
 
   return (
-    <AuthCard title="가입 신청" description="이메일 인증 후 관리자가 승인하면 로그인할 수 있습니다.">
+    <AuthCard
+      title={invited ? `${invite.data!.companyName} 직원 가입` : "가입 신청"}
+      description={invited ? `${invite.data!.roleName}(으)로 초대받았습니다. 이메일 인증만 하면 바로 로그인할 수 있습니다.` : "이메일 인증 후 관리자가 승인하면 로그인할 수 있습니다."}
+    >
+      {inviteCode && invite.isError && <p className="mb-3 rounded-lg bg-destructive/10 p-2 text-sm text-destructive">초대 링크가 만료되었거나 이미 사용되었습니다. 이대로 가입하면 관리자 승인을 기다려야 합니다.</p>}
       <form className="grid gap-4" onSubmit={(e) => void onSubmit(e)}>
         <Field id="name" label="이름">
           <Input id="name" autoComplete="name" maxLength={50} value={form.name} onChange={set("name")} required />

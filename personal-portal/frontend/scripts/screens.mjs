@@ -53,6 +53,14 @@ const SCREENS = [
   ["checklists", "/checklists"],
   ["checklist", "/checklists/cl1"],
   ["admin", "/admin"],
+  ["company-list", "/company"],
+  ["company-home", "/company/cp1"],
+  ["company-members", "/company/cp1/members", async (p) => p.getByRole("button", { name: /권한/ }).nth(2).click()],
+  ["company-invites", "/company/cp1/members", async (p) => p.getByRole("tab", { name: "초대" }).click()],
+  ["company-roles", "/company/cp1/members", async (p) => p.getByRole("tab", { name: "역할" }).click()],
+  ["company-audit", "/company/cp1/audit"],
+  ["company-settings", "/company/cp1/settings"],
+  ["invite", "/invite/abcDEF123456"],
 ];
 
 /** 페이지 안에서 실행: 문제 요소 찾기 */

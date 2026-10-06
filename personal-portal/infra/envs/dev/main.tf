@@ -36,7 +36,7 @@ locals {
   prefix = "portal-${local.env}"
 
   # DESIGN.md 8.1 도메인별 Lambda (API Gateway 연결). auth-trigger는 아래에 따로 둔다
-  services = ["personal", "shared", "admin", "ai"]
+  services = ["personal", "shared", "admin", "ai", "company"]
 
   # HTTP API는 ANY + JWT 조합에서 CORS preflight(OPTIONS)까지 인증을 요구하므로
   # 메서드를 명시해서 라우트를 만든다.
@@ -51,11 +51,15 @@ locals {
     "/api/v1/boards/{proxy+}"     = "shared"
     "/api/v1/checklists"          = "shared"
     "/api/v1/checklists/{proxy+}" = "shared"
+    "/api/v1/company"             = "company"
+    "/api/v1/company/{proxy+}"    = "company"
   }
 
   routes = merge(
     {
       "GET /api/v1/health" = { lambda = "personal", auth = false }
+      # 행컴퍼니 초대 링크 정보 (로그인 전 가입 화면에서)
+      "GET /api/v1/invite/{code}" = { lambda = "company", auth = false }
     },
     {
       for pair in setproduct(keys(local.route_prefixes), local.methods) :
@@ -223,8 +227,9 @@ data "aws_iam_policy_document" "auth_trigger" {
   }
 
   statement {
-    effect    = "Allow"
-    actions   = ["dynamodb:PutItem", "dynamodb:BatchWriteItem"]
+    effect = "Allow"
+    # 초대 가입(COMPANY.md 8장): 초대·회사·프리셋 읽기, 초대 사용 표시
+    actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:BatchWriteItem"]
     resources = [module.table.arn]
   }
 

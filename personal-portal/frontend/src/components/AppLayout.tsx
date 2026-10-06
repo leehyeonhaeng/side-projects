@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router";
-import { HouseIcon, LayoutGridIcon, LogOutIcon, PlusIcon, SettingsIcon, ShieldIcon } from "lucide-react";
+import { Building2Icon, HouseIcon, LayoutGridIcon, LogOutIcon, PlusIcon, SettingsIcon, ShieldIcon } from "lucide-react";
+import { useMyCompanies } from "@/api/company";
 import { type Me, useMe } from "@/api/me";
 import { type Settings, useSettings } from "@/api/preferences";
 import { useSignOut } from "@/auth/session";
@@ -49,6 +50,8 @@ export function AppLayout() {
   }, [theme]);
 
   const tabs = bottomTabs(me.data, settings.data);
+  const companies = useMyCompanies(Boolean(me.data));
+  const showCompany = (companies.data?.length ?? 0) > 0 || me.data?.isHost;
 
   return (
     <div className="min-h-dvh">
@@ -65,6 +68,15 @@ export function AppLayout() {
           {allowedModules(me.data).map((m) => (
             <SideLink key={m.id} to={m.path} label={m.label} icon={<ModuleIcon module={m.id} size="sm" />} />
           ))}
+          {showCompany && (
+            <>
+              <p className="px-2 pt-4 pb-1 text-[11px] font-medium text-muted-foreground">회사</p>
+              {(companies.data ?? []).map((c) => (
+                <SideLink key={c.id} to={`/company/${c.id}`} label={c.name} icon={<CompanyBadge />} />
+              ))}
+              {me.data?.isHost && <SideLink to="/company" end label="회사 관리" icon={<span className="grid size-7 place-items-center [&_svg]:size-4"><Building2Icon /></span>} />}
+            </>
+          )}
         </nav>
         <div className="grid gap-1 border-t p-3">
           <Button className="mb-1 justify-start" onClick={() => setQuickAdd(true)}>
@@ -133,5 +145,14 @@ function TabLink({ to, end, label, icon }: { to: string; end?: boolean; label: s
       {icon}
       <span className="max-w-full truncate px-1">{label}</span>
     </NavLink>
+  );
+}
+
+/** 회사 배지 (행컴퍼니 진입) */
+export function CompanyBadge({ size = "sm" }: { size?: "sm" | "md" }) {
+  return (
+    <span className={cn("grid shrink-0 place-items-center bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900", size === "sm" ? "size-7 rounded-lg [&_svg]:size-4" : "size-9 rounded-xl [&_svg]:size-5")}>
+      <Building2Icon />
+    </span>
   );
 }

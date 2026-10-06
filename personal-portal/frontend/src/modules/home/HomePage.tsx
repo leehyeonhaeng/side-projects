@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { ArrowDownIcon, ArrowUpIcon, CalendarDaysIcon, EyeIcon, EyeOffIcon, Maximize2Icon, PencilIcon, PlusIcon, RepeatIcon, XIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, CalendarDaysIcon, ChevronRightIcon, EyeIcon, EyeOffIcon, Maximize2Icon, PencilIcon, PlusIcon, RepeatIcon, XIcon } from "lucide-react";
+import { useMyCompanies } from "@/api/company";
 import { useEvents } from "@/api/events";
+import { CompanyBadge } from "@/components/AppLayout";
 import { useMe } from "@/api/me";
 import { type Layout, type LayoutItem, type Section, useLayout, useSaveLayout } from "@/api/preferences";
 import { NativeSelect } from "@/components/NativeSelect";
@@ -106,6 +108,7 @@ export function HomePage() {
         )}
       </div>
       <ErrorAlert error={save.error} />
+      {!editing && <CompanyCards />}
       {!editing && perms.calendar !== "none" && <TodayBanner />}
 
       {!hasAnyModule && <p className="text-sm text-muted-foreground">사용할 수 있는 모듈이 없습니다. 관리자에게 권한을 요청하세요.</p>}
@@ -319,5 +322,25 @@ function TodayBanner() {
           .join(" · ")}
       </span>
     </Link>
+  );
+}
+
+/** 소속 회사 바로가기 (행컴퍼니, docs/COMPANY.md) */
+function CompanyCards() {
+  const companies = useMyCompanies();
+  if (!companies.data?.length) return null;
+  return (
+    <div className="grid gap-2">
+      {companies.data.map((c) => (
+        <Link key={c.id} to={`/company/${c.id}`} className="flex items-center gap-3 rounded-2xl border bg-card px-4 py-3 hover:bg-muted/50">
+          <CompanyBadge size="md" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-medium">{c.name}</span>
+            <span className="block text-xs text-muted-foreground">회사 업무로 들어가기</span>
+          </span>
+          <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
+        </Link>
+      ))}
+    </div>
   );
 }

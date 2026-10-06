@@ -2,6 +2,7 @@ import { type FormEvent, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { confirmSignUp, resendSignUpCode } from "aws-amplify/auth";
 import { authErrorMessage, normalizeEmail } from "@/auth/errors";
+import { clearPendingInvite, pendingInvite } from "@/api/company";
 import { FormError } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,7 @@ export function ConfirmSignupPage() {
   const [email, setEmail] = useState(params.get("email") ?? "");
   const [code, setCode] = useState("");
   const [done, setDone] = useState(false);
+  const [invited] = useState(() => pendingInvite());
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -21,7 +23,9 @@ export function ConfirmSignupPage() {
     setError(null);
     setBusy(true);
     try {
-      await confirmSignUp({ username: normalizeEmail(email), confirmationCode: code.trim() });
+      // 초대 코드는 가입 확정 트리거로 전달된다 (COMPANY.md 8장)
+      await confirmSignUp({ username: normalizeEmail(email), confirmationCode: code.trim(), options: invited ? { clientMetadata: { inviteCode: invited } } : undefined });
+      clearPendingInvite();
       setDone(true);
     } catch (err) {
       setError(authErrorMessage(err));
@@ -42,9 +46,9 @@ export function ConfirmSignupPage() {
 
   if (done) {
     return (
-      <AuthCard title="가입 신청 완료" description="이메일 인증이 끝났습니다.">
+      <AuthCard title={invited ? "가입 완료" : "가입 신청 완료"} description="이메일 인증이 끝났습니다.">
         <div className="grid gap-4 text-sm">
-          <p>관리자가 승인하면 로그인할 수 있습니다. 승인 전에는 로그인 시 "승인 대기 중" 안내가 표시됩니다.</p>
+          <p>{invited ? "바로 로그인할 수 있습니다. 로그인하면 행포털 홈에서 회사로 들어갈 수 있습니다." : '관리자가 승인하면 로그인할 수 있습니다. 승인 전에는 로그인 시 "승인 대기 중" 안내가 표시됩니다.'}</p>
           <Button render={<Link to="/login" />} nativeButton={false} size="lg">
             로그인 화면으로
           </Button>

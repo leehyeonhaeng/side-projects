@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
-import { ChevronRightIcon, LogOutIcon, SettingsIcon, ShieldIcon } from "lucide-react";
+import { Building2Icon, ChevronRightIcon, LogOutIcon, SettingsIcon, ShieldIcon } from "lucide-react";
 import { useMe } from "@/api/me";
-import { allowedModules, useLogout } from "@/components/AppLayout";
+import { CompanyBadge, allowedModules, useLogout } from "@/components/AppLayout";
+import { useMyCompanies } from "@/api/company";
 import { ModuleIcon } from "@/components/ModuleIcon";
 import { Button } from "@/components/ui/button";
 import { IS_PROD } from "@/lib/env";
@@ -11,6 +12,7 @@ import { IS_PROD } from "@/lib/env";
 export function MenuPage() {
   const me = useMe();
   const logout = useLogout();
+  const companies = useMyCompanies();
   return (
     <main className="mx-auto grid max-w-2xl gap-5 p-4 md:p-6">
       <div>
@@ -33,9 +35,26 @@ export function MenuPage() {
           </li>
         ))}
       </ul>
+      {(companies.data?.length ?? 0) > 0 && (
+        <ul className="grid gap-2">
+          {companies.data!.map((c) => (
+            <li key={c.id}>
+              <Link to={`/company/${c.id}`} className="flex items-center gap-3 rounded-2xl border bg-card p-3 active:bg-muted">
+                <CompanyBadge size="md" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{c.name}</span>
+                  <span className="block text-[11px] text-muted-foreground">회사 업무</span>
+                </span>
+                <ChevronRightIcon className="size-4 text-muted-foreground" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
       <ul className="grid divide-y overflow-hidden rounded-2xl border bg-card">
         <MenuRow to="/settings" icon={<SettingsIcon />} label="설정" />
         {me.data?.isHost && <MenuRow to="/admin" icon={<ShieldIcon />} label="관리자" />}
+        {me.data?.isHost && <MenuRow to="/company" icon={<Building2Icon />} label="회사 관리 (개설)" />}
       </ul>
       <Button variant="ghost" className="justify-self-start text-muted-foreground" onClick={() => void logout()}>
         <LogOutIcon /> 로그아웃
