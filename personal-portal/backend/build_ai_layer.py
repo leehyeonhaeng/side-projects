@@ -1,4 +1,7 @@
-"""ai Lambda 레이어 빌드: Lambda(arm64, Python 3.12)용 휠을 받아 infra/envs/<env>/.build/ai-layer/python 에 설치한다.
+"""Lambda 레이어 빌드: Lambda(arm64, Python 3.12)용 휠을 받아 infra/envs/<env>/.build/ 아래에 설치한다.
+
+- ai-layer: ai Lambda 전용 (requirements-ai.txt)
+- doc-layer: company Lambda 문서 PDF용 (requirements-doc.txt + fonts/ → /opt/fonts)
 
 사용: python build_ai_layer.py [dev]   (Windows·CI 공통)
 """
@@ -10,24 +13,36 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 env = sys.argv[1] if len(sys.argv) > 1 else "dev"
-target = ROOT.parent / "infra" / "envs" / env / ".build" / "ai-layer" / "python"
+build = ROOT.parent / "infra" / "envs" / env / ".build"
 
-shutil.rmtree(target.parent, ignore_errors=True)
-target.mkdir(parents=True)
-subprocess.run(
-    [
-        sys.executable, "-m", "pip", "install", "-q",
-        "-r", str(ROOT / "requirements-ai.txt"),
-        "--target", str(target),
-        "--platform", "manylinux2014_aarch64",
-        "--implementation", "cp",
-        "--python-version", "3.12",
-        "--only-binary=:all:",
-        "--upgrade",
-    ],
-    check=True,
-)
-# 레이어 크기 줄이기: 캐시·메타데이터 정리
-for p in target.rglob("__pycache__"):
-    shutil.rmtree(p, ignore_errors=True)
-print(f"built {target}")
+
+def install(requirements: str, layer: str) -> Path:
+    target = build / layer / "python"
+    shutil.rmtree(target.parent, ignore_errors=True)
+    target.mkdir(parents=True)
+    subprocess.run(
+        [
+            sys.executable, "-m", "pip", "install", "-q",
+            "-r", str(ROOT / requirements),
+            "--target", str(target),
+            # Lambda python3.12 = Amazon Linux 2023(glibc 2.34) → manylinux_2_28 휠도 쓸 수 있다 (최신 pillow는 2_28만 있음)
+            "--platform", "manylinux2014_aarch64",
+            "--platform", "manylinux_2_28_aarch64",
+            "--implementation", "cp",
+            "--python-version", "3.12",
+            "--only-binary=:all:",
+            "--upgrade",
+        ],
+        check=True,
+    )
+    # 레이어 크기 줄이기: 캐시 정리
+    for p in target.rglob("__pycache__"):
+        shutil.rmtree(p, ignore_errors=True)
+    print(f"built {target}")
+    return target
+
+
+install("requirements-ai.txt", "ai-layer")
+doc = install("requirements-doc.txt", "doc-layer")
+shutil.copytree(ROOT / "fonts", doc.parent / "fonts")
+print(f"copied fonts → {doc.parent / 'fonts'}")

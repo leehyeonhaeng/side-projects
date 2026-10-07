@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { addDays, formatDay, formatTime, todayStr } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { useCompanyOutlet } from "./CompanyLayout";
+import { TxnDocs } from "./DocsPage";
 import { Chip, Field, PageHead, Search, matches, money } from "./ui";
 
 export function TypeBadge({ type, canceled }: { type: TxnType; canceled?: boolean }) {
@@ -233,7 +234,12 @@ export function TxnDetailPage() {
           </ul>
         </section>
       )}
-      <p className="text-xs text-muted-foreground">영수증·거래명세서 PDF 출력은 문서 기능(C5)에서 추가됩니다.</p>
+      {t.lines.some((l) => l.assetIds?.length) && !canceled && (
+        <Button size="sm" variant="outline" className="justify-self-start" nativeButton={false} render={<Link to={`/company/${cid}/labels?ids=${t.lines.flatMap((l) => l.assetIds ?? []).join(",")}`} />}>
+          매입한 기기 라벨 출력
+        </Button>
+      )}
+      {t.partnerId && <TxnDocs cid={cid} t={t} />}
       {canCancel && (
         <Button variant="outline" className="justify-self-start text-destructive" onClick={() => setCanceling(true)}>
           거래 취소

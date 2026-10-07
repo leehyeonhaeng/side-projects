@@ -182,6 +182,15 @@ const cpServices = [
   { id: "sv3", no: "AS-2026-0010", status: "canceled", date: d(-9), partnerId: "pa2", partnerName: "한빛정형외과의원", symptom: "토너 교체 요청", contact: "", cancelReason: "고객이 직접 교체", createdAt: now },
 ];
 
+// 행컴퍼니 C5 문서
+const cpDocs = [
+  { id: "dc1", no: "R-2026-0003", type: "receipt", title: "영수증", date: T, partnerId: "pa2", partnerName: "한빛정형외과의원", sources: [{ kind: "txn", id: "tx2", date: T, no: "T-2026-00011" }], total: 200000, canceled: false, sealVersion: "", issuedBy: "u5", issuedAt: now },
+  { id: "dc2", no: "S-2026-0007", type: "statement", title: "거래명세서", date: d(-3), partnerId: "pa2", partnerName: "한빛정형외과의원", sources: [{ kind: "txn", id: "tx3", date: d(-3), no: "T-2026-00009" }], total: 170000, canceled: false, sealVersion: "", issuedBy: "u5", issuedAt: now },
+  { id: "dc3", no: "B-2026-0002", type: "invoice", title: "청구서", date: d(-1), partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", sources: [], total: 1320000, canceled: false, sealVersion: "", issuedBy: "mock-host", issuedAt: now },
+  { id: "dc4", no: "S-2026-0006", type: "statement", title: "거래명세서", date: d(-6), partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", sources: [{ kind: "txn", id: "tx6", date: d(-6), no: "T-2026-00006" }], total: 120000, canceled: true, sealVersion: "", issuedBy: "u5", issuedAt: now },
+  { id: "dc5", no: "W-2026-0004", type: "work", title: "작업 확인서", date: d(-2), partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", sources: [{ kind: "service", id: "sv2", no: "AS-2026-0011" }], total: 0, canceled: false, sealVersion: "", issuedBy: "u6", issuedAt: now },
+];
+
 // 행컴퍼니 C3 거래
 const cpTxns = [
   { id: "tx1", no: "T-2026-00012", type: "rental_out", date: T, status: "confirmed", partnerId: "pa1", partnerName: "서울중앙초등학교", lines: [{ name: "설치비", qty: 1, unitPrice: 50000, vatMode: "excluded", supply: 50000, vat: 5000, total: 55000, manual: false, memo: "" }], supply: 50000, vat: 5000, total: 55000, paid: 0, paidBy: [], assetIds: ["as1"], assetCodes: ["A-000001"], assetNames: ["신도리코 D420 컬러복합기"], memo: "", createdBy: "u6", createdAt: now },
@@ -299,6 +308,9 @@ const GET: [RegExp, Handler][] = [
   [/^\/company\/[^/]+\/services$/, (q) => ({ services: cpServices.filter((x) => (!q.get("status") || x.status === q.get("status")) && (!q.get("partnerId") || x.partnerId === q.get("partnerId"))) })],
   [/^\/company\/[^/]+\/services\/[^/]+$/, (_q, p) => ({ service: cpServices.find((x) => x.id === p[3]) ?? cpServices[0], txn: null })],
   [/^\/company\/[^/]+\/staff$/, () => ({ staff: [{ sub: "mock-host", name: "이현행" }, { sub: "u5", name: "김경리" }, { sub: "u6", name: "박기사" }] })],
+  [/^\/company\/[^/]+\/docs$/, (q) => ({ docs: cpDocs.filter((x) => (!q.get("source") || x.sources.some((s) => s.id === q.get("source"))) && (!q.get("partnerId") || x.partnerId === q.get("partnerId"))) })],
+  [/^\/company\/[^/]+\/docs\/[^/]+\/pdf$/, (_q, p) => ({ filename: `문서_${p[3]}.pdf`, contentType: "application/pdf", data: "JVBERi0xLjQK", url: "about:blank", no: cpDocs.find((x) => x.id === p[3])?.no, canceled: cpDocs.find((x) => x.id === p[3])?.canceled })],
+  [/^\/company\/[^/]+\/seal$/, () => ({ data: null })],
   [/^\/health$/, () => ({ status: "ok", service: "mock" })],
 ];
 

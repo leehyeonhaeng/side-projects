@@ -9,7 +9,6 @@ import { useCompanyOutlet } from "./CompanyLayout";
 
 // COMPANY.md 11장 구현 단계 — 대시보드가 생기기 전까지 홈에서 진행 상황을 보여 준다
 const COMING = [
-  { phase: "C5", items: "직인 영수증·명세서·청구서 PDF · 기기 라벨 QR" },
   { phase: "C6", items: "대시보드 · 보고서 · 알림" },
 ];
 

@@ -5,6 +5,7 @@ from functools import cache
 from typing import Any
 
 import boto3
+from botocore.config import Config
 
 
 @cache
@@ -27,6 +28,12 @@ def sns() -> Any:
     return boto3.client("sns")
 
 
+@cache
+def s3() -> Any:
+    # 서명 URL: 리전 주소 + SigV4 (새 버킷도 리다이렉트 없이 열리게)
+    return boto3.client("s3", config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}))
+
+
 def reset_clients() -> None:
-    for fn in (dynamodb, table, cognito, sns):
+    for fn in (dynamodb, table, cognito, sns, s3):
         fn.cache_clear()

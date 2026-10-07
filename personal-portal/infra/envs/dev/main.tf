@@ -107,6 +107,8 @@ data "archive_file" "backend" {
     ".pytest_cache/**",
     "requirements*.txt",
     "build_ai_layer.py",
+    "fonts/**",
+    "scripts/**",
   ]
 }
 
@@ -188,10 +190,101 @@ resource "aws_lambda_layer_version" "ai" {
   source_code_hash = filebase64sha256("${path.module}/../../../backend/requirements-ai.txt")
 }
 
+# ── 행컴퍼니 문서 (COMPANY.md 7·9장) ───────────────
+
+# 발행한 PDF·직인 보관. 비공개, 버전 관리(직인을 바꿔도 예전 문서는 발행 당시 직인으로 다시 그린다)
+resource "aws_s3_bucket" "docs" {
+  bucket        = "${local.prefix}-docs-lhhportal"
+  force_destroy = true
+}
+
+resource "aws_s3_bucket_public_access_block" "docs" {
+  bucket                  = aws_s3_bucket.docs.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_ownership_controls" "docs" {
+  bucket = aws_s3_bucket.docs.id
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "docs" {
+  bucket = aws_s3_bucket.docs.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# 그때그때 그린 출력물(원장·라벨·취소 판, 서명 URL로 열기)은 하루 뒤 삭제
+resource "aws_s3_bucket_lifecycle_configuration" "docs" {
+  bucket = aws_s3_bucket.docs.id
+  rule {
+    id     = "tmp-1day"
+    status = "Enabled"
+    filter {
+      prefix = "tmp/"
+    }
+    expiration {
+      days = 1
+    }
+    noncurrent_version_expiration {
+      noncurrent_days = 1
+    }
+  }
+  depends_on = [aws_s3_bucket_versioning.docs]
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "docs" {
+  bucket = aws_s3_bucket.docs.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+# company만 문서 버킷을 읽고 쓴다 (DeleteObject: 동시에 발행했을 때 늦은 쪽 파일 정리)
+data "aws_iam_policy_document" "company" {
+  source_policy_documents = [data.aws_iam_policy_document.table_rw.json]
+
+  statement {
+    effect    = "Allow"
+    actions   = ["s3:GetObject", "s3:GetObjectVersion", "s3:PutObject", "s3:DeleteObject"]
+    resources = ["${aws_s3_bucket.docs.arn}/*"]
+  }
+}
+
+# company Lambda 문서 레이어 (reportlab + pillow + Pretendard 글꼴 /opt/fonts).
+# 빌드: python backend/build_ai_layer.py dev → .build/doc-layer
+data "archive_file" "doc_layer" {
+  type        = "zip"
+  source_dir  = "${path.module}/.build/doc-layer"
+  output_path = "${path.module}/.build/doc-layer.zip"
+}
+
+resource "aws_lambda_layer_version" "doc" {
+  layer_name               = "${local.prefix}-doc-deps"
+  filename                 = data.archive_file.doc_layer.output_path
+  compatible_runtimes      = ["python3.12"]
+  compatible_architectures = ["arm64"]
+  # 의존성 목록이나 글꼴이 바뀔 때만 새 버전
+  source_code_hash = base64sha256(join(",", [
+    filesha256("${path.module}/../../../backend/requirements-doc.txt"),
+    filesha256("${path.module}/../../../backend/fonts/Pretendard-Regular.ttf"),
+    filesha256("${path.module}/../../../backend/fonts/Pretendard-Bold.ttf"),
+  ]))
+}
+
 locals {
   lambda_policies = {
-    admin = data.aws_iam_policy_document.admin.json
-    ai    = data.aws_iam_policy_document.ai.json
+    admin   = data.aws_iam_policy_document.admin.json
+    ai      = data.aws_iam_policy_document.ai.json
+    company = data.aws_iam_policy_document.company.json
   }
 }
 
@@ -204,16 +297,17 @@ module "lambda" {
   handler       = "handlers.${each.key}.lambda_handler"
   package_path  = data.archive_file.backend.output_path
   package_hash  = data.archive_file.backend.output_base64sha256
-  # ai는 자체 레이어만 쓴다 (공개 Powertools 레이어와 같이 쓰면 pydantic 버전이 섞임)
-  layers      = each.key == "ai" ? [aws_lambda_layer_version.ai.arn] : [var.powertools_layer_arn]
-  timeout     = each.key == "ai" ? 30 : 10
-  memory_size = each.key == "ai" ? 512 : 256
+  # ai는 자체 레이어만 쓴다 (공개 Powertools 레이어와 같이 쓰면 pydantic 버전이 섞임). company는 문서 레이어 추가
+  layers      = each.key == "ai" ? [aws_lambda_layer_version.ai.arn] : each.key == "company" ? [var.powertools_layer_arn, aws_lambda_layer_version.doc.arn] : [var.powertools_layer_arn]
+  timeout     = contains(["ai", "company"], each.key) ? 30 : 10
+  memory_size = contains(["ai", "company"], each.key) ? 512 : 256
   policy_json = lookup(local.lambda_policies, each.key, data.aws_iam_policy_document.table_rw.json)
 
   environment = merge(
     { TABLE_NAME = module.table.name },
     each.key == "admin" ? { USER_POOL_ID = module.cognito.user_pool_id } : {},
     each.key == "ai" ? { BEDROCK_MODEL_ID = var.bedrock_model_id } : {},
+    each.key == "company" ? { DOCS_BUCKET = aws_s3_bucket.docs.bucket } : {},
   )
 }
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { type CompanyInfo, VAT_LABEL, type VatMode, useCompanyMutations } from "@/api/company";
+import { type CompanyInfo, VAT_LABEL, type VatMode, useCompanyMutations, useDocMutations, useSeal } from "@/api/company";
 import { NativeSelect } from "@/components/NativeSelect";
-import { ErrorAlert } from "@/components/states";
+import { ErrorAlert, FormError } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCompanyOutlet } from "./CompanyLayout";
@@ -22,7 +22,7 @@ const FIELDS: { key: keyof Omit<Form, "vatDefault">; label: string; placeholder?
   { key: "assetPrefix", label: "기기 고유번호 앞글자 (영문 대문자·숫자 5자 이내)", placeholder: "A → A-000001" },
 ];
 
-/** 회사 정보: 영수증·명세서에 찍히는 값 (COMPANY.md 7장). 직인·문서 번호는 C5 */
+/** 회사 정보·직인: 영수증·명세서에 찍히는 값 (COMPANY.md 7장) */
 export function CompanySettingsPage() {
   const { cid, detail } = useCompanyOutlet();
   const canEdit = detail.me.perms.settings === "edit";
@@ -87,7 +87,81 @@ export function CompanySettingsPage() {
           </div>
         )}
       </form>
-      <p className="text-xs text-muted-foreground">직인 이미지, 문서 번호 형식은 문서 기능(C5)과 함께 추가됩니다.</p>
+      <SealSettings cid={cid} canEdit={canEdit} companyName={c.name} />
     </main>
+  );
+}
+
+/** 예시 직인 (올린 직인이 없을 때 문서에 찍히는 모양과 같게) */
+export function ExampleSeal({ name, size = 96 }: { name: string; size?: number }) {
+  const chars = [...(name || "회사").slice(0, 12)];
+  const weights = chars.map((ch) => (ch === " " ? 0.5 : 1));
+  const total = weights.reduce((a, b) => a + b, 0);
+  const step = Math.min(300 / Math.max(total, 1), 38);
+  let angle = 90 + (step * (total - (weights[0] ?? 1))) / 2;
+  return (
+    <svg viewBox="-50 -50 100 100" width={size} height={size} aria-label="예시 직인" className="shrink-0">
+      <circle r="46" fill="none" stroke="#d11f1f" strokeWidth="3.2" />
+      <circle r="26" fill="none" stroke="#d11f1f" strokeWidth="1.4" />
+      {chars.map((ch, i) => {
+        const a = angle;
+        angle -= step * (weights[i] ?? 1);
+        if (ch === " ") return null;
+        const rad = (a * Math.PI) / 180;
+        const x = Math.cos(rad) * 35.5;
+        const y = -Math.sin(rad) * 35.5;
+        return (
+          <text key={i} x={x} y={y} transform={`rotate(${90 - a} ${x} ${y})`} fontSize="15.5" fontWeight="700" fill="#d11f1f" textAnchor="middle" dominantBaseline="central">
+            {ch}
+          </text>
+        );
+      })}
+      <text y="-4" fontSize="10.5" fontWeight="700" fill="#d11f1f" textAnchor="middle">대표</text>
+      <text y="10" fontSize="10.5" fontWeight="700" fill="#d11f1f" textAnchor="middle">인</text>
+    </svg>
+  );
+}
+
+function SealSettings({ cid, canEdit, companyName }: { cid: string; canEdit: boolean; companyName: string }) {
+  const seal = useSeal(cid);
+  const mut = useDocMutations(cid);
+  const [error, setError] = useState<string | null>(null);
+  const pick = (f: File | undefined) => {
+    setError(null);
+    if (!f) return;
+    if (!/^image\/(png|jpeg)$/.test(f.type)) return setError("PNG 또는 JPG 이미지만 올릴 수 있습니다.");
+    if (f.size > 1_000_000) return setError("1MB 이하 이미지만 올릴 수 있습니다.");
+    const reader = new FileReader();
+    reader.onload = () => mut.putSeal.mutate(String(reader.result));
+    reader.readAsDataURL(f);
+  };
+  return (
+    <section className="grid gap-3 rounded-2xl border bg-card p-4">
+      <p className="text-sm font-medium">
+        직인 <span className="font-normal text-muted-foreground">— 영수증·명세서·청구서·작업 확인서에 찍힙니다</span>
+      </p>
+      <div className="flex flex-wrap items-center gap-4">
+        {seal.data?.data ? <img src={`data:image/png;base64,${seal.data.data}`} alt="회사 직인" className="size-24 rounded-lg border object-contain p-1" /> : <ExampleSeal name={companyName} />}
+        <div className="grid min-w-0 flex-1 gap-1 text-sm">
+          <p>{seal.data?.data ? "올린 직인을 쓰고 있습니다." : "예시 직인을 쓰고 있습니다. 실제 직인을 올리면 바뀝니다."}</p>
+          <p className="text-xs text-muted-foreground">배경이 투명한 PNG가 가장 깔끔합니다. 바꿔도 이미 발행한 문서는 그때 직인 그대로입니다.</p>
+        </div>
+      </div>
+      {canEdit && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" nativeButton={false} disabled={mut.putSeal.isPending} render={<label />}>
+            직인 이미지 올리기
+            <input type="file" accept="image/png,image/jpeg" className="sr-only" onChange={(e) => (pick(e.target.files?.[0]), (e.target.value = ""))} />
+          </Button>
+          {seal.data?.data && (
+            <Button variant="ghost" size="sm" disabled={mut.deleteSeal.isPending} onClick={() => mut.deleteSeal.mutate()}>
+              예시 직인으로 되돌리기
+            </Button>
+          )}
+        </div>
+      )}
+      <FormError message={error} />
+      <ErrorAlert error={mut.putSeal.error ?? mut.deleteSeal.error ?? seal.error} />
+    </section>
   );
 }

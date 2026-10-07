@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, NavLink, Outlet, useOutletContext, useParams } from "react-router";
-import { ArrowLeftIcon, ArrowRightLeftIcon, Building2Icon, WalletIcon, ContactIcon, FileSignatureIcon, GaugeIcon, HistoryIcon, HouseIcon, LandmarkIcon, LayoutGridIcon, PackageIcon, PrinterIcon, ReceiptTextIcon, SettingsIcon, UsersIcon, WrenchIcon } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightLeftIcon, Building2Icon, WalletIcon, ContactIcon, FileSignatureIcon, FileTextIcon, GaugeIcon, HistoryIcon, HouseIcon, LandmarkIcon, LayoutGridIcon, PackageIcon, PrinterIcon, ReceiptTextIcon, SettingsIcon, UsersIcon, WrenchIcon } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { type CompanyDetail, useCompany } from "@/api/company";
 import { ErrorAlert, PageSpinner } from "@/components/states";
@@ -23,6 +23,7 @@ export const COMPANY_NAV: NavItem[] = [
   { to: "billing", label: "청구 대기", icon: <ReceiptTextIcon />, show: (d) => can("contracts")(d) && d.me.showAmounts },
   { to: "readings", label: "검침", icon: <GaugeIcon />, show: can("assets") },
   { to: "services", label: "A/S", icon: <WrenchIcon />, show: can("assets") },
+  { to: "docs", label: "문서함", icon: <FileTextIcon />, show: can("docs") },
   { to: "money", label: "돈 (미수·장부)", icon: <WalletIcon />, show: (d) => can("money")(d) && d.me.showAmounts },
   { to: "items", label: "품목·재고", icon: <PackageIcon />, show: can("items") },
   { to: "accounts", label: "계좌", icon: <LandmarkIcon />, show: can("money") },

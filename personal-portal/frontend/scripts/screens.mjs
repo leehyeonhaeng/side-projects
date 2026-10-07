@@ -97,6 +97,15 @@ const SCREENS = [
   ["company-service-open", "/company/cp1/services/sv1", async (p) => p.getByRole("button", { name: "부품 추가" }).click()],
   ["company-service-done", "/company/cp1/services/sv2"],
   ["company-asset-rented", "/company/cp1/assets/as1"],
+  // C5 문서·라벨·직인
+  ["company-docs", "/company/cp1/docs"],
+  ["company-doc-sheet", "/company/cp1/docs", async (p) => p.getByRole("button", { name: /R-2026-0003/ }).click()],
+  ["company-invoice", "/company/cp1/docs/invoice?partner=pa2"],
+  ["company-labels", "/company/cp1/labels?ids=as1,as3"],
+  ["company-labels-roll", "/company/cp1/labels?ids=as1", async (p) => p.getByLabel("용지").selectOption("roll-50x30")],
+  ["company-txn-docs", "/company/cp1/txns/x/tx2"],
+  ["company-settings-seal", "/company/cp1/settings"],
+  ["company-partner-docs", "/company/cp1/partners/pa2"],
 ];
 
 /** 페이지 안에서 실행: 문제 요소 찾기 */

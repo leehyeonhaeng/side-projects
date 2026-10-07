@@ -541,3 +541,46 @@ export function useRentalMutations(cid: string) {
     cancelService: useMutation(m(({ id, reason }: { id: string; reason: string }) => api.post<{ service: Service }>(`${base}/services/${id}/cancel`, { reason }))),
   };
 }
+
+// ── C5 문서·라벨·직인 (backend/domains/company_docs.py) ──
+
+export type DocType = "receipt" | "statement" | "invoice" | "work";
+export const DOC_LABEL: Record<DocType, string> = { receipt: "영수증", statement: "거래명세서", invoice: "청구서", work: "작업 확인서" };
+export type DocSource = { kind: "txn" | "service"; id: string; date?: string; no: string };
+export type Doc = { id: string; no: string; type: DocType; title: string; date: string; partnerId: string; partnerName: string; sources: DocSource[]; total?: number; canceled: boolean; sealVersion: string; issuedBy: string; issuedAt: string };
+export type PdfFile = { filename: string; contentType: string; data: string; url?: string; canceled?: boolean; no?: string };
+export type LabelKind = "a4-21" | "a4-24" | "a4-14" | "roll-50x30" | "roll-60x40" | "roll-40x30";
+export const LABEL_KINDS: { id: LabelKind; label: string; per?: number; cols?: number }[] = [
+  { id: "a4-21", label: "A4 21칸 (3×7, 63.5×38.1mm)", per: 21, cols: 3 },
+  { id: "a4-24", label: "A4 24칸 (3×8, 63.5×33.9mm)", per: 24, cols: 3 },
+  { id: "a4-14", label: "A4 14칸 (2×7, 99.1×38.1mm)", per: 14, cols: 2 },
+  { id: "roll-50x30", label: "라벨 프린터 50×30mm" },
+  { id: "roll-60x40", label: "라벨 프린터 60×40mm" },
+  { id: "roll-40x30", label: "라벨 프린터 40×30mm" },
+];
+
+export function useDocs(cid: string, params: { type?: string; partnerId?: string; source?: string } = {}, enabled = true) {
+  const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+  return useQuery({ queryKey: sub(cid, "docs", q), queryFn: () => api.get<{ docs: Doc[] }>(`/company/${cid}/docs?${q}`), select: (d) => d.docs, enabled });
+}
+export function useSeal(cid: string) {
+  return useQuery({ queryKey: sub(cid, "seal"), queryFn: () => api.get<{ data: string | null; updatedAt?: string }>(`/company/${cid}/seal`) });
+}
+
+type InvoiceInput = { partnerId: string; date: string; txns: { date: string; id: string }[]; previous: boolean; counters: boolean; bank: boolean; memo: string };
+type LabelsInput = { assetIds: string[]; kind: LabelKind; start: number; nudgeX: number; nudgeY: number; outline: boolean; baseUrl: string };
+
+export function useDocMutations(cid: string) {
+  const qc = useQueryClient();
+  const settled = () => void qc.invalidateQueries({ queryKey: ["company", cid, "docs"] });
+  const base = `/company/${cid}`;
+  return {
+    issue: useMutation({ mutationFn: (body: { type: "receipt" | "statement" | "work"; txnDate?: string; txnId?: string; serviceId?: string }) => api.post<{ doc: Doc; created: boolean }>(`${base}/docs`, body), onSettled: settled }),
+    invoice: useMutation({ mutationFn: (body: InvoiceInput) => api.post<{ doc: Doc; created: boolean }>(`${base}/docs/invoice`, body), onSettled: settled }),
+    pdf: useMutation({ mutationFn: (id: string) => api.get<PdfFile>(`${base}/docs/${id}/pdf`) }),
+    ledger: useMutation({ mutationFn: (body: { partnerId: string; from: string; to: string }) => api.post<PdfFile>(`${base}/print/ledger`, body) }),
+    labels: useMutation({ mutationFn: (body: LabelsInput) => api.post<PdfFile>(`${base}/print/labels`, body) }),
+    putSeal: useMutation({ mutationFn: (data: string) => api.put<{ data: string; updatedAt: string }>(`${base}/seal`, { data }), onSettled: () => void qc.invalidateQueries({ queryKey: ["company", cid, "seal"] }) }),
+    deleteSeal: useMutation({ mutationFn: () => api.del(`${base}/seal`), onSettled: () => void qc.invalidateQueries({ queryKey: ["company", cid, "seal"] }) }),
+  };
+}

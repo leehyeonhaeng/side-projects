@@ -1,0 +1,4 @@
+# 행컴퍼니 문서 레이어 (company Lambda, build_ai_layer.py가 같이 빌드). PDF·라벨 QR(reportlab), 직인 이미지(pillow)
+# 글꼴은 fonts/ (Pretendard, SIL OFL)를 레이어의 /opt/fonts 로 복사한다
+reportlab==5.0.1
+pillow==12.3.0

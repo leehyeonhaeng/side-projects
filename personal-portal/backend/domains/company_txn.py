@@ -733,6 +733,9 @@ def cancel_txn(cid: str, day: str, tid: str) -> dict[str, Any]:
             tx.update(skey, "SET needsBilling = :y REMOVE chargeTxn", None, {":y": True, ":t": tid}, "chargeTxn.id = :t", "A/S 기록이 바뀌었습니다")
     if txn.get("contractId"):
         _cancel_contract(cid, txn, tx)
+    # 이 거래로 발행한 문서(영수증·명세서·청구서·작업 확인서)에 취소 표시 → 다시 받으면 "취소됨" 판
+    for ref in query_all(KeyConditionExpression=Key("PK").eq(pk(cid)) & Key("SK").begins_with(f"DOCSRC#{tid}#")):
+        tx.update({"PK": pk(cid), "SK": f"DOC#{ref['docId']}"}, "SET canceled = :y", values={":y": True})
 
     ver = txn["ver"]
     done = {**txn, "status": "canceled", "canceledBy": ctx.sub, "canceledAt": now_iso(), "cancelReason": reason, "ver": ver + 1}

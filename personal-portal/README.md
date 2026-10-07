@@ -13,6 +13,7 @@
 - 2026-10-01: Phase 3 완료 (홈 위젯 그리드·편집 모드·섹션·테마·하단 바·빠른 추가 틀·설정, PC↔폰 레이아웃 동기화 확인)
 - 2026-10-01: Phase 4 완료 (할 일·캘린더·반복·예정 회차 미리보기·공휴일·홈 위젯 연결)
 - 2026-10-01: Phase 5 완료 (식단 + AI 칼로리 추정(Bedrock Claude Haiku 4.5), 체중, 운동(러닝·헬스·훈련 프로그램), 순섭취량)
+- 2026-10-07: 행컴퍼니 C5 — 직인 PDF(영수증·거래명세서·청구서·작업 확인서) 발행·보관·공유·인쇄, 거래처 원장, 기기 라벨 QR(A4·라벨 프린터), 직인 올리기 (dev)
 - 2026-10-07: 행컴퍼니 C4 — 임대 계약(출고·기기 추가·수거), 청구 대기(일할·초과 매수 제안 → 확인 후 발행), 카운터 검침, A/S 접수·완료 (dev)
 - 2026-10-07: 행컴퍼니 C3 — 거래 엔진(판매·매입·임대 출고/수거·입금 배분·지급·경비·재고 조정·취소), 미수·선수금, 회사 장부, 월 마감 (dev)
 - 2026-10-06: 행컴퍼니 C2 — 거래처, 품목(기기 모델·소모품)·재고, 기기 기초 등록(고유번호 자동)·상태·이력, 계좌 (dev)
@@ -79,8 +80,10 @@ side-projects/
    ├─ backend/                Python Lambda (한 패키지를 4개 함수가 공유)
    │  ├─ handlers/            personal, shared, admin, ai, auth_trigger(Cognito)
    │  ├─ common/              여러 Lambda 공통: 앱 골격, 권한 미들웨어(access), 모듈·권한(perms), 사용자·활동 로그, 검증·직렬화
-│  ├─ domains/             도메인 로직·라우터 (todos, events, recurrence, meals, weights, exercise, notes, ledger, hub, boards, checklists, sharing, company_core, company_master, company_txn, company_rental, company_service, ai) → handlers에서 include
+│  ├─ domains/             도메인 로직·라우터 (todos, events, recurrence, meals, weights, exercise, notes, ledger, hub, boards, checklists, sharing, company_core, company_master, company_txn, company_rental, company_service, company_docs, company_pdf, ai) → handlers에서 include
 │  ├─ requirements-ai.txt  ai Lambda 전용 레이어 의존성 (build_ai_layer.py로 빌드)
+│  ├─ requirements-doc.txt company Lambda 문서 레이어 의존성 (reportlab·pillow, 같은 스크립트로 빌드)
+│  ├─ fonts/               문서 PDF 글꼴 Pretendard (SIL OFL, 레이어의 /opt/fonts)
    │  ├─ scripts/             seed_company_demo.py: 행컴퍼니 데모 회사 생성 (dev 전용, 실제 company 코드로 거래 입력)
    │  └─ tests/
    ├─ infra/
@@ -105,7 +108,7 @@ aws sts get-caller-identity          # 계정 확인 후 진행
 | 작업 | 방법 |
 |---|---|
 | terraform 변수 | `infra/bootstrap`, `infra/envs/dev`, `infra/envs/prod`의 `terraform.tfvars.example`을 `terraform.tfvars`로 복사해 이메일 입력 (git 제외) |
-| ai Lambda 레이어 | **terraform plan 전에** `python backend/build_ai_layer.py <dev|prod>` (결과는 `infra/envs/<env>/.build/`, git 제외). CI는 자동 |
+| Lambda 레이어 (ai·문서) | **terraform plan 전에** `python backend/build_ai_layer.py <dev|prod>` (ai-layer·doc-layer, 결과는 `infra/envs/<env>/.build/`, git 제외). CI는 자동 |
 | 백엔드 테스트 | `cd backend` → `python -m venv .venv` → `.venvScriptspip install -r requirements-dev.txt` → `.venvScriptspytest` |
 | 프론트 로컬 실행 | `frontend/.env.example`을 `.env.development.local`로 복사해 `terraform output`의 `api_endpoint`, `user_pool_id`, `user_pool_client_id` 입력 → `npm install` → `npm run dev` |
 | dev 배포 | main에 push하면 `portal-deploy.yml`이 자동 배포 (GitHub Secrets: `AWS_ROLE_ARN`, `HOST_EMAIL`) |

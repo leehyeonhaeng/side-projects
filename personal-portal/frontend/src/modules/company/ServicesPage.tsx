@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
-import { ArrowLeftIcon, PlusIcon, XIcon } from "lucide-react";
+import { ArrowLeftIcon, FileTextIcon, PlusIcon, XIcon } from "lucide-react";
 import { SERVICE_STATUS_LABEL, type Service, type ServiceStatus, useAssets, useItems, usePartners, useRentalMutations, useService, useServices, useStaff } from "@/api/company";
 import { NativeSelect } from "@/components/NativeSelect";
 import { ErrorAlert, FormError, InlineSpinner } from "@/components/states";
@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatDay, todayStr } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { useCompanyOutlet } from "./CompanyLayout";
+import { useDocFlow } from "./DocsPage";
 import { type DraftLine, TxnLinesEditor, newLine, toLineInput } from "./TxnLinesEditor";
 import { TxnRow } from "./TxnsPage";
 import { Chip, Field, PageHead, Search, matches } from "./ui";
@@ -352,8 +353,22 @@ export function ServiceDetailPage() {
         </form>
       )}
       {s.status === "open" && canEdit && <CancelService cid={cid} id={s.id} />}
+      {s.status === "done" && (me.perms.docs === "edit" || canEdit) && <WorkDoc cid={cid} id={s.id} />}
       {s.status === "done" && txn && <p className="text-xs text-muted-foreground">완료를 되돌리려면 A/S 거래를 취소하세요 (부품 재고도 돌아옵니다).</p>}
     </main>
+  );
+}
+
+function WorkDoc({ cid, id }: { cid: string; id: string }) {
+  const flow = useDocFlow(cid);
+  return (
+    <div className="grid justify-items-start gap-2">
+      <Button size="sm" variant="outline" disabled={flow.busy} onClick={() => flow.issueAndOpen({ type: "work", serviceId: id })}>
+        <FileTextIcon /> 작업 확인서 (고객 서명용)
+      </Button>
+      <ErrorAlert error={flow.error} />
+      {flow.sheet}
+    </div>
   );
 }
 

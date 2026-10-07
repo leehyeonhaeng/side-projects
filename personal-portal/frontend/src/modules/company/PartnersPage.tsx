@@ -1,8 +1,9 @@
 import { type ReactNode, useState } from "react";
 import { Link, useParams } from "react-router";
-import { ArrowLeftIcon, MapPinIcon, PhoneIcon, PlusIcon } from "lucide-react";
+import { ArrowLeftIcon, FileTextIcon, MapPinIcon, PhoneIcon, PlusIcon } from "lucide-react";
 import { type Partner, type PartnerInput, type PartnerKind, PARTNER_KIND_LABEL, billingDayLabel, useContracts, useMasterMutations, usePartner, usePartners, useServices, useTxns } from "@/api/company";
 import { ContractBadge } from "./ContractsPage";
+import { LedgerDialog } from "./DocsPage";
 import { ServiceRow } from "./ServicesPage";
 import { TxnRow } from "./TxnsPage";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -94,7 +95,9 @@ export function PartnerDetailPage() {
   const { pid = "" } = useParams();
   const data = usePartner(cid, pid);
   const [editing, setEditing] = useState(false);
+  const [ledger, setLedger] = useState(false);
   const canEdit = detail.me.perms.partners === "edit";
+  const me = detail.me;
 
   if (data.isPending) return <main className="p-4"><InlineSpinner /></main>;
   if (data.isError) return <main className="p-4"><ErrorAlert error={data.error} /></main>;
@@ -142,6 +145,21 @@ export function PartnerDetailPage() {
         {p.memo && <p className="whitespace-pre-wrap rounded-lg bg-muted/50 p-2 text-muted-foreground">{p.memo}</p>}
       </section>
       <PartnerQuickActions cid={cid} pid={p.id} kind={p.kind} />
+      {me.showAmounts && (me.perms.money !== "none" || me.perms.docs === "edit") && (
+        <div className="flex flex-wrap gap-1.5">
+          {me.perms.money !== "none" && (
+            <Button size="sm" variant="ghost" onClick={() => setLedger(true)}>
+              <FileTextIcon /> 원장 출력
+            </Button>
+          )}
+          {me.perms.docs === "edit" && p.kind !== "supplier" && (
+            <Button size="sm" variant="ghost" nativeButton={false} render={<Link to={`/company/${cid}/docs/invoice?partner=${p.id}`} />}>
+              <FileTextIcon /> 청구서 만들기
+            </Button>
+          )}
+        </div>
+      )}
+      {ledger && <LedgerDialog cid={cid} partnerId={p.id} onClose={() => setLedger(false)} />}
       <section className="grid gap-2">
         <h2 className="text-sm font-medium">나가 있는 기기 {assets.length}대</h2>
         {assets.length === 0 ? (

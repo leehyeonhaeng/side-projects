@@ -82,6 +82,11 @@ def aws(monkeypatch: pytest.MonkeyPatch) -> Iterator[dict[str, str]]:
                 }
             ],
         )
+        # 행컴퍼니 문서 버킷 (버전 관리: 직인 버전을 문서에 고정)
+        monkeypatch.setenv("DOCS_BUCKET", "portal-test-docs")
+        s3 = boto3.client("s3")
+        s3.create_bucket(Bucket="portal-test-docs", CreateBucketConfiguration={"LocationConstraint": "ap-northeast-2"})
+        s3.put_bucket_versioning(Bucket="portal-test-docs", VersioningConfiguration={"Status": "Enabled"})
         idp = boto3.client("cognito-idp")
         pool_id = idp.create_user_pool(PoolName="test")["UserPool"]["Id"]
         idp.create_group(UserPoolId=pool_id, GroupName="host")

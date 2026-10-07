@@ -39,11 +39,16 @@ export function AssetsPage() {
         title="기기"
         sub={`임대 중 ${count("rented")} · 창고 ${count("in_stock")} · 수리 ${count("repair")}`}
         action={
-          canEdit && (
-            <Button onClick={() => setRegistering(true)} disabled={!items.data}>
-              <PlusIcon /> 기기 등록
+          <div className="flex gap-2">
+            <Button variant="outline" nativeButton={false} render={<Link to={`/company/${cid}/labels`} />}>
+              라벨 출력
             </Button>
-          )
+            {canEdit && (
+              <Button onClick={() => setRegistering(true)} disabled={!items.data}>
+                <PlusIcon /> 기기 등록
+              </Button>
+            )}
+          </div>
         }
       />
       <Search value={q} onChange={setQ} placeholder="고유번호·제조번호·모델·거래처 검색" />
@@ -285,6 +290,9 @@ export function AssetDetailPage() {
               A/S 접수
             </Button>
           )}
+          <Button size="sm" variant="outline" nativeButton={false} render={<Link to={`/company/${cid}/labels?ids=${a.id}`} />}>
+            라벨
+          </Button>
           <ConfirmButton size="sm" variant="ghost" className="ml-auto" title="기기를 삭제할까요?" description="잘못 등록한 기기만 지울 수 있습니다. 이력이 있으면 '폐기'로 바꾸세요." confirmLabel="삭제" onConfirm={() => mut.deleteAsset.mutateAsync(a.id).then(() => navigate(`/company/${cid}/assets`))}>
             삭제
           </ConfirmButton>

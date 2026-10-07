@@ -12,6 +12,8 @@ import { AssetDetailPage, AssetsPage } from "./modules/company/AssetsPage";
 import { BillingPage } from "./modules/company/BillingPage";
 import { ContractEditPage, ContractReturnPage, RentalOutPage } from "./modules/company/ContractFormPages";
 import { ContractDetailPage, ContractsPage } from "./modules/company/ContractsPage";
+import { DocsPage, InvoiceNewPage } from "./modules/company/DocsPage";
+import { LabelsPage } from "./modules/company/LabelsPage";
 import { ReadingsPage } from "./modules/company/ReadingsPage";
 import { ServiceDetailPage, ServiceNewPage, ServicesPage } from "./modules/company/ServicesPage";
 import { CompanyAuditPage } from "./modules/company/CompanyAuditPage";
@@ -80,6 +82,9 @@ export const router = createBrowserRouter([
       { path: "services", element: <ServicesPage /> },
       { path: "services/new", element: <ServiceNewPage /> },
       { path: "services/:sid", element: <ServiceDetailPage /> },
+      { path: "docs", element: <DocsPage /> },
+      { path: "docs/invoice", element: <InvoiceNewPage /> },
+      { path: "labels", element: <LabelsPage /> },
     ],
   },
   { path: "/mfa-setup", element: <RequireAuth><MfaSetupPage /></RequireAuth> },
