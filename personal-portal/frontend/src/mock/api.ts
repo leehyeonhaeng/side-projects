@@ -138,7 +138,7 @@ const cpItems = [
   { id: "it8", name: "D420 정착기 유닛", tracking: "stock", category: "부품", unit: "개", price: 320000, qty: 1, minStock: 1, compatibleWith: ["it1"], active: true, createdAt: now },
 ];
 const cpAssets = [
-  { id: "as1", code: "A-000001", itemId: "it1", itemName: "신도리코 D420 컬러복합기", serial: "SD420-23A0001", status: "rented", partnerId: "pa1", partnerName: "서울중앙초등학교", location: "", acquiredAt: "2025-03-02", cost: 3200000, memo: "", createdAt: now },
+  { id: "as1", code: "A-000001", itemId: "it1", itemName: "신도리코 D420 컬러복합기", serial: "SD420-23A0001", status: "rented", partnerId: "pa1", partnerName: "서울중앙초등학교", location: "", acquiredAt: "2025-03-02", cost: 3200000, memo: "", contractId: "k1", lastReading: { date: d(-12), mono: 48210, color: 12055, note: "" }, createdAt: now },
   { id: "as2", code: "A-000002", itemId: "it1", itemName: "신도리코 D420 컬러복합기", serial: "SD420-23A0002", status: "rented", partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", location: "", cost: 3200000, memo: "", createdAt: now },
   { id: "as3", code: "A-000003", itemId: "it1", itemName: "신도리코 D420 컬러복합기", serial: "", status: "in_stock", location: "본사 창고 2층", memo: "", createdAt: now },
   { id: "as4", code: "A-000004", itemId: "it1", itemName: "신도리코 D420 컬러복합기", serial: "SD420-23A0004", status: "repair", location: "수리실", memo: "급지 불량", createdAt: now },
@@ -150,6 +150,37 @@ const cpAccounts = [
   { id: "ac2", name: "현금 시재", kind: "cash", active: true, openingBalance: 300000, balance: 185000, createdAt: now },
 ];
 
+
+// 행컴퍼니 C4 계약·청구·검침·A/S
+const machine = (assetId: string, code: string, itemName: string, extra: object) => ({ assetId, code, itemName, startedAt: d(-200), startMono: 20000, startColor: 5000, billedMono: 46500, billedColor: 11800, billedReadAt: d(-40), counter: false, freeMono: 0, freeColor: 0, monthly: 0, overMono: 0, overColor: 0, ...extra });
+const cpContracts = [
+  { id: "k1", no: "C-2026-0001", partnerId: "pa1", partnerName: "서울중앙초등학교", status: "active", startDate: d(-200), billingDay: 25, vatMode: "excluded", memo: "교무실·행정실", billedThrough: "2026-09", createdAt: now, termEnd: d(20),
+    machines: { as1: machine("as1", "A-000001", "신도리코 D420 컬러복합기", { monthly: 120000, counter: true, freeMono: 1000, freeColor: 300, overMono: 10, overColor: 80 }), as5: machine("as5", "A-000005", "캐논 iR2630 흑백복합기", { monthly: 60000, endedAt: d(-30) }) } },
+  { id: "k2", no: "C-2026-0002", partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", status: "active", startDate: d(-90), billingDay: 31, vatMode: "excluded", memo: "", billedThrough: "2026-08", createdAt: now,
+    machines: { as2: machine("as2", "A-000002", "신도리코 D420 컬러복합기", { monthly: 150000 }) } },
+  { id: "k3", no: "C-2025-0007", partnerId: "pa2", partnerName: "한빛정형외과의원", status: "ended", startDate: "2025-04-01", endedAt: d(-60), billingDay: 10, vatMode: "included", memo: "", billedThrough: "2026-08", createdAt: now, machines: {} },
+];
+const pendingBills = [
+  { contractId: "k2", contractNo: "C-2026-0002", partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", month: "2026-09", dueOn: "2026-09-30", final: false, behind: 2, counters: [],
+    lines: [{ name: "9월 임대료 A-000002 신도리코 D420 컬러복합기", qty: 1, unitPrice: 150000, vatMode: "excluded", memo: "" }], warnings: [] },
+  { contractId: "k1", contractNo: "C-2026-0001", partnerId: "pa1", partnerName: "서울중앙초등학교", month: "2026-10", dueOn: d(-1), final: false, behind: 1,
+    counters: [{ assetId: "as1", code: "A-000001", fromMono: 46500, toMono: 48210, fromColor: 11800, toColor: 12055, readAt: d(-12) }],
+    lines: [
+      { name: "10월 임대료 A-000001 신도리코 D420 컬러복합기", qty: 1, unitPrice: 120000, vatMode: "excluded", memo: "" },
+      { name: "A-000001 흑백 초과 710매", qty: 710, unitPrice: 10, vatMode: "excluded", memo: "사용 1,710매 − 기본 1,000매" },
+      { name: "A-000005 캐논 iR2630 흑백복합기 일할 임대료가 붙은 아주 긴 줄 이름", qty: 1, unitPrice: 26000, vatMode: "excluded", memo: "일할 13/30일 (월 60,000원)" },
+    ],
+    warnings: ["검침 없음: A-000009 (지난 청구 이후)"] },
+];
+const readingRows = [
+  { contractId: "k1", contractNo: "C-2026-0001", partnerId: "pa1", partnerName: "서울중앙초등학교", billingDay: 25, assetId: "as1", code: "A-000001", itemName: "신도리코 D420 컬러복합기", color: true, lastReading: { date: d(-50), mono: 46500, color: 11800 }, billedMono: 46500, billedColor: 11800, billedReadAt: d(-40) },
+  { contractId: "k2", contractNo: "C-2026-0002", partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", billingDay: 31, assetId: "as2", code: "A-000002", itemName: "신도리코 D420 컬러복합기", color: false, billedMono: 0, billedColor: 0, billedReadAt: d(-90) },
+];
+const cpServices = [
+  { id: "sv1", no: "AS-2026-0012", status: "open", date: T, partnerId: "pa1", partnerName: "서울중앙초등학교", assetId: "as1", assetCode: "A-000001", itemName: "신도리코 D420 컬러복합기", symptom: "용지 걸림이 하루에도 여러 번, 2단 카세트에서 소리가 남", contact: "행정실 김주무관 010-0000-0000", assignee: "u6", assigneeName: "박기사", createdAt: now },
+  { id: "sv2", no: "AS-2026-0011", status: "done", date: d(-3), partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", assetId: "as2", assetCode: "A-000002", itemName: "신도리코 D420 컬러복합기", symptom: "인쇄물 세로 줄", contact: "", needsBilling: true, done: { date: d(-2), action: "드럼 청소, 정착기 점검", by: "u6", at: now }, txn: { id: "tx7", date: d(-2), no: "T-2026-00013" }, createdAt: now },
+  { id: "sv3", no: "AS-2026-0010", status: "canceled", date: d(-9), partnerId: "pa2", partnerName: "한빛정형외과의원", symptom: "토너 교체 요청", contact: "", cancelReason: "고객이 직접 교체", createdAt: now },
+];
 
 // 행컴퍼니 C3 거래
 const cpTxns = [
@@ -258,6 +289,16 @@ const GET: [RegExp, Handler][] = [
     accounts: cpAccounts.map((a) => ({ id: a.id, name: a.name, balance: a.balance })),
   })],
   [/^\/company\/[^/]+\/closes$/, () => ({ closes: [{ month: "2026-08", closedAt: now }] })],
+  [/^\/company\/[^/]+\/contracts$/, (q) => ({ contracts: cpContracts.filter((c) => (!q.get("partnerId") || c.partnerId === q.get("partnerId")) && (!q.get("status") || c.status === q.get("status"))) })],
+  [/^\/company\/[^/]+\/contracts\/[^/]+$/, (_q, p) => {
+    const c = cpContracts.find((x) => x.id === p[3]) ?? cpContracts[0]!;
+    return { contract: c, txns: cpTxns.filter((t) => t.partnerId === c.partnerId), pending: pendingBills.find((b) => b.contractId === c.id) ?? null };
+  }],
+  [/^\/company\/[^/]+\/billing$/, () => ({ pending: pendingBills })],
+  [/^\/company\/[^/]+\/readings$/, () => ({ rows: readingRows })],
+  [/^\/company\/[^/]+\/services$/, (q) => ({ services: cpServices.filter((x) => (!q.get("status") || x.status === q.get("status")) && (!q.get("partnerId") || x.partnerId === q.get("partnerId"))) })],
+  [/^\/company\/[^/]+\/services\/[^/]+$/, (_q, p) => ({ service: cpServices.find((x) => x.id === p[3]) ?? cpServices[0], txn: null })],
+  [/^\/company\/[^/]+\/staff$/, () => ({ staff: [{ sub: "mock-host", name: "이현행" }, { sub: "u5", name: "김경리" }, { sub: "u6", name: "박기사" }] })],
   [/^\/health$/, () => ({ status: "ok", service: "mock" })],
 ];
 

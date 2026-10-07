@@ -204,9 +204,12 @@ export type Asset = {
   acquiredAt?: string;
   cost?: number;
   memo: string;
+  contractId?: string; // 계약에 묶여 임대 중
+  lastReading?: Reading;
   createdAt: string;
 };
-export type AssetLog = { at: string; actor: string; action: string; from?: string; to?: string; note?: string; partnerId?: string; partnerName?: string; txnNo?: string };
+export type Reading = { date: string; mono: number; color: number; note?: string };
+export type AssetLog = { at: string; actor: string; action: string; from?: string; to?: string; note?: string; partnerId?: string; partnerName?: string; txnNo?: string; contractNo?: string; serviceNo?: string; mono?: number; color?: number; date?: string };
 
 export type AccountKind = "cash" | "bank" | "card";
 export const ACCOUNT_KIND_LABEL: Record<AccountKind, string> = { cash: "현금", bank: "은행", card: "카드" };
@@ -259,7 +262,7 @@ export const ITEM_CATEGORIES = ["복합기", "프린터", "플로터", "토너",
 
 // ── C3 거래 (backend/domains/company_txn.py) ──
 
-export type TxnType = "sale" | "charge" | "purchase" | "rental_out" | "rental_return" | "receipt" | "payment" | "expense" | "adjust";
+export type TxnType = "sale" | "charge" | "purchase" | "rental_out" | "rental_return" | "receipt" | "payment" | "expense" | "adjust" | "service";
 export const TXN_LABEL: Record<TxnType, string> = {
   sale: "판매",
   charge: "청구",
@@ -270,6 +273,7 @@ export const TXN_LABEL: Record<TxnType, string> = {
   payment: "지급",
   expense: "경비",
   adjust: "재고 조정",
+  service: "A/S",
 };
 export const TXN_TONE: Record<TxnType, string> = {
   sale: "text-sky-700 bg-sky-100 dark:text-sky-300 dark:bg-sky-400/15",
@@ -281,8 +285,9 @@ export const TXN_TONE: Record<TxnType, string> = {
   payment: "text-rose-700 bg-rose-100 dark:text-rose-300 dark:bg-rose-400/15",
   expense: "text-rose-700 bg-rose-100 dark:text-rose-300 dark:bg-rose-400/15",
   adjust: "text-zinc-700 bg-zinc-200 dark:text-zinc-300 dark:bg-zinc-500/20",
+  service: "text-orange-700 bg-orange-100 dark:text-orange-300 dark:bg-orange-400/15",
 };
-export const CHARGE_TYPES: TxnType[] = ["sale", "charge", "rental_out", "rental_return"];
+export const CHARGE_TYPES: TxnType[] = ["sale", "charge", "rental_out", "rental_return", "service"];
 
 export type TxnLine = { itemId?: string; name: string; unit?: string; qty: number; unitPrice?: number; vatMode?: VatMode; supply?: number; vat?: number; total?: number; manual?: boolean; memo: string; assetIds?: string[] };
 export type Link = { txnId: string; date: string; amount: number; no?: string };
@@ -311,6 +316,12 @@ export type Txn = {
   assetNames?: string[];
   category?: string;
   memo: string;
+  contractId?: string;
+  contractNo?: string;
+  contractOp?: "create" | "add" | "return";
+  billMonth?: string;
+  serviceId?: string;
+  serviceNo?: string;
   createdBy: string;
   createdAt: string;
   canceledAt?: string;
@@ -329,6 +340,7 @@ export type TxnInput = {
   allocations?: { txnId: string; date: string; amount: number }[];
   payNow?: { accountId: string };
   category?: string;
+  serviceId?: string;
   memo: string;
 };
 export type OpenCharge = { id: string; no: string; date: string; type: TxnType; total: number; paid: number; open: number; summary: string };
@@ -387,3 +399,145 @@ export function priceLine(qty: number, unitPrice: number, mode: VatMode): { supp
 }
 
 export const EXPENSE_CATEGORIES = ["임차료", "인건비", "유류비", "차량유지비", "통신비", "소모품비", "수리비", "운반비", "식대", "세금과공과", "기타"];
+
+// ── C4 임대 계약·정기 청구·검침·A/S (backend/domains/company_rental.py, company_service.py) ──
+
+export type Terms = { monthly?: number; counter: boolean; freeMono: number; freeColor: number; overMono?: number; overColor?: number };
+export type ContractMachine = Terms & {
+  assetId: string;
+  code: string;
+  itemName: string;
+  startedAt: string;
+  endedAt?: string;
+  startMono: number;
+  startColor: number;
+  billedMono: number;
+  billedColor: number;
+  billedReadAt: string;
+  endMono?: number;
+  endColor?: number;
+};
+export type ContractStatus = "active" | "ended" | "canceled";
+export const CONTRACT_STATUS_LABEL: Record<ContractStatus, string> = { active: "진행 중", ended: "종료", canceled: "취소" };
+export type Contract = {
+  id: string;
+  no: string;
+  partnerId: string;
+  partnerName: string;
+  status: ContractStatus;
+  startDate: string;
+  endedAt?: string;
+  termEnd?: string;
+  billingDay: number;
+  vatMode: VatMode;
+  memo: string;
+  machines: Record<string, ContractMachine>;
+  billedThrough: string;
+  createdAt: string;
+};
+export type PendingLine = { name: string; qty: number; unitPrice: number; vatMode: VatMode; memo: string };
+export type PendingBill = {
+  contractId: string;
+  contractNo: string;
+  partnerId: string;
+  partnerName: string;
+  month: string;
+  dueOn: string;
+  final: boolean;
+  behind: number;
+  lines: PendingLine[];
+  counters: { assetId: string; code: string; fromMono: number; toMono: number; fromColor: number; toColor: number; readAt: string }[];
+  warnings: string[];
+};
+export type ReadingRow = {
+  contractId: string;
+  contractNo: string;
+  partnerId: string;
+  partnerName: string;
+  billingDay: number;
+  assetId: string;
+  code: string;
+  itemName: string;
+  color: boolean;
+  lastReading?: Reading;
+  billedMono: number;
+  billedColor: number;
+  billedReadAt: string;
+};
+export type MachineInput = Terms & { assetId: string; startMono?: number; startColor?: number };
+export type ServiceStatus = "open" | "done" | "canceled";
+export const SERVICE_STATUS_LABEL: Record<ServiceStatus, string> = { open: "접수", done: "완료", canceled: "취소" };
+export type Service = {
+  id: string;
+  no: string;
+  status: ServiceStatus;
+  date: string;
+  partnerId: string;
+  partnerName: string;
+  assetId?: string;
+  assetCode?: string;
+  itemName?: string;
+  symptom: string;
+  contact: string;
+  assignee?: string;
+  assigneeName?: string;
+  done?: { date: string; action: string; by: string; at: string };
+  txn?: { id: string; date: string; no: string };
+  chargeTxn?: { id: string; date: string; no: string };
+  needsBilling?: boolean;
+  cancelReason?: string;
+  createdAt: string;
+};
+
+export const monthLabel = (ym: string) => `${Number(ym.slice(5, 7))}월`;
+export const billingDayLabel = (d: number) => (d >= 31 ? "말일" : `${d}일`);
+
+export function useContracts(cid: string, params: { partnerId?: string; status?: string } = {}, enabled = true) {
+  const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+  return useQuery({ queryKey: sub(cid, "contracts", q), queryFn: () => api.get<{ contracts: Contract[] }>(`/company/${cid}/contracts?${q}`), select: (d) => d.contracts, enabled });
+}
+export function useContract(cid: string, kid: string) {
+  return useQuery({ queryKey: sub(cid, "contracts", kid), queryFn: () => api.get<{ contract: Contract; txns: Txn[]; pending: PendingBill | null }>(`/company/${cid}/contracts/${kid}`) });
+}
+export function useBilling(cid: string, enabled = true) {
+  return useQuery({ queryKey: sub(cid, "billing"), queryFn: () => api.get<{ pending: PendingBill[] }>(`/company/${cid}/billing`), select: (d) => d.pending, enabled });
+}
+export function useReadings(cid: string, enabled = true) {
+  return useQuery({ queryKey: sub(cid, "readings"), queryFn: () => api.get<{ rows: ReadingRow[] }>(`/company/${cid}/readings`), select: (d) => d.rows, enabled });
+}
+export function useServices(cid: string, params: { status?: string; assetId?: string; partnerId?: string } = {}, enabled = true) {
+  const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+  return useQuery({ queryKey: sub(cid, "services", q), queryFn: () => api.get<{ services: Service[] }>(`/company/${cid}/services?${q}`), select: (d) => d.services, enabled });
+}
+export function useService(cid: string, sid: string) {
+  return useQuery({ queryKey: sub(cid, "services", sid), queryFn: () => api.get<{ service: Service; txn: Txn | null }>(`/company/${cid}/services/${sid}`) });
+}
+export function useStaff(cid: string) {
+  return useQuery({ queryKey: sub(cid, "staff"), queryFn: () => api.get<{ staff: { sub: string; name: string }[] }>(`/company/${cid}/staff`), select: (d) => d.staff, staleTime: 60_000 });
+}
+
+type TxnResult = { txn: Txn; related: Txn[]; createdAssets: Asset[] };
+type ContractBody = { partnerId: string; date: string; billingDay: number; vatMode: VatMode; termEnd?: string; machines: MachineInput[]; lines: LineInput[]; memo: string };
+type ReturnInput = { id: string; date: string; assetIds: string[]; readings: { assetId: string; mono: number; color?: number }[]; returnLocation: string; lines: LineInput[]; memo: string };
+type ContractPatch = { id: string; billingDay?: number; vatMode?: VatMode; termEnd?: string | null; memo?: string; machines?: Record<string, Partial<Terms>> };
+type BillResult = { contractId: string; month: string; ok: boolean; error?: string; txn?: { id: string; no: string; date: string; total?: number } };
+type ServiceDoneInput = { id: string; date: string; action: string; parts: LineInput[]; fees: LineInput[]; billable: boolean };
+
+export function useRentalMutations(cid: string) {
+  const qc = useQueryClient();
+  const settled = () => void qc.invalidateQueries({ queryKey: ["company", cid] });
+  const m = <V, R>(fn: (v: V) => Promise<R>) => ({ mutationFn: fn, onSettled: settled });
+  const base = `/company/${cid}`;
+  return {
+    createContract: useMutation(m((body: ContractBody) => api.post<TxnResult & { contract: Contract }>(`${base}/contracts`, body))),
+    addMachines: useMutation(m(({ id, ...body }: { id: string; date: string; machines: MachineInput[]; lines: LineInput[]; memo: string }) => api.post<TxnResult>(`${base}/contracts/${id}/machines`, body))),
+    returnMachines: useMutation(m(({ id, ...body }: ReturnInput) => api.post<TxnResult>(`${base}/contracts/${id}/return`, body))),
+    patchContract: useMutation(m(({ id, ...body }: ContractPatch) => api.patch<{ contract: Contract }>(`${base}/contracts/${id}`, body))),
+    issueBills: useMutation(m((items: { contractId: string; month: string; date: string; lines: LineInput[] }[]) => api.post<{ results: BillResult[] }>(`${base}/billing`, { items }))),
+    addReading: useMutation(m(({ assetId, ...body }: { assetId: string; date: string; mono: number; color?: number; fix?: boolean; memo?: string }) => api.post<{ lastReading: Reading }>(`${base}/assets/${assetId}/readings`, body))),
+    createService: useMutation(m((body: { partnerId: string; assetId?: string; date: string; symptom: string; contact: string; assignee?: string }) => api.post<{ service: Service }>(`${base}/services`, body))),
+    patchService: useMutation(m(({ id, ...body }: { id: string; symptom?: string; contact?: string; assignee?: string }) => api.patch<{ service: Service }>(`${base}/services/${id}`, body))),
+    completeService: useMutation(m(({ id, ...body }: ServiceDoneInput) => api.post<Partial<TxnResult> & { service: Service }>(`${base}/services/${id}/complete`, body))),
+    cancelService: useMutation(m(({ id, reason }: { id: string; reason: string }) => api.post<{ service: Service }>(`${base}/services/${id}/cancel`, { reason }))),
+  };
+}

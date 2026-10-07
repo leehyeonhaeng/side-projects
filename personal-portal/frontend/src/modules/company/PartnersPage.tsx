@@ -1,7 +1,9 @@
 import { type ReactNode, useState } from "react";
 import { Link, useParams } from "react-router";
 import { ArrowLeftIcon, MapPinIcon, PhoneIcon, PlusIcon } from "lucide-react";
-import { type Partner, type PartnerInput, type PartnerKind, PARTNER_KIND_LABEL, useMasterMutations, usePartner, usePartners, useTxns } from "@/api/company";
+import { type Partner, type PartnerInput, type PartnerKind, PARTNER_KIND_LABEL, billingDayLabel, useContracts, useMasterMutations, usePartner, usePartners, useServices, useTxns } from "@/api/company";
+import { ContractBadge } from "./ContractsPage";
+import { ServiceRow } from "./ServicesPage";
 import { TxnRow } from "./TxnsPage";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { NativeSelect } from "@/components/NativeSelect";
@@ -158,6 +160,8 @@ export function PartnerDetailPage() {
           </ul>
         )}
       </section>
+      {detail.me.perms.contracts !== "none" && p.kind !== "supplier" && <PartnerContracts cid={cid} pid={p.id} />}
+      {detail.me.perms.assets !== "none" && p.kind !== "supplier" && <PartnerServices cid={cid} pid={p.id} />}
       {detail.me.perms.txns !== "none" && <PartnerTxns cid={cid} pid={p.id} />}
       {editing && <PartnerDialog cid={cid} partner={p} onClose={() => setEditing(false)} />}
     </main>
@@ -170,7 +174,9 @@ function PartnerQuickActions({ cid, pid, kind }: { cid: string; pid: string; kin
   const me = detail.me;
   const acts: [string, string][] = [];
   if (kind !== "supplier") {
-    if (me.perms.txns === "edit" && me.perms.assets === "edit") acts.push(["rental_out", "임대 출고"], ["rental_return", "수거"]);
+    if (me.perms.contracts === "edit" && me.perms.assets === "edit") acts.push(["rental_out", "임대 출고"]);
+    if (me.perms.txns === "edit" && me.perms.assets === "edit") acts.push(["rental_return", "수거"]);
+    if (me.perms.assets === "edit") acts.push(["service", "A/S 접수"]);
     if (me.perms.txns === "edit" && me.showAmounts) acts.push(["charge", "청구"], ["sale", "판매"]);
     if (me.perms.money === "edit" && me.showAmounts) acts.push(["receipt", "입금 받기"]);
   }
@@ -182,11 +188,52 @@ function PartnerQuickActions({ cid, pid, kind }: { cid: string; pid: string; kin
   return (
     <div className="flex flex-wrap gap-1.5">
       {acts.map(([type, label]) => (
-        <Button key={type} size="sm" variant="outline" nativeButton={false} render={<Link to={`/company/${cid}/txns/new?type=${type}&partner=${pid}`} />}>
+        <Button key={type} size="sm" variant="outline" nativeButton={false} render={<Link to={type === "service" ? `/company/${cid}/services/new?partner=${pid}` : `/company/${cid}/txns/new?type=${type}&partner=${pid}`} />}>
           {label}
         </Button>
       ))}
     </div>
+  );
+}
+
+function PartnerContracts({ cid, pid }: { cid: string; pid: string }) {
+  const contracts = useContracts(cid, { partnerId: pid });
+  const shown = (contracts.data ?? []).filter((c) => c.status !== "canceled");
+  if (contracts.isPending || shown.length === 0) return null;
+  return (
+    <section className="grid gap-2">
+      <h2 className="text-sm font-medium">임대 계약</h2>
+      <ul className="grid gap-1.5">
+        {shown.map((c) => (
+          <li key={c.id}>
+            <Link to={`/company/${cid}/contracts/${c.id}`} className="flex items-center gap-2 rounded-xl border bg-card px-3 py-2 text-sm">
+              <ContractBadge status={c.status} />
+              <span className="min-w-0 flex-1 truncate">
+                {c.no} · 기기 {Object.values(c.machines).filter((m) => !m.endedAt).length}대 · 매월 {billingDayLabel(c.billingDay)}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function PartnerServices({ cid, pid }: { cid: string; pid: string }) {
+  const services = useServices(cid, { partnerId: pid });
+  const shown = (services.data ?? []).filter((s) => s.status === "open" || s.needsBilling).slice(0, 10);
+  if (shown.length === 0) return null;
+  return (
+    <section className="grid gap-2">
+      <h2 className="text-sm font-medium">처리 중인 A/S</h2>
+      <ul className="grid gap-1.5">
+        {shown.map((s) => (
+          <li key={s.id}>
+            <ServiceRow cid={cid} s={s} />
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

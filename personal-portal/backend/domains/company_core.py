@@ -311,6 +311,20 @@ def list_members(cid: str) -> dict[str, Any]:
     return {"members": sorted(out, key=lambda m: (not m["isAdmin"], m["name"]))}
 
 
+def member_names(cid: str) -> dict[str, str]:
+    """직원 sub → 이름 (A/S 담당자 표시)"""
+    subs = [m["sub"] for m in _members(cid)]
+    found = profiles(subs)
+    return {sub: person(found.get(sub), sub)["name"] for sub in subs}
+
+
+@router.get("/company/<cid>/staff")
+def list_staff(cid: str) -> dict[str, Any]:
+    """직원 이름 목록 (담당자 고르기). 권한 정보 없이 이름만 — 회사 멤버 누구나"""
+    company_ctx(router, cid)
+    return {"staff": sorted([{"sub": k, "name": v} for k, v in member_names(cid).items()], key=lambda x: x["name"])}
+
+
 def _admin_count(cid: str) -> int:
     return sum(1 for m in _members(cid) if m.get("isAdmin"))
 

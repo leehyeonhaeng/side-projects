@@ -13,6 +13,7 @@
 취소: 지우지 않고 status=canceled + 모든 효과를 되돌린다. 배분된 돈은 선수(선급)로 돌아간다. 마감된 달은 생성·취소 불가
 """
 
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Annotated, Any, Literal
 from uuid import uuid4
@@ -36,8 +37,10 @@ router = Router()
 Day = date
 ID = r"^[A-Za-z0-9_-]{1,40}$"
 VatMode = Literal["included", "excluded", "exempt"]
-TxnType = Literal["sale", "charge", "purchase", "rental_out", "rental_return", "receipt", "payment", "expense", "adjust"]
-CHARGE_TYPES = {"sale", "charge", "rental_out", "rental_return"}  # 미수가 생기는 거래
+TxnType = Literal["sale", "charge", "purchase", "rental_out", "rental_return", "receipt", "payment", "expense", "adjust", "service"]
+CHARGE_TYPES = {"sale", "charge", "rental_out", "rental_return", "service"}  # 미수가 생기는 거래
+STOCK_SIGN = {"sale": -1, "purchase": 1, "adjust": 1, "service": -1}  # 거래가 재고를 바꾸는 방향 (service = A/S 부품 사용)
+INTERNAL_TYPES = {"service"}  # 다른 화면(A/S 완료)에서만 만드는 거래
 PAYABLE_TYPES = {"purchase"}  # 미지급이 생기는 거래
 MONEY_TYPES = {"sale", "charge", "purchase", "receipt", "payment", "expense"}  # 금액 보기 필요
 MAX_LINES = 30
@@ -56,6 +59,7 @@ TYPE_LABEL = {
     "payment": "지급",
     "expense": "경비",
     "adjust": "재고 조정",
+    "service": "A/S",
 }
 
 
@@ -105,24 +109,27 @@ class TxnCreate(BaseModel):
     allocations: list[Allocation] | None = Field(default=None, max_length=50)  # 입금·지급: 비우면 오래된 것부터 자동
     payNow: PayNow | None = None  # 판매·매입·청구를 바로 결제
     category: str = Field(default="", max_length=30)  # 경비 항목
+    serviceId: str | None = Field(default=None, pattern=ID)  # 청구: 완료된 A/S를 나중에 청구
     memo: str = Field(default="", max_length=500)
 
     @model_validator(mode="after")
     def check(self) -> "TxnCreate":
         t = self.type
-        if t in {"sale", "charge", "purchase", "rental_out", "rental_return", "receipt", "payment"} and not self.partnerId:
+        if t in {"sale", "charge", "purchase", "rental_out", "rental_return", "receipt", "payment", "service"} and not self.partnerId:
             raise ValueError("partnerId is required")
         if t in {"receipt", "payment", "expense"}:
             if not self.accountId or not self.amount:
                 raise ValueError("accountId and amount are required")
             if self.lines:
                 raise ValueError("lines are not used for this type")
-        if t in {"sale", "charge", "purchase", "adjust"} and not self.lines:
+        if t in {"sale", "charge", "purchase", "adjust", "service"} and not self.lines:
             raise ValueError("lines are required")
         if t in {"rental_out", "rental_return"} and not self.assetIds:
             raise ValueError("assetIds are required")
         if len(set(self.assetIds)) != len(self.assetIds):
             raise ValueError("duplicate assets")
+        if self.serviceId and t != "charge":
+            raise ValueError("serviceId is for charge")
         if self.payNow and t not in {"sale", "charge", "purchase"}:
             raise ValueError("payNow is for sale, charge, purchase")
         if t == "adjust" and any(not ln.itemId or ln.qty == 0 for ln in self.lines):
@@ -331,7 +338,7 @@ def _closed(cid: str, day: str) -> bool:
 
 
 def _check_perms(ctx: CompanyCtx, t: str, has_money_lines: bool) -> None:
-    area = "money" if t in {"receipt", "payment", "expense"} else "txns"
+    area = "money" if t in {"receipt", "payment", "expense"} else "assets" if t == "service" else "txns"
     if not ctx.can(area, "edit"):
         raise ForbiddenError(f"no permission: {area}")
     if t == "adjust" and not ctx.can("items", "edit"):
@@ -387,13 +394,27 @@ def _new_txn(cid: str, t: str, day: str, sub: str, partner: dict[str, Any] | Non
     return item
 
 
-@router.post("/company/<cid>/txns")
-def create_txn(cid: str) -> dict[str, Any]:
-    body = parse_body(router, TxnCreate)
+@dataclass
+class Build:
+    """거래 하나가 쓸 것 모음. 계약·A/S처럼 다른 화면이 같은 트랜잭션에 자기 변경을 더한 뒤 finish_txn으로 쓴다"""
+
+    ctx: CompanyCtx
+    cid: str
+    txn: dict[str, Any]
+    tx: Tx
+    deltas: Deltas
+    fails: dict[str, str]
+    partner: dict[str, Any] | None
+    receipts: list[dict[str, Any]] = field(default_factory=list)  # 바로 결제로 같이 만드는 입금·지급
+    created_assets: list[dict[str, Any]] = field(default_factory=list)
+
+
+def build_txn(ctx: CompanyCtx, cid: str, body: TxnCreate, extra: dict[str, Any] | None = None, asset_set: dict[str, dict[str, Any]] | None = None) -> Build:
+    """거래를 계산해 쓸 것을 모은다 (아직 쓰지 않음).
+    extra: 거래 기록에 더할 필드 (contractId 등), asset_set: 임대 출고·수거 때 기기에 같이 쓸 필드 (계약, 검침값)"""
     t = body.type
     lines = [price_line(ln) for ln in body.lines] if t != "adjust" else [{"itemId": ln.itemId, "name": ln.name, "qty": ln.qty, "memo": ln.memo} for ln in body.lines]
     has_money = t not in {"adjust"} and any(ln.get("total") for ln in lines)
-    ctx = company_ctx(router, cid)
     _check_perms(ctx, t, has_money)
     day = body.date.isoformat()
     if _closed(cid, day):
@@ -407,7 +428,6 @@ def create_txn(cid: str) -> dict[str, Any]:
     tx = Tx()
     deltas = Deltas()
     fails: dict[str, str] = {}
-    extra: dict[str, Any] = {"memo": body.memo}
     created_assets: list[dict[str, Any]] = []
     items_cache: dict[str, dict[str, Any]] = {}
 
@@ -424,7 +444,7 @@ def create_txn(cid: str) -> dict[str, Any]:
             ln["unit"] = it.get("unit", "")
             deltas.set(f"ITEM#{it['id']}", cid, used=True)
             if it["tracking"] == "stock":
-                sign = {"sale": -1, "purchase": 1, "adjust": 1}.get(t, 0)
+                sign = STOCK_SIGN.get(t, 0)
                 if sign:
                     deltas.add(f"ITEM#{it['id']}", "qty", sign * ln["qty"], cid, nonneg=True)
                     fails[f"ITEM#{it['id']}"] = f"재고가 부족합니다: {it['name']}"
@@ -441,7 +461,7 @@ def create_txn(cid: str) -> dict[str, Any]:
                     asset = {"PK": pk(cid), "SK": f"ASSET#{aid}", "id": aid, "code": f"{prefix}-{k:06d}", "itemId": it["id"], "serial": "", "status": "in_stock", "location": "", "memo": "", "acquiredAt": day, "cost": round(ln["supply"] / n) if n else 0, "createdAt": now_iso(), "updatedAt": now_iso()}
                     created_assets.append(asset)
                     ln["assetIds"].append(aid)
-            elif t in {"sale", "adjust"}:
+            elif t in {"sale", "adjust", "service"}:
                 raise BadRequestError("asset-tracked items are rented, not sold or adjusted here")
         elif not ln["name"]:
             raise BadRequestError("line needs itemId or name")
@@ -450,8 +470,8 @@ def create_txn(cid: str) -> dict[str, Any]:
     vat = sum(ln.get("vat", 0) for ln in lines)
     total = sum(ln.get("total", 0) for ln in lines)
 
-    txn = _new_txn(cid, t, day, ctx.sub, partner, lines=lines, supply=supply, vat=vat, total=total, **extra)
-    receipts: list[dict[str, Any]] = []  # 바로 결제로 같이 만드는 입금·지급
+    txn = _new_txn(cid, t, day, ctx.sub, partner, lines=lines, supply=supply, vat=vat, total=total, memo=body.memo, **(extra or {}))
+    b = Build(ctx, cid, txn, tx, deltas, fails, partner, created_assets=created_assets)
 
     # 기기 효과
     if t in {"rental_out", "rental_return"}:
@@ -461,12 +481,17 @@ def create_txn(cid: str) -> dict[str, Any]:
         txn["assetNames"] = [item_of(a["itemId"])["name"] for a in assets]
         for a in assets:
             key = {"PK": pk(cid), "SK": f"ASSET#{a['id']}"}
+            more = (asset_set or {}).get(a["id"], {})
+            names = {"#st": "status"} | {f"#x{i}": k for i, k in enumerate(more)}
+            vals = {f":x{i}": v for i, v in enumerate(more.values())}
+            sets = "".join(f", #x{i} = :x{i}" for i in range(len(more)))
             if t == "rental_out":
-                tx.update(key, "SET #st = :r, partnerId = :p, updatedAt = :now", {"#st": "status"}, {":r": "rented", ":p": partner["id"], ":now": now_iso(), ":s": "in_stock"}, "#st = :s", f"창고에 있는 기기가 아닙니다: {a['code']}")  # type: ignore[index]
-                tx.put(asset_log(cid, a["id"], ctx.sub, "rental_out", partnerId=partner["id"], partnerName=partner["name"], txnNo=txn["no"]))  # type: ignore[index]
+                tx.update(key, f"SET #st = :r, partnerId = :p, updatedAt = :now{sets}", names, {":r": "rented", ":p": partner["id"], ":now": now_iso(), ":s": "in_stock", **vals}, "#st = :s", f"창고에 있는 기기가 아닙니다: {a['code']}")  # type: ignore[index]
+                tx.put(asset_log(cid, a["id"], ctx.sub, "rental_out", partnerId=partner["id"], partnerName=partner["name"], txnNo=txn["no"], contractNo=txn.get("contractNo", "")))  # type: ignore[index]
             else:
-                tx.update(key, "SET #st = :s, #loc = :loc, updatedAt = :now REMOVE partnerId", {"#st": "status", "#loc": "location"}, {":s": "in_stock", ":loc": body.returnLocation, ":now": now_iso(), ":r": "rented", ":p": partner["id"]}, "#st = :r AND partnerId = :p", f"이 거래처에 임대 중인 기기가 아닙니다: {a['code']}")  # type: ignore[index]
-                tx.put(asset_log(cid, a["id"], ctx.sub, "rental_return", partnerId=partner["id"], partnerName=partner["name"], txnNo=txn["no"]))  # type: ignore[index]
+                names["#loc"] = "location"
+                tx.update(key, f"SET #st = :s, #loc = :loc, updatedAt = :now{sets} REMOVE partnerId, contractId", names, {":s": "in_stock", ":loc": body.returnLocation, ":now": now_iso(), ":r": "rented", ":p": partner["id"], **vals}, "#st = :r AND partnerId = :p", f"이 거래처에 임대 중인 기기가 아닙니다: {a['code']}")  # type: ignore[index]
+                tx.put(asset_log(cid, a["id"], ctx.sub, "rental_return", partnerId=partner["id"], partnerName=partner["name"], txnNo=txn["no"], contractNo=txn.get("contractNo", "")))  # type: ignore[index]
 
     # 청구성 거래: 미수 + 선수 자동 상계 (+ 바로 결제)
     if t in CHARGE_TYPES | PAYABLE_TYPES and total != 0:
@@ -505,7 +530,7 @@ def create_txn(cid: str) -> dict[str, Any]:
             txn["paidBy"].append({"txnId": r["id"], "date": day, "amount": remaining, "no": r["no"]})
             deltas.add(psk, bal, -remaining, cid)
             deltas.add(f"ACCOUNT#{acc['id']}", "balance", -remaining if payable else remaining, cid)
-            receipts.append(r)
+            b.receipts.append(r)
 
     # 입금·지급: 청구에 배분, 남으면 선수(선급)
     if t in {"receipt", "payment"}:
@@ -558,20 +583,71 @@ def create_txn(cid: str) -> dict[str, Any]:
         if partner:
             deltas.set(f"PARTNER#{partner['id']}", cid, used=True)
 
-    # 쓰기: 새 기기 → 거래 → 바로 결제 → 합친 잔액·재고 → 활동 기록
-    for a in created_assets:
-        tx.put(a)
-        tx.put(asset_log(cid, a["id"], ctx.sub, "registered", note=f"매입 {txn['no']}"))
-    tx.put(txn, "attribute_not_exists(PK)")
-    for r in receipts:
-        tx.put(r, "attribute_not_exists(PK)")
-    deltas.emit(tx, fails)
-    tx.put(company_audit(cid, ctx.sub, "txn_create", txn["no"], {"type": TYPE_LABEL[t], "partner": (partner or {}).get("name", ""), "total": total or txn.get("amount", 0)}))
-    tx.run()
-    return {"txn": _view(ctx, txn), "related": [_view(ctx, r) for r in receipts], "createdAssets": [_strip(a) for a in created_assets]}
+    # 완료된 A/S를 나중에 청구
+    if body.serviceId:
+        svc = _get(cid, f"SERVICE#{body.serviceId}", "service")
+        if svc["partnerId"] != partner["id"]:  # type: ignore[index]
+            raise BadRequestError("service belongs to another partner")
+        txn |= {"serviceId": svc["id"], "serviceNo": svc["no"]}
+        tx.update({"PK": pk(cid), "SK": f"SERVICE#{svc['id']}"}, "SET chargeTxn = :c, needsBilling = :f", {"#st": "status"}, {":c": {"id": txn["id"], "date": day, "no": txn["no"]}, ":f": False, ":d": "done"}, "#st = :d AND attribute_not_exists(chargeTxn)", "이미 청구했거나 완료되지 않은 A/S입니다")
+    return b
+
+
+def finish_txn(b: Build) -> dict[str, Any]:
+    """모은 변경 쓰기: 새 기기 → 거래 → 바로 결제 → 합친 잔액·재고 → 활동 기록"""
+    cid, ctx, txn = b.cid, b.ctx, b.txn
+    for a in b.created_assets:
+        b.tx.put(a)
+        b.tx.put(asset_log(cid, a["id"], ctx.sub, "registered", note=f"매입 {txn['no']}"))
+    b.tx.put(txn, "attribute_not_exists(PK)")
+    for r in b.receipts:
+        b.tx.put(r, "attribute_not_exists(PK)")
+    b.deltas.emit(b.tx, b.fails)
+    b.tx.put(company_audit(cid, ctx.sub, "txn_create", txn["no"], {"type": TYPE_LABEL[txn["type"]], "partner": (b.partner or {}).get("name", ""), "total": txn.get("total") or txn.get("amount", 0)}))
+    b.tx.run()
+    return {"txn": _view(ctx, txn), "related": [_view(ctx, r) for r in b.receipts], "createdAssets": [_strip(a) for a in b.created_assets]}
+
+
+@router.post("/company/<cid>/txns")
+def create_txn(cid: str) -> dict[str, Any]:
+    body = parse_body(router, TxnCreate)
+    ctx = company_ctx(router, cid)
+    if body.type in INTERNAL_TYPES:
+        raise BadRequestError("A/S transactions are made by completing an A/S")
+    if body.type == "rental_return":
+        # 계약에 묶인 기기는 계약 화면에서 수거 (계약 기기 목록·정산이 같이 바뀌어야 함)
+        for aid in body.assetIds:
+            if _get(cid, f"ASSET#{aid}", "asset").get("contractId"):
+                raise BadRequestError("this asset is on a contract; return it from the contract")
+    return finish_txn(build_txn(ctx, cid, body))
 
 
 # ── 취소 ─────────────────────────────────────────────
+
+def _cancel_contract(cid: str, txn: dict[str, Any], tx: Tx) -> None:
+    """계약에 걸린 거래 취소: 정기 청구면 청구한 달·카운터 되돌리기, 출고·추가·수거면 계약 기기 목록 되돌리기"""
+    key = {"PK": pk(cid), "SK": f"CONTRACT#{txn['contractId']}"}
+    if txn.get("billMonth"):
+        names: dict[str, str] = {}
+        vals: dict[str, Any] = {":m": txn["billMonth"], ":prev": txn.get("billPrev", ""), ":one": 1}
+        sets = ["billedThrough = :prev"]
+        for i, c in enumerate(txn.get("billCounters", [])):
+            names[f"#a{i}"] = c["assetId"]
+            vals |= {f":bm{i}": c["fromMono"], f":bc{i}": c["fromColor"], f":br{i}": c.get("fromReadAt", "")}
+            sets += [f"machines.#a{i}.billedMono = :bm{i}", f"machines.#a{i}.billedColor = :bc{i}", f"machines.#a{i}.billedReadAt = :br{i}"]
+        tx.update(key, "SET " + ", ".join(sets) + ", ver = ver + :one", names or None, vals, "billedThrough = :m", "이후 달 청구를 먼저 취소하세요")
+        return
+    op = txn.get("contractOp")
+    names = {f"#a{i}": a for i, a in enumerate(txn.get("assetIds", []))}
+    if op == "create":
+        tx.update(key, "SET #st = :c, ver = ver + :one", {"#st": "status"}, {":c": "canceled", ":one": 1, ":e": ""}, "billedThrough = :e AND ver = :one", "계약에 그 뒤 변경(청구·기기 추가·수거·요금 수정)이 있어 출고를 취소할 수 없습니다")
+    elif op == "add":
+        rm = ", ".join(f"machines.#a{i}" for i in range(len(names)))
+        tx.update(key, f"SET ver = ver + :one REMOVE {rm}", names, {":one": 1, ":sm": txn["date"][:7]}, "billedThrough < :sm", "이 기기가 들어간 달을 이미 청구했습니다. 청구부터 취소하세요")
+    elif op == "return":
+        rm = ", ".join(f"machines.#a{i}.endedAt, machines.#a{i}.endMono, machines.#a{i}.endColor" for i in range(len(names)))
+        tx.update(key, f"SET #st = :act, ver = ver + :one REMOVE endedAt, {rm}", names | {"#st": "status"}, {":act": "active", ":one": 1, ":rm": txn["date"][:7]}, "billedThrough < :rm", "수거한 달을 이미 정산 청구했습니다. 청구부터 취소하세요")
+
 
 @router.post("/company/<cid>/txns/<day>/<tid>/cancel")
 def cancel_txn(cid: str, day: str, tid: str) -> dict[str, Any]:
@@ -594,7 +670,7 @@ def cancel_txn(cid: str, day: str, tid: str) -> dict[str, Any]:
     for ln in txn.get("lines", []):
         if not ln.get("itemId"):
             continue
-        sign = {"sale": 1, "purchase": -1, "adjust": -1}.get(t, 0)
+        sign = -STOCK_SIGN.get(t, 0)
         it = table().get_item(Key={"PK": pk(cid), "SK": f"ITEM#{ln['itemId']}"}).get("Item")
         if it and it["tracking"] == "stock" and sign:
             deltas.add(f"ITEM#{ln['itemId']}", "qty", sign * ln["qty"], cid, nonneg=True)
@@ -610,9 +686,11 @@ def cancel_txn(cid: str, day: str, tid: str) -> dict[str, Any]:
         for aid in txn.get("assetIds", []):
             key = {"PK": pk(cid), "SK": f"ASSET#{aid}"}
             if t == "rental_out":
-                tx.update(key, "SET #st = :s, updatedAt = :now REMOVE partnerId", {"#st": "status"}, {":s": "in_stock", ":r": "rented", ":p": pid, ":now": now_iso()}, "#st = :r AND partnerId = :p", "기기가 이미 다른 상태입니다 (수거 등)")
+                tx.update(key, "SET #st = :s, updatedAt = :now REMOVE partnerId, contractId", {"#st": "status"}, {":s": "in_stock", ":r": "rented", ":p": pid, ":now": now_iso()}, "#st = :r AND partnerId = :p", "기기가 이미 다른 상태입니다 (수거 등)")
             else:
-                tx.update(key, "SET #st = :r, partnerId = :p, updatedAt = :now", {"#st": "status"}, {":s": "in_stock", ":r": "rented", ":p": pid, ":now": now_iso()}, "#st = :s", "기기가 이미 다른 곳에 나갔습니다")
+                back = ", contractId = :k" if txn.get("contractId") else ""
+                more = {":k": txn["contractId"]} if back else {}
+                tx.update(key, f"SET #st = :r, partnerId = :p, updatedAt = :now{back}", {"#st": "status"}, {":s": "in_stock", ":r": "rented", ":p": pid, ":now": now_iso(), **more}, "#st = :s", "기기가 이미 다른 곳에 나갔습니다")
             tx.put(asset_log(cid, aid, ctx.sub, "cancel", txnNo=txn["no"], note=f"{TYPE_LABEL[t]} 취소"))
 
     if t in CHARGE_TYPES | PAYABLE_TYPES and txn.get("total"):
@@ -646,6 +724,15 @@ def cancel_txn(cid: str, day: str, tid: str) -> dict[str, Any]:
 
     if t == "expense":
         deltas.add(f"ACCOUNT#{txn['accountId']}", "balance", int(txn["amount"]), cid)
+
+    if txn.get("serviceId"):
+        skey = {"PK": pk(cid), "SK": f"SERVICE#{txn['serviceId']}"}
+        if t == "service":  # A/S 완료 취소 → 다시 접수 상태
+            tx.update(skey, "SET #st = :o, ver = ver + :one REMOVE done, txn", {"#st": "status"}, {":o": "open", ":one": 1, ":t": tid}, "txn.id = :t", "A/S 기록이 바뀌었습니다")
+        else:  # A/S 청구 취소 → 다시 청구 필요
+            tx.update(skey, "SET needsBilling = :y REMOVE chargeTxn", None, {":y": True, ":t": tid}, "chargeTxn.id = :t", "A/S 기록이 바뀌었습니다")
+    if txn.get("contractId"):
+        _cancel_contract(cid, txn, tx)
 
     ver = txn["ver"]
     done = {**txn, "status": "canceled", "canceledBy": ctx.sub, "canceledAt": now_iso(), "cancelReason": reason, "ver": ver + 1}

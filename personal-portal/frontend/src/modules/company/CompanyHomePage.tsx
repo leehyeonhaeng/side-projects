@@ -1,6 +1,7 @@
+import type { ReactNode } from "react";
 import { Link } from "react-router";
-import { EyeOffIcon, ShieldCheckIcon, UserPlusIcon } from "lucide-react";
-import { AREAS, LEVEL_LABEL } from "@/api/company";
+import { ChevronRightIcon, EyeOffIcon, GaugeIcon, ReceiptTextIcon, ShieldCheckIcon, UserPlusIcon, WrenchIcon } from "lucide-react";
+import { AREAS, LEVEL_LABEL, useBilling, useReadings, useServices } from "@/api/company";
 import { useMe } from "@/api/me";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -8,12 +9,11 @@ import { useCompanyOutlet } from "./CompanyLayout";
 
 // COMPANY.md 11장 구현 단계 — 대시보드가 생기기 전까지 홈에서 진행 상황을 보여 준다
 const COMING = [
-  { phase: "C4", items: "임대 계약 · 정기 청구 · 카운터 검침 · A/S" },
   { phase: "C5", items: "직인 영수증·명세서·청구서 PDF · 기기 라벨 QR" },
   { phase: "C6", items: "대시보드 · 보고서 · 알림" },
 ];
 
-/** 회사 홈 (C1): 내 권한 요약, 관리자 바로가기. C6에서 대시보드로 바뀐다 */
+/** 회사 홈: 오늘 할 일(청구 대기·A/S·검침), 빠른 입력, 내 권한. C6에서 대시보드로 바뀐다 */
 export function CompanyHomePage() {
   const { cid, detail } = useCompanyOutlet();
   const me = useMe();
@@ -26,6 +26,7 @@ export function CompanyHomePage() {
         <p className="text-sm text-muted-foreground">{me.data?.name}님 · {access.isAdmin ? "관리자" : "직원"}</p>
       </div>
 
+      <Todos cid={cid} />
       <QuickTxns cid={cid} />
       {access.isAdmin && (
         <section className="flex flex-wrap items-center gap-3 rounded-2xl border bg-card p-4">
@@ -71,25 +72,55 @@ export function CompanyHomePage() {
   );
 }
 
-const QUICK: { type: string; label: string; area: "txns" | "money"; money: boolean }[] = [
-  { type: "rental_out", label: "임대 출고", area: "txns", money: false },
-  { type: "rental_return", label: "수거", area: "txns", money: false },
-  { type: "receipt", label: "입금 받기", area: "money", money: true },
-  { type: "sale", label: "판매", area: "txns", money: true },
-  { type: "charge", label: "청구", area: "txns", money: true },
-  { type: "purchase", label: "매입", area: "txns", money: true },
+const QUICK: { to: string; label: string; area: "txns" | "money" | "contracts" | "assets"; money: boolean }[] = [
+  { to: "contracts/new", label: "임대 출고", area: "contracts", money: false },
+  { to: "txns/new?type=rental_return", label: "수거", area: "txns", money: false },
+  { to: "readings", label: "검침", area: "assets", money: false },
+  { to: "services/new", label: "A/S 접수", area: "assets", money: false },
+  { to: "txns/new?type=receipt", label: "입금 받기", area: "money", money: true },
+  { to: "txns/new?type=sale", label: "판매", area: "txns", money: true },
 ];
+
+/** 오늘 할 일: 청구 대기, 처리할 A/S, 검침 필요 (권한 있는 것만) */
+function Todos({ cid }: { cid: string }) {
+  const { detail } = useCompanyOutlet();
+  const me = detail.me;
+  const canBill = me.perms.contracts !== "none" && me.showAmounts;
+  const canAssets = me.perms.assets !== "none";
+  const billing = useBilling(cid, canBill);
+  const services = useServices(cid, { status: "open" }, canAssets);
+  const readings = useReadings(cid, canAssets);
+  const rows: { to: string; icon: ReactNode; label: string; n: number }[] = [];
+  if (canBill && billing.data) rows.push({ to: "billing", icon: <ReceiptTextIcon />, label: "청구 대기", n: billing.data.length });
+  if (canAssets && services.data) rows.push({ to: "services", icon: <WrenchIcon />, label: "처리할 A/S", n: services.data.length });
+  if (canAssets && readings.data) rows.push({ to: "readings", icon: <GaugeIcon />, label: "검침 필요", n: readings.data.filter((r) => !r.lastReading || r.lastReading.date <= r.billedReadAt).length });
+  if (rows.length === 0) return null;
+  return (
+    <section className="grid grid-cols-3 gap-2">
+      {rows.map((r) => (
+        <Link key={r.to} to={`/company/${cid}/${r.to}`} className={cn("grid gap-1 rounded-2xl border bg-card p-3 hover:bg-muted/50 [&_svg]:size-4", r.n > 0 && "border-primary/40")}>
+          <span className="flex items-center justify-between text-xs text-muted-foreground">
+            {r.icon}
+            <ChevronRightIcon />
+          </span>
+          <span className={cn("text-2xl font-bold tabular-nums", r.n === 0 && "text-muted-foreground")}>{r.n}</span>
+          <span className="truncate text-xs">{r.label}</span>
+        </Link>
+      ))}
+    </section>
+  );
+}
 
 /** 자주 쓰는 거래 바로 입력 (현장에서 폰으로) */
 function QuickTxns({ cid }: { cid: string }) {
   const { detail } = useCompanyOutlet();
   const me = detail.me;
-  const acts = QUICK.filter((q) => me.perms[q.area] === "edit" && (!q.money || me.showAmounts));
+  const acts = QUICK.filter((q) => me.perms[q.area] === "edit" && (!q.money || me.showAmounts) && (q.area !== "contracts" || me.perms.assets === "edit"));
   if (acts.length === 0) return null;
   return (
     <section className="grid grid-cols-3 gap-2">
       {acts.map((q) => (
-        <Link key={q.type} to={`/company/${cid}/txns/new?type=${q.type}`} className="grid place-items-center rounded-2xl border bg-card px-2 py-4 text-sm font-medium hover:bg-muted/50 active:bg-muted">
+        <Link key={q.to} to={`/company/${cid}/${q.to}`} className="grid place-items-center rounded-2xl border bg-card px-2 py-4 text-sm font-medium hover:bg-muted/50 active:bg-muted">
           {q.label}
         </Link>
       ))}

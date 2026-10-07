@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router";
 import { ArrowLeftIcon, CheckIcon } from "lucide-react";
 import {
   EXPENSE_CATEGORIES,
@@ -8,6 +8,7 @@ import {
   type TxnType,
   useAccounts,
   useAssets,
+  useContracts,
   useItems,
   useOpenCharges,
   usePartners,
@@ -23,9 +24,9 @@ import { useCompanyOutlet } from "./CompanyLayout";
 import { type DraftLine, TxnLinesEditor, newLine, toLineInput } from "./TxnLinesEditor";
 import { Field, Search, StatusBadge, matches, money } from "./ui";
 
-type Choice = { type: TxnType; hint: string; money: boolean; area: "txns" | "money" };
+type Choice = { type: TxnType; hint: string; money: boolean; area: "txns" | "money" | "contracts" };
 const CHOICES: Choice[] = [
-  { type: "rental_out", hint: "기기를 거래처에 설치", money: false, area: "txns" },
+  { type: "rental_out", hint: "기기 설치 (계약 만들기·추가)", money: false, area: "contracts" },
   { type: "rental_return", hint: "임대한 기기를 거둬옴", money: false, area: "txns" },
   { type: "sale", hint: "토너·용지 등 판매", money: true, area: "txns" },
   { type: "charge", hint: "임대료·수리비 등 청구", money: true, area: "txns" },
@@ -42,7 +43,13 @@ export function TxnNewPage() {
   const [params, setParams] = useSearchParams();
   const type = params.get("type") as TxnType | null;
   const me = detail.me;
-  const allowed = CHOICES.filter((c) => me.perms[c.area] === "edit" && (!c.money || me.showAmounts));
+  const allowed = CHOICES.filter((c) => me.perms[c.area] === "edit" && (!c.money || me.showAmounts) && (c.type !== "rental_out" || me.perms.assets === "edit"));
+
+  // 임대 출고는 계약 화면에서 (새 계약 또는 진행 중 계약에 추가)
+  if (type === "rental_out" && allowed.some((c) => c.type === type)) {
+    const q = new URLSearchParams(Object.entries({ partner: params.get("partner") ?? "", asset: params.get("asset") ?? "" }).filter(([, v]) => v)).toString();
+    return <Navigate to={`/company/${cid}/contracts/new${q ? `?${q}` : ""}`} replace />;
+  }
 
   if (!type || !allowed.some((c) => c.type === type)) {
     return (
@@ -63,10 +70,10 @@ export function TxnNewPage() {
       </main>
     );
   }
-  return <TxnForm key={type} cid={cid} type={type} defaultVat={detail.company.vatDefault} showAmounts={me.showAmounts} presetPartner={params.get("partner") ?? ""} presetAsset={params.get("asset") ?? ""} />;
+  return <TxnForm key={type} cid={cid} type={type} defaultVat={detail.company.vatDefault} showAmounts={me.showAmounts} presetPartner={params.get("partner") ?? ""} presetAsset={params.get("asset") ?? ""} presetService={params.get("service") ?? ""} />;
 }
 
-function TxnForm({ cid, type, defaultVat, showAmounts, presetPartner, presetAsset }: { cid: string; type: TxnType; defaultVat: "included" | "excluded" | "exempt"; showAmounts: boolean; presetPartner: string; presetAsset: string }) {
+function TxnForm({ cid, type, defaultVat, showAmounts, presetPartner, presetAsset, presetService }: { cid: string; type: TxnType; defaultVat: "included" | "excluded" | "exempt"; showAmounts: boolean; presetPartner: string; presetAsset: string; presetService: string }) {
   const navigate = useNavigate();
   const partners = usePartners(cid);
   const items = useItems(cid);
@@ -76,7 +83,9 @@ function TxnForm({ cid, type, defaultVat, showAmounts, presetPartner, presetAsse
 
   const [date, setDate] = useState(todayStr());
   const [partnerId, setPartnerId] = useState(presetPartner);
-  const [memo, setMemo] = useState("");
+  const [memo, setMemo] = useState(presetService ? "A/S 작업비" : "");
+  const serviceId = type === "charge" ? presetService : "";
+  const contracts = useContracts(cid, { partnerId, status: "active" }, type === "rental_return" && !!partnerId);
   const [lines, setLines] = useState<DraftLine[]>(() => [newLine(defaultVat)]);
   const [withCharge, setWithCharge] = useState(false); // 임대 출고·수거에 금액 줄 붙이기
   const [assetIds, setAssetIds] = useState<string[]>(presetAsset ? [presetAsset] : []);
@@ -114,7 +123,7 @@ function TxnForm({ cid, type, defaultVat, showAmounts, presetPartner, presetAsse
 
   const submit = () => {
     setError(null);
-    const body: TxnInput = { type, date, memo: memo.trim() };
+    const body: TxnInput = { type, date, memo: memo.trim(), ...(serviceId ? { serviceId } : {}) };
     if (needsPartner || (type === "expense" && partnerId)) {
       if (!partnerId) return setError("거래처를 고르세요.");
       body.partnerId = partnerId;
@@ -160,6 +169,7 @@ function TxnForm({ cid, type, defaultVat, showAmounts, presetPartner, presetAsse
         <ArrowLeftIcon className="size-4" /> 종류 다시 고르기
       </Link>
       <h1 className="text-xl font-bold tracking-tight">{TXN_LABEL[type]}</h1>
+      {serviceId && <p className="rounded-xl bg-muted/60 p-3 text-sm">완료된 A/S의 작업비 청구입니다. 저장하면 A/S의 "청구 필요"가 풀립니다.</p>}
       <form
         className="grid gap-4"
         onSubmit={(e) => {
@@ -185,13 +195,26 @@ function TxnForm({ cid, type, defaultVat, showAmounts, presetPartner, presetAsse
           )}
         </section>
 
+        {type === "rental_return" && (contracts.data?.length ?? 0) > 0 && (
+          <section className="grid gap-1.5">
+            <h2 className="text-sm font-medium">계약 기기 수거</h2>
+            {contracts.data!.map((c) => (
+              <Link key={c.id} to={`/company/${cid}/contracts/${c.id}/return${presetAsset ? `?asset=${presetAsset}` : ""}`} className="flex items-center justify-between rounded-xl border bg-card px-3 py-2.5 text-sm hover:bg-muted/50">
+                <span>
+                  {c.no} · 기기 {Object.values(c.machines).filter((m) => !m.endedAt).length}대
+                </span>
+                <span className="text-primary">수거하기 →</span>
+              </Link>
+            ))}
+          </section>
+        )}
         {(type === "rental_out" || type === "rental_return") && (
           <AssetPicker
-            assets={(assets.data ?? []).filter((a) => (type === "rental_out" ? a.status === "in_stock" : a.status === "rented" && a.partnerId === partnerId))}
+            assets={(assets.data ?? []).filter((a) => (type === "rental_out" ? a.status === "in_stock" : a.status === "rented" && a.partnerId === partnerId && !a.contractId))}
             selected={assetIds}
             onChange={setAssetIds}
             loading={assets.isPending}
-            empty={type === "rental_out" ? "창고에 있는 기기가 없습니다." : partnerId ? "이 거래처에 임대 중인 기기가 없습니다." : "거래처를 먼저 고르세요."}
+            empty={type === "rental_out" ? "창고에 있는 기기가 없습니다." : partnerId ? "계약 없이 나간 기기가 없습니다." : "거래처를 먼저 고르세요."}
           />
         )}
         {type === "rental_return" && (
@@ -337,7 +360,7 @@ function AccountSelect({ accounts, value, onChange }: { accounts: { id: string; 
   );
 }
 
-function AssetPicker({ assets, selected, onChange, loading, empty }: { assets: { id: string; code: string; itemName: string; serial: string; status: "in_stock" | "rented" | "repair" | "retired"; location: string }[]; selected: string[]; onChange: (ids: string[]) => void; loading: boolean; empty: string }) {
+export function AssetPicker({ assets, selected, onChange, loading, empty }: { assets: { id: string; code: string; itemName: string; serial: string; status: "in_stock" | "rented" | "repair" | "retired"; location: string }[]; selected: string[]; onChange: (ids: string[]) => void; loading: boolean; empty: string }) {
   const [q, setQ] = useState("");
   const shown = assets.filter((a) => matches([a.code, a.itemName, a.serial, a.location].join(" "), q));
   const toggle = (id: string) => onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);

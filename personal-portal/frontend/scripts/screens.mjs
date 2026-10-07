@@ -83,6 +83,20 @@ const SCREENS = [
   ["company-money", "/company/cp1/money"],
   ["company-ledger", "/company/cp1/money", async (p) => p.getByRole("tab", { name: "회사 장부" }).click()],
   ["company-close", "/company/cp1/money", async (p) => p.getByRole("tab", { name: "월 마감" }).click()],
+  // C4 계약·청구·검침·A/S
+  ["company-contracts", "/company/cp1/contracts"],
+  ["company-contract", "/company/cp1/contracts/k1"],
+  ["company-contract-long", "/company/cp1/contracts/k2"],
+  ["company-rental-out", "/company/cp1/contracts/new?partner=pa1&asset=as3", async (p) => p.getByLabel("과금 방식").selectOption("counter")],
+  ["company-contract-return", "/company/cp1/contracts/k1/return?asset=as1"],
+  ["company-contract-edit", "/company/cp1/contracts/k1/edit"],
+  ["company-billing", "/company/cp1/billing"],
+  ["company-readings", "/company/cp1/readings", async (p) => p.getByRole("button", { name: /전체/ }).click()],
+  ["company-services", "/company/cp1/services", async (p) => p.getByRole("button", { name: /전체/ }).click()],
+  ["company-service-new", "/company/cp1/services/new?partner=pa1&asset=as1"],
+  ["company-service-open", "/company/cp1/services/sv1", async (p) => p.getByRole("button", { name: "부품 추가" }).click()],
+  ["company-service-done", "/company/cp1/services/sv2"],
+  ["company-asset-rented", "/company/cp1/assets/as1"],
 ];
 
 /** 페이지 안에서 실행: 문제 요소 찾기 */

@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { ArrowLeftIcon, CheckCircle2Icon, PlusIcon } from "lucide-react";
-import { CHARGE_TYPES, TXN_LABEL, TXN_TONE, type Txn, type TxnType, useTxn, useTxnMutations, useTxns } from "@/api/company";
+import { CHARGE_TYPES, TXN_LABEL, TXN_TONE, type Txn, type TxnType, monthLabel, useTxn, useTxnMutations, useTxns } from "@/api/company";
 import { ErrorAlert, InlineSpinner } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -16,7 +16,8 @@ export function TypeBadge({ type, canceled }: { type: TxnType; canceled?: boolea
 }
 
 export function txnSummary(t: Txn): string {
-  if (t.type === "rental_out" || t.type === "rental_return") return [...(t.assetCodes ?? [])].join(", ") || "기기";
+  if (t.type === "rental_out" || t.type === "rental_return") return [t.contractNo, ...(t.assetCodes ?? [])].filter(Boolean).join(" · ") || "기기";
+  if (t.billMonth) return `${t.contractNo} ${monthLabel(t.billMonth)} 임대료`;
   if (t.type === "receipt" || t.type === "payment") return t.accountName ?? "";
   if (t.type === "expense") return [t.category, t.memo].filter(Boolean).join(" · ") || "경비";
   const names = t.lines.map((l) => l.name).filter(Boolean);
@@ -134,7 +135,7 @@ export function TxnDetailPage() {
   if (txn.isError) return <main className="p-4"><ErrorAlert error={txn.error} /></main>;
   const t = txn.data;
   const canceled = t.status === "canceled";
-  const area = t.type === "receipt" || t.type === "payment" || t.type === "expense" ? "money" : "txns";
+  const area = t.type === "receipt" || t.type === "payment" || t.type === "expense" ? "money" : t.type === "service" ? "assets" : "txns";
   const canCancel = !canceled && detail.me.perms[area] === "edit";
   const links = t.paidBy?.length ? t.paidBy : t.allocations;
 
@@ -156,6 +157,8 @@ export function TxnDetailPage() {
       <section className="grid gap-2 rounded-2xl border bg-card p-4 text-sm">
         <Row label="날짜" value={formatDay(t.date)} />
         {t.partnerId && <Row label="거래처" value={<Link className="text-primary" to={`/company/${cid}/partners/${t.partnerId}`}>{t.partnerName}</Link>} />}
+        {t.contractId && <Row label="계약" value={<Link className="text-primary" to={`/company/${cid}/contracts/${t.contractId}`}>{t.contractNo}{t.billMonth ? ` · ${monthLabel(t.billMonth)} 정기 청구` : ""}</Link>} />}
+        {t.serviceId && <Row label="A/S" value={<Link className="text-primary" to={`/company/${cid}/services/${t.serviceId}`}>{t.serviceNo}</Link>} />}
         {t.accountName && <Row label="계좌" value={t.accountName} />}
         {t.category && <Row label="항목" value={t.category} />}
         {t.memo && <Row label="메모" value={t.memo} />}

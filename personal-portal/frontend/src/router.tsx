@@ -9,6 +9,11 @@ import { ChecklistsPage } from "./modules/checklists/ChecklistsPage";
 import { HubPage } from "./modules/hub/HubPage";
 import { AccountsPage } from "./modules/company/AccountsPage";
 import { AssetDetailPage, AssetsPage } from "./modules/company/AssetsPage";
+import { BillingPage } from "./modules/company/BillingPage";
+import { ContractEditPage, ContractReturnPage, RentalOutPage } from "./modules/company/ContractFormPages";
+import { ContractDetailPage, ContractsPage } from "./modules/company/ContractsPage";
+import { ReadingsPage } from "./modules/company/ReadingsPage";
+import { ServiceDetailPage, ServiceNewPage, ServicesPage } from "./modules/company/ServicesPage";
 import { CompanyAuditPage } from "./modules/company/CompanyAuditPage";
 import { CompanyMorePage } from "./modules/company/CompanyMorePage";
 import { ItemsPage } from "./modules/company/ItemsPage";
@@ -65,6 +70,16 @@ export const router = createBrowserRouter([
       { path: "txns/new", element: <TxnNewPage /> },
       { path: "txns/:day/:tid", element: <TxnDetailPage /> },
       { path: "money", element: <MoneyPage /> },
+      { path: "contracts", element: <ContractsPage /> },
+      { path: "contracts/new", element: <RentalOutPage /> },
+      { path: "contracts/:kid", element: <ContractDetailPage /> },
+      { path: "contracts/:kid/return", element: <ContractReturnPage /> },
+      { path: "contracts/:kid/edit", element: <ContractEditPage /> },
+      { path: "billing", element: <BillingPage /> },
+      { path: "readings", element: <ReadingsPage /> },
+      { path: "services", element: <ServicesPage /> },
+      { path: "services/new", element: <ServiceNewPage /> },
+      { path: "services/:sid", element: <ServiceDetailPage /> },
     ],
   },
   { path: "/mfa-setup", element: <RequireAuth><MfaSetupPage /></RequireAuth> },

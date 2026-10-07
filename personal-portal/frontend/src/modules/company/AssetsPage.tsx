@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { ArrowLeftIcon, PlusIcon } from "lucide-react";
-import { ASSET_STATUS_LABEL, type Asset, type AssetLog, type AssetStatus, useAsset, useAssets, useItems, useMasterMutations } from "@/api/company";
+import { ASSET_STATUS_LABEL, type Asset, type AssetLog, type AssetStatus, useAsset, useAssets, useItems, useMasterMutations, useRentalMutations } from "@/api/company";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { NativeSelect } from "@/components/NativeSelect";
 import { ErrorAlert, InlineSpinner } from "@/components/states";
@@ -207,8 +207,12 @@ function RegisterDialog({ cid, models, defaultItem, showAmounts, onClose }: { ci
 const LOG_LABEL: Record<string, (l: AssetLog) => string> = {
   registered: (l) => `등록${l.note ? ` (${l.note})` : ""}`,
   status: (l) => `상태 ${ASSET_STATUS_LABEL[l.from as AssetStatus] ?? l.from} → ${ASSET_STATUS_LABEL[l.to as AssetStatus] ?? l.to}`,
-  rental_out: (l) => `임대 출고 → ${l.partnerName ?? ""} (${l.txnNo ?? ""})`,
-  rental_return: (l) => `수거 ← ${l.partnerName ?? ""} (${l.txnNo ?? ""})`,
+  rental_out: (l) => `임대 출고 → ${l.partnerName ?? ""} (${[l.contractNo, l.txnNo].filter(Boolean).join(" · ")})`,
+  rental_return: (l) => `수거 ← ${l.partnerName ?? ""} (${[l.contractNo, l.txnNo].filter(Boolean).join(" · ")})`,
+  reading: (l) => `검침 ${l.date ?? ""} · 흑백 ${(l.mono ?? 0).toLocaleString()}${l.color ? ` / 컬러 ${l.color.toLocaleString()}` : ""}${l.note ? ` (${l.note})` : ""}`,
+  service_open: (l) => `A/S 접수 ${l.serviceNo ?? ""}${l.note ? ` · ${l.note}` : ""}`,
+  service_done: (l) => `A/S 완료 ${l.serviceNo ?? ""}${l.note ? ` · ${l.note}` : ""}`,
+  service_cancel: (l) => `A/S 접수 취소 ${l.serviceNo ?? ""}`,
   cancel: (l) => `${l.note ?? "취소"} (${l.txnNo ?? ""})`,
 };
 
@@ -221,6 +225,7 @@ export function AssetDetailPage() {
   const navigate = useNavigate();
   const canEdit = detail.me.perms.assets === "edit";
   const [editing, setEditing] = useState(false);
+  const [reading, setReading] = useState(false);
 
   if (data.isPending) return <main className="p-4"><InlineSpinner /></main>;
   if (data.isError) return <main className="p-4"><ErrorAlert error={data.error} /></main>;
@@ -240,6 +245,8 @@ export function AssetDetailPage() {
       <section className="grid gap-2 rounded-2xl border bg-card p-4 text-sm">
         <Row label="제조번호" value={a.serial || "—"} />
         <Row label={a.status === "rented" ? "임대처" : "위치"} value={a.status === "rented" ? (a.partnerId ? <Link className="text-primary" to={`/company/${cid}/partners/${a.partnerId}`}>{a.partnerName}</Link> : "—") : a.location || "—"} />
+        {a.contractId && <Row label="계약" value={<Link className="text-primary" to={`/company/${cid}/contracts/${a.contractId}`}>계약 보기</Link>} />}
+        {a.lastReading && <Row label="최근 검침" value={`${a.lastReading.date} · 흑백 ${a.lastReading.mono.toLocaleString()}${a.lastReading.color ? ` / 컬러 ${a.lastReading.color.toLocaleString()}` : ""}`} />}
         <Row label="취득일" value={a.acquiredAt ?? "—"} />
         {detail.me.showAmounts && <Row label="매입가" value={money(a.cost)} />}
         {a.memo && <Row label="메모" value={a.memo} />}
@@ -258,14 +265,24 @@ export function AssetDetailPage() {
                   {s === "in_stock" ? "창고로" : s === "repair" ? "수리로" : "폐기"}
                 </Button>
               ))}
-          {a.status === "in_stock" && (
-            <Button size="sm" nativeButton={false} render={<Link to={`/company/${cid}/txns/new?type=rental_out&asset=${a.id}`} />}>
+          {a.status === "in_stock" && detail.me.perms.contracts === "edit" && (
+            <Button size="sm" nativeButton={false} render={<Link to={`/company/${cid}/contracts/new?asset=${a.id}`} />}>
               임대 출고
             </Button>
           )}
           {a.status === "rented" && a.partnerId && (
-            <Button size="sm" nativeButton={false} render={<Link to={`/company/${cid}/txns/new?type=rental_return&partner=${a.partnerId}&asset=${a.id}`} />}>
+            <Button size="sm" nativeButton={false} render={<Link to={a.contractId ? `/company/${cid}/contracts/${a.contractId}/return?asset=${a.id}` : `/company/${cid}/txns/new?type=rental_return&partner=${a.partnerId}&asset=${a.id}`} />}>
               수거
+            </Button>
+          )}
+          {a.status === "rented" && (
+            <Button size="sm" variant="outline" onClick={() => setReading(true)}>
+              검침 입력
+            </Button>
+          )}
+          {a.partnerId && (
+            <Button size="sm" variant="outline" nativeButton={false} render={<Link to={`/company/${cid}/services/new?partner=${a.partnerId}&asset=${a.id}`} />}>
+              A/S 접수
             </Button>
           )}
           <ConfirmButton size="sm" variant="ghost" className="ml-auto" title="기기를 삭제할까요?" description="잘못 등록한 기기만 지울 수 있습니다. 이력이 있으면 '폐기'로 바꾸세요." confirmLabel="삭제" onConfirm={() => mut.deleteAsset.mutateAsync(a.id).then(() => navigate(`/company/${cid}/assets`))}>
@@ -287,6 +304,7 @@ export function AssetDetailPage() {
         </ul>
       </section>
       {editing && <AssetEditDialog cid={cid} asset={a} showAmounts={detail.me.showAmounts} onClose={() => setEditing(false)} />}
+      {reading && <ReadingDialog cid={cid} asset={a} onClose={() => setReading(false)} />}
     </main>
   );
 }
@@ -348,6 +366,58 @@ function AssetEditDialog({ cid, asset, showAmounts, onClose }: { cid: string; as
             취소
           </Button>
           <Button type="submit" form="asset-form" disabled={mut.patchAsset.isPending}>
+            저장
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** 기기 화면에서 바로 검침 입력 (검침 화면과 같은 규칙: 카운터는 줄어들 수 없음) */
+function ReadingDialog({ cid, asset, onClose }: { cid: string; asset: Asset; onClose: () => void }) {
+  const mut = useRentalMutations(cid);
+  const [date, setDate] = useState(todayStr());
+  const [mono, setMono] = useState("");
+  const [color, setColor] = useState("");
+  const n = (v: string) => Number(v.replace(/,/g, "")) || 0;
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{asset.code} 검침</DialogTitle>
+        </DialogHeader>
+        <form
+          id="reading-form"
+          className="grid gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (mono) mut.addReading.mutate({ assetId: asset.id, date, mono: n(mono), color: n(color) }, { onSuccess: onClose });
+          }}
+        >
+          {asset.lastReading && (
+            <p className="text-xs text-muted-foreground">
+              최근 {asset.lastReading.date} · 흑백 {asset.lastReading.mono.toLocaleString()} / 컬러 {asset.lastReading.color.toLocaleString()}
+            </p>
+          )}
+          <Field label="검침일">
+            <Input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="흑백 카운터">
+              <Input inputMode="numeric" value={mono} onChange={(e) => setMono(e.target.value.replace(/[^\d,]/g, ""))} />
+            </Field>
+            <Field label="컬러 카운터">
+              <Input inputMode="numeric" value={color} onChange={(e) => setColor(e.target.value.replace(/[^\d,]/g, ""))} />
+            </Field>
+          </div>
+        </form>
+        <ErrorAlert error={mut.addReading.error} />
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            취소
+          </Button>
+          <Button type="submit" form="reading-form" disabled={!mono || mut.addReading.isPending}>
             저장
           </Button>
         </DialogFooter>
