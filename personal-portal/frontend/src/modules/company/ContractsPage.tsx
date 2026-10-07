@@ -166,21 +166,24 @@ export function ContractDetailPage() {
         </section>
       )}
 
-      {canEdit && c.status === "active" && (
+      {/* 기기 추가·조건 수정은 계약 편집(사무실), 수거는 기기 편집 권한(현장 기사)도 */}
+      {c.status === "active" && (canEdit || me.perms.assets === "edit") && (
         <div className="flex flex-wrap gap-2">
-          {me.perms.assets === "edit" && (
-            <>
-              <Button size="sm" nativeButton={false} render={<Link to={`/company/${cid}/contracts/new?contract=${c.id}&partner=${c.partnerId}`} />}>
-                기기 추가
-              </Button>
-              <Button size="sm" variant="outline" nativeButton={false} render={<Link to={`/company/${cid}/contracts/${c.id}/return`} />}>
-                수거
-              </Button>
-            </>
+          {canEdit && me.perms.assets === "edit" && (
+            <Button size="sm" nativeButton={false} render={<Link to={`/company/${cid}/contracts/new?contract=${c.id}&partner=${c.partnerId}`} />}>
+              기기 추가
+            </Button>
           )}
-          <Button size="sm" variant="outline" nativeButton={false} render={<Link to={`/company/${cid}/contracts/${c.id}/edit`} />}>
-            조건 수정
-          </Button>
+          {(canEdit || me.perms.assets === "edit") && (
+            <Button size="sm" variant="outline" nativeButton={false} render={<Link to={`/company/${cid}/contracts/${c.id}/return`} />}>
+              수거
+            </Button>
+          )}
+          {canEdit && (
+            <Button size="sm" variant="outline" nativeButton={false} render={<Link to={`/company/${cid}/contracts/${c.id}/edit`} />}>
+              조건 수정
+            </Button>
+          )}
         </div>
       )}
 

@@ -305,8 +305,11 @@ def add_machines(cid: str, kid: str) -> dict[str, Any]:
 
 @router.post("/company/<cid>/contracts/<kid>/return")
 def return_machines(cid: str, kid: str) -> dict[str, Any]:
-    """계약 기기 수거 (+ 수거할 때 카운터). 마지막 기기를 수거하면 계약 종료. 정산 청구는 청구 대기에 뜬다"""
-    ctx = company_ctx(router, cid, "contracts", "edit")
+    """계약 기기 수거 (+ 수거할 때 카운터). 마지막 기기를 수거하면 계약 종료. 정산 청구는 청구 대기에 뜬다.
+    계약 편집 권한 또는 기기 편집 권한(현장 기사가 폰으로)이면 된다. 수거비 같은 금액 줄은 금액 보기 권한이 필요"""
+    ctx = company_ctx(router, cid, "contracts")
+    if not (ctx.can("contracts", "edit") or ctx.can("assets", "edit")):
+        raise ForbiddenError("no permission: contracts or assets")
     body = parse_body(router, ReturnBody)
     _check_money(ctx, [], body.lines)
     c = _get(cid, f"CONTRACT#{kid}", "contract")

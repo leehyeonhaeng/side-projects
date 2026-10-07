@@ -180,3 +180,15 @@ def test_service_flow_and_field_staff(w: World) -> None:
     assert w.receivable() == before + 33000
     assert call(w.ctx, "h1", "POST", f"{w.base}/services/{s2['id']}/cancel", {})[0] == 400
     assert [x["status"] for x in w.get("/services")["services"]][:1] == ["open"]
+
+
+def test_field_staff_can_return_but_not_rent_out(w: World) -> None:
+    """현장 기사(기기 편집, 계약 보기, 금액 숨김): 폰으로 수거·수거 카운터는 되고, 출고·기기 추가·금액 줄은 안 된다"""
+    k = w.ok("POST", f"{w.base}/contracts", {"partnerId": w.school, "date": f"{M1}-01", "machines": [{"assetId": w.assets[0], "monthly": 70000, "counter": True, "startMono": 100}]})["contract"]
+    assert call(w.ctx, "f1", "POST", f"{w.base}/contracts", {"partnerId": w.school, "date": f"{M1}-02", "machines": [{"assetId": w.assets[1]}]})[0] == 403
+    assert call(w.ctx, "f1", "POST", f"{w.base}/contracts/{k['id']}/machines", {"date": f"{M1}-02", "machines": [{"assetId": w.assets[1]}]})[0] == 403
+    back = {"date": f"{M1}-20", "assetIds": [w.assets[0]], "readings": [{"assetId": w.assets[0], "mono": 900}]}
+    assert call(w.ctx, "f1", "POST", f"{w.base}/contracts/{k['id']}/return", {**back, "lines": [{"name": "수거비", "unitPrice": 20000}]})[0] == 403
+    w.ok("POST", f"{w.base}/contracts/{k['id']}/return", back, sub="f1")
+    assert w.get(f"/contracts/{k['id']}")["contract"]["status"] == "ended"
+    assert w.asset(w.assets[0])["status"] == "in_stock"
