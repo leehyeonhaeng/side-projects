@@ -33,6 +33,8 @@ export default defineConfig(({ mode }) => ({
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         navigateFallback: "/index.html",
         cleanupOutdatedCaches: true,
+        // 행컴퍼니 폰 푸시 받기·누르기 (public/push-sw.js)
+        importScripts: ["push-sw.js"],
         runtimeCaching: [
           {
             urlPattern: ({ request }) => request.destination === "font",

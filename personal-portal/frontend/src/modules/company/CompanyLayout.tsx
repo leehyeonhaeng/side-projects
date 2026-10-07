@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { Link, NavLink, Outlet, useOutletContext, useParams } from "react-router";
-import { ArrowLeftIcon, ArrowRightLeftIcon, Building2Icon, WalletIcon, ContactIcon, FileSignatureIcon, FileTextIcon, GaugeIcon, HistoryIcon, HouseIcon, LandmarkIcon, LayoutGridIcon, PackageIcon, PrinterIcon, ReceiptTextIcon, SettingsIcon, UsersIcon, WrenchIcon } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightLeftIcon, Building2Icon, WalletIcon, BarChart3Icon, BellIcon, ContactIcon, FileSignatureIcon, FileTextIcon, GaugeIcon, HistoryIcon, HouseIcon, LandmarkIcon, LayoutGridIcon, PackageIcon, PrinterIcon, ReceiptTextIcon, SettingsIcon, UsersIcon, WrenchIcon } from "lucide-react";
 import { ApiError } from "@/api/client";
-import { type CompanyDetail, useCompany } from "@/api/company";
+import { type CompanyDetail, useCompany, useNotifications } from "@/api/company";
 import { ErrorAlert, PageSpinner } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -24,6 +24,8 @@ export const COMPANY_NAV: NavItem[] = [
   { to: "readings", label: "검침", icon: <GaugeIcon />, show: can("assets") },
   { to: "services", label: "A/S", icon: <WrenchIcon />, show: can("assets") },
   { to: "docs", label: "문서함", icon: <FileTextIcon />, show: can("docs") },
+  { to: "reports", label: "보고서", icon: <BarChart3Icon />, show: (d) => can("reports")(d) && d.me.showAmounts },
+  { to: "notifications", label: "알림", icon: <BellIcon />, show: () => true },
   { to: "money", label: "돈 (미수·장부)", icon: <WalletIcon />, show: (d) => can("money")(d) && d.me.showAmounts },
   { to: "items", label: "품목·재고", icon: <PackageIcon />, show: can("items") },
   { to: "accounts", label: "계좌", icon: <LandmarkIcon />, show: can("money") },
@@ -36,6 +38,8 @@ export const COMPANY_NAV: NavItem[] = [
 export function CompanyLayout() {
   const { cid = "" } = useParams();
   const company = useCompany(cid);
+  const notes = useNotifications(cid);
+  const unread = notes.data?.unread ?? 0;
 
   if (company.isPending) return <PageSpinner />;
   if (company.isError) {
@@ -80,6 +84,7 @@ export function CompanyLayout() {
             >
               {n.icon}
               {n.label}
+              {n.to === "notifications" && unread > 0 && <span className="ml-auto rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">{unread > 99 ? "99+" : unread}</span>}
             </NavLink>
           ))}
         </nav>
@@ -92,7 +97,11 @@ export function CompanyLayout() {
             <ArrowLeftIcon />
           </Button>
           <Building2Icon className="size-4 text-muted-foreground" />
-          <span className="truncate text-sm font-semibold">{company.data.company.name}</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold">{company.data.company.name}</span>
+          <Link to={`${base}/notifications`} aria-label={unread ? `알림 ${unread}개` : "알림"} className="relative grid size-9 place-items-center rounded-full text-muted-foreground active:bg-muted [&_svg]:size-5">
+            <BellIcon />
+            {unread > 0 && <span className="absolute top-1 right-1 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] leading-4 font-semibold text-white">{unread > 9 ? "9+" : unread}</span>}
+          </Link>
         </header>
         <Outlet context={{ cid, detail: company.data } satisfies CompanyOutlet} />
       </div>

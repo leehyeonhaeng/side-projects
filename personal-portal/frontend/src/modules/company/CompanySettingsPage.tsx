@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCompanyOutlet } from "./CompanyLayout";
 
-type Form = Required<Omit<CompanyInfo, "id" | "createdAt" | "vatDefault">> & { vatDefault: VatMode };
+type Form = Required<Omit<CompanyInfo, "id" | "createdAt" | "vatDefault" | "overdueDays">> & { vatDefault: VatMode; overdueDays: string };
 
-const FIELDS: { key: keyof Omit<Form, "vatDefault">; label: string; placeholder?: string; wide?: boolean }[] = [
+const FIELDS: { key: keyof Omit<Form, "vatDefault" | "overdueDays">; label: string; placeholder?: string; wide?: boolean }[] = [
   { key: "name", label: "상호" },
   { key: "bizNo", label: "사업자등록번호", placeholder: "123-45-67890" },
   { key: "ceo", label: "대표자" },
@@ -40,6 +40,7 @@ export function CompanySettingsPage() {
     bankAccount: c.bankAccount ?? "",
     assetPrefix: c.assetPrefix ?? "",
     vatDefault: c.vatDefault,
+    overdueDays: String(c.overdueDays ?? 30),
   }));
   const [saved, setSaved] = useState(false);
   const mut = useCompanyMutations(cid);
@@ -53,7 +54,7 @@ export function CompanySettingsPage() {
           e.preventDefault();
           setSaved(false);
           mut.patchCompany.mutate(
-            Object.fromEntries(Object.entries(form).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v])),
+            { ...Object.fromEntries(Object.entries(form).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v])), overdueDays: Math.min(365, Math.max(1, Number(form.overdueDays) || 30)) },
             { onSuccess: () => setSaved(true) },
           );
         }}
@@ -75,6 +76,10 @@ export function CompanySettingsPage() {
                 </option>
               ))}
             </NativeSelect>
+          </label>
+          <label className="grid gap-1 text-xs text-muted-foreground">
+            연체로 보는 날 (청구 후 며칠, 알림·대시보드)
+            <Input inputMode="numeric" value={form.overdueDays} readOnly={!canEdit} onChange={(e) => setForm({ ...form, overdueDays: e.target.value.replace(/\D/g, "") })} />
           </label>
         </div>
         <ErrorAlert error={mut.patchCompany.error} />

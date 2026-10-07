@@ -14,6 +14,8 @@ import { ContractEditPage, ContractReturnPage, RentalOutPage } from "./modules/c
 import { ContractDetailPage, ContractsPage } from "./modules/company/ContractsPage";
 import { DocsPage, InvoiceNewPage } from "./modules/company/DocsPage";
 import { LabelsPage } from "./modules/company/LabelsPage";
+import { NotificationsPage } from "./modules/company/NotificationsPage";
+import { ReportsPage } from "./modules/company/ReportsPage";
 import { ReadingsPage } from "./modules/company/ReadingsPage";
 import { ServiceDetailPage, ServiceNewPage, ServicesPage } from "./modules/company/ServicesPage";
 import { CompanyAuditPage } from "./modules/company/CompanyAuditPage";
@@ -85,6 +87,8 @@ export const router = createBrowserRouter([
       { path: "docs", element: <DocsPage /> },
       { path: "docs/invoice", element: <InvoiceNewPage /> },
       { path: "labels", element: <LabelsPage /> },
+      { path: "notifications", element: <NotificationsPage /> },
+      { path: "reports", element: <ReportsPage /> },
     ],
   },
   { path: "/mfa-setup", element: <RequireAuth><MfaSetupPage /></RequireAuth> },

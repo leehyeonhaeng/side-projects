@@ -2,3 +2,4 @@
 # 글꼴은 fonts/ (Pretendard, SIL OFL)를 레이어의 /opt/fonts 로 복사한다
 reportlab==5.0.1
 pillow==12.3.0
+cryptography==50.0.2  # 폰 푸시 암호화·서명 (common/webpush.py)

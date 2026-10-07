@@ -2,7 +2,7 @@
 
 > 인쇄·사무기기 임대 업체용 소규모 ERP. 행포털 안의 별도 공간으로 들어가 거래처·기기·재고·임대 계약·돈·증빙 문서를 **하나의 흐름**으로 관리한다.
 > 행포털 공통 설계(로그인, 권한 미들웨어, 단일 테이블, 배포)는 `DESIGN.md`를 따르고, 이 문서는 회사 공간만 다룬다.
-> 상태: 설계 확정(2026-10-06), **C1·C2 (2026-10-06), C3·C4·C5 (2026-10-07) 구현·dev 배포**
+> 상태: 설계 확정(2026-10-06), **C1·C2 (2026-10-06), C3~C6 (2026-10-07) 구현·dev 배포**
 
 ---
 
@@ -305,6 +305,32 @@
 | `GET …/docs?type&partnerId&source`, `GET …/docs/{id}/pdf` | 문서함 / PDF(`data` base64, `url` 서명 URL, `canceled`) |
 | `POST …/print/ledger` `{partnerId, from, to}`, `POST …/print/labels` `{assetIds, kind, start, nudgeX, nudgeY, outline, baseUrl}` | 거래처 원장 / 기기 라벨 PDF |
 | `GET` · `PUT` · `DELETE …/seal` | 직인 보기 / 올리기 `{data}` / 예시 직인으로 |
+
+### C6 대시보드·보고서·알림 (2026-10-07)
+
+사용자 결정 (2026-10-07): 알림은 **앱 안 + 폰 푸시** / 알림 종류는 **직원마다 켜고 끄기**, 아침 확인은 **새로 생긴 것만** / 보고서 내보내기는 **CSV**
+
+| 항목 | 구현 |
+|---|---|
+| 코드 | `backend/domains/company_notify.py`(알림·설정·아침 확인), `company_reports.py`(대시보드·보고서), `common/webpush.py`(푸시), `handlers/company_daily.py` / `frontend/src/modules/company/` NotificationsPage, ReportsPage, CompanyHomePage(대시보드), `public/push-sw.js` |
+| 알림 종류 | 바로: 내게 A/S 배정(기본 켬)·A/S 접수·A/S 완료·입금 들어옴(금액)·재고 부족으로 떨어짐(켬)·임대 출고·수거 / 아침 확인: 새로 연체된 미수(금액, 켬)·계약 만료 30일 전(켬)·새 청구 대기(금액, 켬)·검침 필요·3일 넘은 A/S(켬). 권한 없는 종류는 목록에도 없고 받지도 않음. 자기가 한 일은 안 받음 |
+| 저장 | `NOTIFY#<sub>`(종류별 켜기·다 읽은 시각), `NOTI#<sub>#<시각>`(알림, 60일 TTL), `PUSHSUB#<sub>#<해시>`(기기 구독), `ALERTSTATE#<종류>`(아침 확인에서 지난번 알린 목록 → 새로 생긴 것만). 멤버가 아닌 Host도 설정·구독하면 받음 |
+| 재고 부족 | 거래가 재고를 최소 재고 이상 → 미만으로 떨어뜨릴 때만 (이미 아래면 다시 안 알림) |
+| 아침 확인 | EventBridge Scheduler `cron(30 8 * * ? *)` Asia/Seoul → `portal-<env>-company-daily` Lambda가 회사마다 확인. 처음 실행 때는 지금 있는 것 전부가 "새로" 잡혀 한 번 몰아서 옴 |
+| 폰 푸시 | Web Push(RFC 8291 aes128gcm + RFC 8292 VAPID)를 cryptography로 직접 구현 (pywebpush 의존성이 소스 배포뿐이라 arm64 레이어에 못 넣음). 테스트에서 http_ece(참조 구현)로 복호화 확인. 키는 Terraform `tls_private_key` → SSM SecureString `/portal-<env>/vapid-private-key`, Lambda가 콜드 스타트에 읽음. 404·410 구독은 삭제. 서비스 워커는 workbox `importScripts`로 `push-sw.js`(알림 표시·누르면 그 화면) |
+| 기기 연결 | 알림 화면에서 "이 기기에서 알림 받기"(브라우저 권한 → 구독 저장), 시험 알림, 이 기기 끄기. 아이폰은 홈 화면에 추가한 앱(iOS 16.4+)에서만 |
+| 대시보드 | 회사 홈: 오늘 할 일·빠른 입력 + 이번 달 매출·수금·매입·경비(지난달 대비), 미수 상위 5곳(연체 금액), 재고 부족, 계약 만료 임박, 최근 알림. 권한 있는 것만 서버가 보냄. 화면 위 종 아이콘·메뉴에 안 읽은 수(1분마다 갱신) |
+| 연체 기준 | 회사 설정 `overdueDays`(기본 30일): 청구 후 그 날이 지나도 남은 금액 |
+| 보고서 | 기간(최근 3·6·12개월·올해, 최대 24개월): 월별 매출(공급가액·세액·합계)·수금·매입·지급·경비 막대, 거래처별, 품목별(판매·A/S 사용·매입), 경비 항목별, 기기 가동률(지금). 표마다 CSV(엑셀에서 한글 안 깨지게 BOM) — 화면에서 만든다. 보고서 영역 + 금액 보기 권한 |
+
+**API (C6)**
+
+| 메서드 · 경로 | 내용 |
+|---|---|
+| `GET /company/{cid}/notifications`, `POST …/notifications/read` | 내 알림 50개·안 읽은 수 / 다 읽음 |
+| `GET` · `PUT …/notify/settings` `{prefs}` | 받을 종류(권한 있는 것만)·푸시 공개 키·기기 수 / 켜고 끄기 |
+| `POST …/push/subscribe` · `…/push/unsubscribe` · `…/push/test` | 기기 구독 / 해제 / 시험 알림 |
+| `GET …/dashboard`, `GET …/reports?from=YYYY-MM&to=YYYY-MM` | 대시보드 / 보고서 |
 
 ## 13. 나중에 (지금 범위 밖)
 

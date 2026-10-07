@@ -3,7 +3,7 @@ from typing import Any
 from aws_lambda_powertools.utilities.typing import LambdaContext
 
 from common.app import create_app
-from domains import company_core, company_docs, company_master, company_rental, company_service, company_txn
+from domains import company_core, company_docs, company_master, company_notify, company_rental, company_reports, company_service, company_txn
 
 # 행컴퍼니 (docs/COMPANY.md). 회사 데이터·문서만 다루는 별도 Lambda (최소 권한)
 app, logger = create_app("company")
@@ -13,6 +13,8 @@ app.include_router(company_txn.router)
 app.include_router(company_rental.router)
 app.include_router(company_service.router)
 app.include_router(company_docs.router)
+app.include_router(company_notify.router)
+app.include_router(company_reports.router)
 
 
 @logger.inject_lambda_context

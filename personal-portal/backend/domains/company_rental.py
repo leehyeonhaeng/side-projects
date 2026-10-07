@@ -26,6 +26,7 @@ from common.http import parse_body
 from common.users import now_iso
 from domains.company_core import CompanyCtx, company_audit, company_ctx, pk
 from domains.company_master import asset_log, next_seq
+from domains.company_notify import notify
 from domains.company_txn import ID, LineIn, Tx, TxnCreate, _get, _partner_txns, _strip, _view, build_txn, finish_txn
 from domains.sharing import query_all
 
@@ -271,6 +272,7 @@ def create_contract(cid: str) -> dict[str, Any]:
     b.tx.put(contract, "attribute_not_exists(PK)")
     res = finish_txn(b)
     table().put_item(Item=company_audit(cid, ctx.sub, "contract_create", no, {"partner": partner["name"], "machines": len(rows)}))
+    _rental_notify(cid, ctx.sub, "임대 출고", partner["name"], kid, b.txn)
     return {"contract": _contract_view(ctx, contract), **res}
 
 
@@ -296,7 +298,9 @@ def add_machines(cid: str, kid: str) -> dict[str, Any]:
     vals: dict[str, Any] = {f":r{i}": row for i, row in enumerate(rows.values())}
     sets_expr = ", ".join(f"machines.#a{i} = :r{i}" for i in range(len(rows)))
     b.tx.update({"PK": pk(cid), "SK": f"CONTRACT#{kid}"}, f"SET {sets_expr}, ver = ver + :one, updatedAt = :now", names | {"#st": "status"}, vals | {":one": 1, ":now": now_iso(), ":v": c["ver"], ":a": "active"}, "ver = :v AND #st = :a", "계약이 바뀌었습니다. 새로 고친 뒤 다시 시도하세요")
-    return finish_txn(b)
+    res = finish_txn(b)
+    _rental_notify(cid, ctx.sub, "임대 출고(추가)", c["partnerName"], kid, b.txn)
+    return res
 
 
 @router.post("/company/<cid>/contracts/<kid>/return")
@@ -338,7 +342,13 @@ def return_machines(cid: str, kid: str) -> dict[str, Any]:
     b.tx.update({"PK": pk(cid), "SK": f"CONTRACT#{kid}"}, "SET " + ", ".join(parts) + ", ver = ver + :one, updatedAt = :now", names, vals, "ver = :v", "계약이 바뀌었습니다. 새로 고친 뒤 다시 시도하세요")
     for aid in sets:
         b.tx.put(asset_log(cid, aid, ctx.sub, "reading", mono=readings[aid].mono, color=readings[aid].color or 0, date=day, note="수거"))
-    return finish_txn(b)
+    res = finish_txn(b)
+    _rental_notify(cid, ctx.sub, "수거" + (" · 계약 종료" if not remaining else ""), c["partnerName"], kid, b.txn)
+    return res
+
+
+def _rental_notify(cid: str, actor: str, what: str, partner: str, kid: str, txn: dict[str, Any]) -> None:
+    notify(cid, "rental", f"{what}: {partner}", ", ".join(txn.get("assetCodes", []))[:120], f"/company/{cid}/contracts/{kid}", exclude=actor)
 
 
 @router.patch("/company/<cid>/contracts/<kid>")

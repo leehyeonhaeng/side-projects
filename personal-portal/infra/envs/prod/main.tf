@@ -10,6 +10,10 @@ terraform {
       source  = "hashicorp/archive"
       version = "~> 2.4"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 
   backend "s3" {
@@ -252,7 +256,28 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "docs" {
   }
 }
 
-# company만 문서 버킷을 읽고 쓴다 (DeleteObject: 동시에 발행했을 때 늦은 쪽 파일 정리)
+# ── 행컴퍼니 알림 (COMPANY.md 12장 C6) ─────────────
+
+# 폰 푸시 서명 키(VAPID, P-256). 값은 SSM SecureString과 비공개 상태 파일에만 있고, Lambda가 콜드 스타트 때 읽는다
+resource "tls_private_key" "vapid" {
+  algorithm   = "ECDSA"
+  ecdsa_curve = "P256"
+}
+
+resource "aws_ssm_parameter" "vapid" {
+  name  = "/${local.prefix}/vapid-private-key"
+  type  = "SecureString"
+  value = tls_private_key.vapid.private_key_pem
+}
+
+locals {
+  push_env = {
+    VAPID_PARAM  = aws_ssm_parameter.vapid.name
+    PUSH_SUBJECT = "https://${module.hosting.domain_name}"
+  }
+}
+
+# company만 문서 버킷을 읽고 쓴다 (DeleteObject: 동시에 발행했을 때 늦은 쪽 파일 정리) + 푸시 키 읽기
 data "aws_iam_policy_document" "company" {
   source_policy_documents = [data.aws_iam_policy_document.table_rw.json]
 
@@ -260,6 +285,12 @@ data "aws_iam_policy_document" "company" {
     effect    = "Allow"
     actions   = ["s3:GetObject", "s3:GetObjectVersion", "s3:PutObject", "s3:DeleteObject"]
     resources = ["${aws_s3_bucket.docs.arn}/*"]
+  }
+
+  statement {
+    effect    = "Allow"
+    actions   = ["ssm:GetParameter"]
+    resources = [aws_ssm_parameter.vapid.arn]
   }
 }
 
@@ -311,8 +342,64 @@ module "lambda" {
     { TABLE_NAME = module.table.name },
     each.key == "admin" ? { USER_POOL_ID = module.cognito.user_pool_id } : {},
     each.key == "ai" ? { BEDROCK_MODEL_ID = var.bedrock_model_id } : {},
-    each.key == "company" ? { DOCS_BUCKET = aws_s3_bucket.docs.bucket } : {},
+    each.key == "company" ? merge({ DOCS_BUCKET = aws_s3_bucket.docs.bucket }, local.push_env) : {},
   )
+}
+
+# 아침 확인 (매일 08:30 KST): 새로 생긴 연체·만료 임박·청구 대기·검침·밀린 A/S 알림
+module "company_daily" {
+  source = "../../modules/lambda"
+
+  function_name = "${local.prefix}-company-daily"
+  service       = "company-daily"
+  handler       = "handlers.company_daily.lambda_handler"
+  package_path  = data.archive_file.backend.output_path
+  package_hash  = data.archive_file.backend.output_base64sha256
+  layers        = [var.powertools_layer_arn, aws_lambda_layer_version.doc.arn]
+  timeout       = 120
+  memory_size   = 512
+  policy_json   = data.aws_iam_policy_document.company.json
+
+  environment = merge({ TABLE_NAME = module.table.name, DOCS_BUCKET = aws_s3_bucket.docs.bucket }, local.push_env)
+}
+
+data "aws_iam_policy_document" "scheduler_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["scheduler.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "scheduler" {
+  name               = "${local.prefix}-scheduler"
+  assume_role_policy = data.aws_iam_policy_document.scheduler_assume.json
+}
+
+resource "aws_iam_role_policy" "scheduler" {
+  role = aws_iam_role.scheduler.id
+  policy = jsonencode({
+    Version   = "2012-10-17"
+    Statement = [{ Effect = "Allow", Action = "lambda:InvokeFunction", Resource = module.company_daily.arn }]
+  })
+}
+
+resource "aws_scheduler_schedule" "company_daily" {
+  name                         = "${local.prefix}-company-daily"
+  schedule_expression          = "cron(30 8 * * ? *)"
+  schedule_expression_timezone = "Asia/Seoul"
+  flexible_time_window {
+    mode = "OFF"
+  }
+  target {
+    arn      = module.company_daily.arn
+    role_arn = aws_iam_role.scheduler.arn
+    retry_policy {
+      maximum_retry_attempts = 1
+    }
+  }
 }
 
 # Cognito 트리거. 풀이 이 함수 ARN을 참조하므로 풀 ID는 이벤트에서 받고,

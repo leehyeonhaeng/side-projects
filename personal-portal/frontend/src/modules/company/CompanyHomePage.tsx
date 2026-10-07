@@ -1,18 +1,16 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { ChevronRightIcon, EyeOffIcon, GaugeIcon, ReceiptTextIcon, ShieldCheckIcon, UserPlusIcon, WrenchIcon } from "lucide-react";
-import { AREAS, LEVEL_LABEL, useBilling, useReadings, useServices } from "@/api/company";
+import { AREAS, LEVEL_LABEL, type MoneySums, useBilling, useDashboard, useNotifications, useReadings, useServices } from "@/api/company";
 import { useMe } from "@/api/me";
 import { Button } from "@/components/ui/button";
+import { formatTime } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { useCompanyOutlet } from "./CompanyLayout";
+import { money } from "./ui";
 
-// COMPANY.md 11장 구현 단계 — 대시보드가 생기기 전까지 홈에서 진행 상황을 보여 준다
-const COMING = [
-  { phase: "C6", items: "대시보드 · 보고서 · 알림" },
-];
 
-/** 회사 홈: 오늘 할 일(청구 대기·A/S·검침), 빠른 입력, 내 권한. C6에서 대시보드로 바뀐다 */
+/** 회사 홈 (대시보드, C6): 오늘 할 일, 빠른 입력, 이번 달 돈, 미수 상위, 재고 부족, 계약 만료 임박, 최근 알림, 내 권한 */
 export function CompanyHomePage() {
   const { cid, detail } = useCompanyOutlet();
   const me = useMe();
@@ -27,6 +25,8 @@ export function CompanyHomePage() {
 
       <Todos cid={cid} />
       <QuickTxns cid={cid} />
+      <DashboardCards cid={cid} />
+      <RecentNotes cid={cid} />
       {access.isAdmin && (
         <section className="flex flex-wrap items-center gap-3 rounded-2xl border bg-card p-4">
           <UserPlusIcon className="size-5 text-primary" />
@@ -56,17 +56,6 @@ export function CompanyHomePage() {
         )}
       </section>
 
-      <section className="grid gap-2 rounded-2xl border border-dashed p-4">
-        <h2 className="text-sm font-medium">준비 중인 기능</h2>
-        <ul className="grid gap-1 text-sm">
-          {COMING.map((c) => (
-            <li key={c.phase} className="flex gap-2">
-              <span className="w-8 shrink-0 text-xs font-medium text-muted-foreground">{c.phase}</span>
-              <span className="text-muted-foreground">{c.items}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
     </main>
   );
 }
@@ -123,6 +112,127 @@ function QuickTxns({ cid }: { cid: string }) {
           {q.label}
         </Link>
       ))}
+    </section>
+  );
+}
+
+function Delta({ now, before }: { now: number; before: number }) {
+  if (!before) return null;
+  const pct = Math.round(((now - before) / before) * 100);
+  return <span className={cn("text-[11px]", pct >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>지난달 {pct >= 0 ? "+" : ""}{pct}%</span>;
+}
+
+const MONEY_TILES: [keyof MoneySums, string][] = [
+  ["salesTotal", "매출"],
+  ["receipts", "수금"],
+  ["purchaseTotal", "매입"],
+  ["expenses", "경비"],
+];
+
+/** 이번 달 돈·미수 상위·재고 부족·계약 만료 임박 (권한 있는 것만 서버가 보낸다) */
+function DashboardCards({ cid }: { cid: string }) {
+  const d = useDashboard(cid);
+  if (!d.data) return null;
+  const { money: m, receivables, lowStock, expiring } = d.data;
+  return (
+    <>
+      {m && (
+        <section className="grid gap-2">
+          <h2 className="text-sm font-medium">{Number(d.data.month.slice(5))}월</h2>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {MONEY_TILES.map(([k, label]) => (
+              <div key={k} className="grid gap-0.5 rounded-2xl border bg-card p-3">
+                <span className="text-xs text-muted-foreground">{label}</span>
+                <span className="truncate font-bold tabular-nums">{money(m.this[k])}</span>
+                <Delta now={m.this[k]} before={m.last[k]} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+      {receivables && receivables.top.length > 0 && (
+        <section className="grid gap-2 rounded-2xl border bg-card p-4">
+          <h2 className="flex items-center justify-between text-sm font-medium">
+            미수 {receivables.partners}곳 · {money(receivables.total)}
+            <Link to={`/company/${cid}/money`} className="text-xs font-normal text-primary">
+              전체
+            </Link>
+          </h2>
+          <ul className="grid gap-1 text-sm">
+            {receivables.top.map((p) => (
+              <li key={p.id}>
+                <Link to={`/company/${cid}/partners/${p.id}`} className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 truncate">{p.name}</span>
+                  <span className="shrink-0 text-right tabular-nums">
+                    {money(p.receivable)}
+                    {p.overdue > 0 && <span className="block text-[11px] text-red-600 dark:text-red-400">연체 {money(p.overdue)}</span>}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[11px] text-muted-foreground">연체 = 청구 후 {receivables.overdueDays}일 지남 (회사 설정)</p>
+        </section>
+      )}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {lowStock && lowStock.length > 0 && (
+          <section className="grid content-start gap-2 rounded-2xl border border-amber-300/60 bg-card p-4">
+            <h2 className="text-sm font-medium">재고 부족 {lowStock.length}개</h2>
+            <ul className="grid gap-1 text-sm">
+              {lowStock.slice(0, 6).map((i) => (
+                <li key={i.id} className="flex justify-between gap-2">
+                  <span className="min-w-0 truncate">{i.name}</span>
+                  <span className="shrink-0 tabular-nums text-amber-700 dark:text-amber-400">
+                    {i.qty}/{i.minStock}
+                    {i.unit}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {expiring && expiring.length > 0 && (
+          <section className="grid content-start gap-2 rounded-2xl border bg-card p-4">
+            <h2 className="text-sm font-medium">계약 만료 임박 {expiring.length}건</h2>
+            <ul className="grid gap-1 text-sm">
+              {expiring.slice(0, 6).map((c) => (
+                <li key={c.id}>
+                  <Link to={`/company/${cid}/contracts/${c.id}`} className="flex justify-between gap-2">
+                    <span className="min-w-0 truncate">{c.partnerName}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{c.termEnd}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+    </>
+  );
+}
+
+function RecentNotes({ cid }: { cid: string }) {
+  const n = useNotifications(cid);
+  const items = n.data?.notifications.slice(0, 3) ?? [];
+  if (items.length === 0) return null;
+  return (
+    <section className="grid gap-2 rounded-2xl border bg-card p-4">
+      <h2 className="flex items-center justify-between text-sm font-medium">
+        최근 알림
+        <Link to={`/company/${cid}/notifications`} className="text-xs font-normal text-primary">
+          전체·설정
+        </Link>
+      </h2>
+      <ul className="grid gap-1.5 text-sm">
+        {items.map((x, i) => (
+          <li key={i}>
+            <Link to={x.url} className="flex justify-between gap-2">
+              <span className={cn("min-w-0 truncate", x.unread && "font-semibold")}>{x.title}</span>
+              <span className="shrink-0 text-[11px] text-muted-foreground">{formatTime(x.at)}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

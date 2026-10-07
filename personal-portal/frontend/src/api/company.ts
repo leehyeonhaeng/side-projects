@@ -35,6 +35,7 @@ export type CompanyInfo = {
   bizItem?: string;
   bankAccount?: string;
   assetPrefix?: string;
+  overdueDays?: number;
   vatDefault: VatMode;
   createdAt: string;
 };
@@ -582,5 +583,53 @@ export function useDocMutations(cid: string) {
     labels: useMutation({ mutationFn: (body: LabelsInput) => api.post<PdfFile>(`${base}/print/labels`, body) }),
     putSeal: useMutation({ mutationFn: (data: string) => api.put<{ data: string; updatedAt: string }>(`${base}/seal`, { data }), onSettled: () => void qc.invalidateQueries({ queryKey: ["company", cid, "seal"] }) }),
     deleteSeal: useMutation({ mutationFn: () => api.del(`${base}/seal`), onSettled: () => void qc.invalidateQueries({ queryKey: ["company", cid, "seal"] }) }),
+  };
+}
+
+// ── C6 알림·대시보드·보고서 (backend/domains/company_notify.py, company_reports.py) ──
+
+export type NotifyType = { id: string; label: string; group: "instant" | "daily"; on: boolean };
+export type Notification = { type: string; title: string; body: string; url: string; at: string; unread: boolean };
+export type Dashboard = {
+  month: string;
+  money?: { this: MoneySums; last: MoneySums };
+  receivables?: { top: { id: string; name: string; receivable: number; overdue: number }[]; total: number; partners: number; overdueDays: number };
+  lowStock?: { id: string; name: string; qty: number; minStock: number; unit: string }[];
+  expiring?: { id: string; no: string; partnerName: string; termEnd: string }[];
+  assets?: Partial<Record<AssetStatus, number>>;
+};
+export type MoneySums = { salesTotal: number; receipts: number; purchaseTotal: number; expenses: number };
+export type Report = {
+  from: string;
+  to: string;
+  monthly: { month: string; salesSupply: number; salesVat: number; salesTotal: number; receipts: number; purchaseSupply: number; purchaseTotal: number; payments: number; expenses: number }[];
+  partners: { id: string; name: string; salesTotal: number; receipts: number; purchaseTotal: number; payments: number; receivable: number; payable: number }[];
+  items: { id: string; name: string; unit: string; saleQty: number; saleSupply: number; usedQty: number; purchaseQty: number; purchaseSupply: number }[];
+  expenses: { category: string; amount: number }[];
+  assets: { id: string; name: string; total: number; rented: number; in_stock: number; repair: number }[];
+};
+
+export function useNotifications(cid: string) {
+  return useQuery({ queryKey: sub(cid, "notifications"), queryFn: () => api.get<{ notifications: Notification[]; unread: number }>(`/company/${cid}/notifications`), refetchInterval: 60_000, staleTime: 30_000 });
+}
+export function useNotifySettings(cid: string) {
+  return useQuery({ queryKey: sub(cid, "notify"), queryFn: () => api.get<{ types: NotifyType[]; publicKey: string | null; devices: number }>(`/company/${cid}/notify/settings`) });
+}
+export function useDashboard(cid: string) {
+  return useQuery({ queryKey: sub(cid, "dashboard"), queryFn: () => api.get<Dashboard>(`/company/${cid}/dashboard`), staleTime: 30_000 });
+}
+export function useReport(cid: string, from: string, to: string) {
+  return useQuery({ queryKey: sub(cid, "reports", from, to), queryFn: () => api.get<Report>(`/company/${cid}/reports?from=${from}&to=${to}`) });
+}
+export function useNotifyMutations(cid: string) {
+  const qc = useQueryClient();
+  const settled = () => void qc.invalidateQueries({ queryKey: ["company", cid, "notify"] });
+  const base = `/company/${cid}`;
+  return {
+    read: useMutation({ mutationFn: () => api.post(`${base}/notifications/read`), onSettled: () => void qc.invalidateQueries({ queryKey: ["company", cid, "notifications"] }) }),
+    prefs: useMutation({ mutationFn: (prefs: Record<string, boolean>) => api.put(`${base}/notify/settings`, { prefs }), onSettled: settled }),
+    subscribe: useMutation({ mutationFn: (body: { endpoint: string; keys: Record<string, string>; device: string }) => api.post(`${base}/push/subscribe`, body), onSettled: settled }),
+    unsubscribe: useMutation({ mutationFn: (endpoint: string) => api.post(`${base}/push/unsubscribe`, { endpoint }), onSettled: settled }),
+    test: useMutation({ mutationFn: () => api.post<{ devices: number }>(`${base}/push/test`) }),
   };
 }

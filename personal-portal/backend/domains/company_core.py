@@ -169,6 +169,7 @@ class CompanyInfo(BaseModel):
     bankAccount: str | None = Field(default=None, max_length=100)  # 입금 계좌 (문서에 표시)
     vatDefault: Literal["included", "excluded", "exempt"] | None = None
     assetPrefix: str | None = Field(default=None, pattern=r"^[A-Z0-9]{1,5}$")  # 기기 고유번호 앞글자 (예: A → A-000001)
+    overdueDays: int | None = Field(default=None, ge=1, le=365)  # 청구 후 며칠 지나면 연체 (알림·대시보드, 기본 30)
 
 
 class RoleBody(BaseModel):

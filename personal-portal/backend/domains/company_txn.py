@@ -30,6 +30,7 @@ from common.serialize import to_dynamo, to_plain
 from common.users import now_iso
 from domains.company_core import CompanyCtx, company_audit, company_ctx, pk, redact
 from domains.company_master import asset_log, asset_prefix, next_seq
+from domains.company_notify import notify
 from domains.sharing import query_all
 
 router = Router()
@@ -407,6 +408,7 @@ class Build:
     partner: dict[str, Any] | None
     receipts: list[dict[str, Any]] = field(default_factory=list)  # 바로 결제로 같이 만드는 입금·지급
     created_assets: list[dict[str, Any]] = field(default_factory=list)
+    low_stock: list[str] = field(default_factory=list)  # 이 거래로 최소 재고 아래로 떨어지는 품목 (알림)
 
 
 def build_txn(ctx: CompanyCtx, cid: str, body: TxnCreate, extra: dict[str, Any] | None = None, asset_set: dict[str, dict[str, Any]] | None = None) -> Build:
@@ -430,6 +432,7 @@ def build_txn(ctx: CompanyCtx, cid: str, body: TxnCreate, extra: dict[str, Any] 
     fails: dict[str, str] = {}
     created_assets: list[dict[str, Any]] = []
     items_cache: dict[str, dict[str, Any]] = {}
+    low_stock: list[str] = []
 
     def item_of(iid: str) -> dict[str, Any]:
         if iid not in items_cache:
@@ -448,6 +451,9 @@ def build_txn(ctx: CompanyCtx, cid: str, body: TxnCreate, extra: dict[str, Any] 
                 if sign:
                     deltas.add(f"ITEM#{it['id']}", "qty", sign * ln["qty"], cid, nonneg=True)
                     fails[f"ITEM#{it['id']}"] = f"재고가 부족합니다: {it['name']}"
+                    before, low = float(it.get("qty", 0)), float(it.get("minStock") or 0)
+                    if sign < 0 and low and before >= low > before - ln["qty"] and it["name"] not in low_stock:
+                        low_stock.append(it["name"])
             elif t == "purchase":
                 # 기기 모델 매입: 대수만큼 기기 자동 등록
                 if ln["qty"] != int(ln["qty"]) or ln["qty"] > 50:
@@ -471,7 +477,7 @@ def build_txn(ctx: CompanyCtx, cid: str, body: TxnCreate, extra: dict[str, Any] 
     total = sum(ln.get("total", 0) for ln in lines)
 
     txn = _new_txn(cid, t, day, ctx.sub, partner, lines=lines, supply=supply, vat=vat, total=total, memo=body.memo, **(extra or {}))
-    b = Build(ctx, cid, txn, tx, deltas, fails, partner, created_assets=created_assets)
+    b = Build(ctx, cid, txn, tx, deltas, fails, partner, created_assets=created_assets, low_stock=low_stock)
 
     # 기기 효과
     if t in {"rental_out", "rental_return"}:
@@ -605,6 +611,11 @@ def finish_txn(b: Build) -> dict[str, Any]:
     b.deltas.emit(b.tx, b.fails)
     b.tx.put(company_audit(cid, ctx.sub, "txn_create", txn["no"], {"type": TYPE_LABEL[txn["type"]], "partner": (b.partner or {}).get("name", ""), "total": txn.get("total") or txn.get("amount", 0)}))
     b.tx.run()
+    base = f"/company/{cid}"
+    if txn["type"] == "receipt":
+        notify(cid, "receipt_new", f"입금 {int(txn['amount']):,}원", f"{txn.get('partnerName', '')} · {txn.get('accountName', '')}", f"{base}/txns/{txn['date']}/{txn['id']}", exclude=ctx.sub)
+    if b.low_stock:
+        notify(cid, "stock_low", f"재고 부족: {b.low_stock[0]}{f' 외 {len(b.low_stock) - 1}개' if len(b.low_stock) > 1 else ''}", f"{txn['no']} 이후 최소 재고보다 적습니다", f"{base}/items")
     return {"txn": _view(ctx, txn), "related": [_view(ctx, r) for r in b.receipts], "createdAssets": [_strip(a) for a in b.created_assets]}
 
 

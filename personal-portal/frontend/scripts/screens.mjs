@@ -106,6 +106,9 @@ const SCREENS = [
   ["company-txn-docs", "/company/cp1/txns/x/tx2"],
   ["company-settings-seal", "/company/cp1/settings"],
   ["company-partner-docs", "/company/cp1/partners/pa2"],
+  // C6 대시보드·보고서·알림
+  ["company-notifications", "/company/cp1/notifications"],
+  ["company-reports", "/company/cp1/reports"],
 ];
 
 /** 페이지 안에서 실행: 문제 요소 찾기 */

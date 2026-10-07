@@ -6,4 +6,6 @@ moto[dynamodb,cognitoidp,sns,s3]==5.*
 anthropic==1.11.0  # ai Lambda (레이어는 requirements-ai.txt)
 reportlab==5.0.1  # company 문서 (레이어는 requirements-doc.txt)
 pillow==12.3.0
+cryptography==50.0.2
+http-ece==1.2.1  # 테스트에서만: 푸시 암호화를 다른 구현으로 풀어 보기
 pytest==8.*

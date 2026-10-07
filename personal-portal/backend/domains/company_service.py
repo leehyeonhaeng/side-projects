@@ -20,6 +20,7 @@ from common.http import parse_body
 from common.users import now_iso
 from domains.company_core import CompanyCtx, company_audit, company_ctx, member_names, pk
 from domains.company_master import asset_log, next_seq
+from domains.company_notify import notify
 from domains.company_txn import ID, LineIn, Tx, TxnCreate, _get, _strip, _view, build_txn, finish_txn
 from domains.sharing import query_all
 
@@ -132,6 +133,12 @@ def create_service(cid: str) -> dict[str, Any]:
         tx.put(asset_log(cid, asset["id"], ctx.sub, "service_open", serviceNo=s["no"], note=body.symptom))
     tx.put(company_audit(cid, ctx.sub, "service_create", s["no"], {"partner": partner["name"]}))
     tx.run()
+    url = f"/company/{cid}/services/{sid}"
+    code = f" · {asset['code']}" if asset else ""
+    what = f"{partner['name']}{code} · {body.symptom[:60]}"
+    notify(cid, "service_new", f"A/S 접수 {s['no']}", what, url, exclude=ctx.sub)
+    if body.assignee and body.assignee != ctx.sub:
+        notify(cid, "service_assigned", f"내게 A/S 배정 {s['no']}", what, url, only=[body.assignee])
     return {"service": _strip(s)}
 
 
@@ -148,6 +155,9 @@ def patch_service(cid: str, sid: str) -> dict[str, Any]:
     tx = Tx()
     tx.put({**merged, "PK": pk(cid), "SK": f"SERVICE#{sid}"}, "ver = :v", values={":v": s["ver"]}, fail="A/S 기록이 바뀌었습니다. 새로 고친 뒤 다시 시도하세요")
     tx.run()
+    new_assignee = changes.get("assignee")
+    if new_assignee and new_assignee != s.get("assignee") and new_assignee != ctx.sub:
+        notify(cid, "service_assigned", f"내게 A/S 배정 {s['no']}", f"{s['partnerName']} · {s['symptom'][:60]}", f"/company/{cid}/services/{sid}", only=[new_assignee])
     return {"service": _out(_strip(merged), _members(cid))}
 
 
@@ -192,6 +202,7 @@ def complete_service(cid: str, sid: str) -> dict[str, Any]:
         tx.put(company_audit(cid, ctx.sub, "service_done", s["no"]))
         tx.run()
         res = {}
+    notify(cid, "service_done", f"A/S 완료 {s['no']}", f"{s['partnerName']} · {body.action[:60]}", f"/company/{cid}/services/{sid}", exclude=ctx.sub)
     return {"service": _strip(_get(cid, f"SERVICE#{sid}", "service")), **res}
 
 

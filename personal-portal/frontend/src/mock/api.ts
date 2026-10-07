@@ -311,6 +311,50 @@ const GET: [RegExp, Handler][] = [
   [/^\/company\/[^/]+\/docs$/, (q) => ({ docs: cpDocs.filter((x) => (!q.get("source") || x.sources.some((s) => s.id === q.get("source"))) && (!q.get("partnerId") || x.partnerId === q.get("partnerId"))) })],
   [/^\/company\/[^/]+\/docs\/[^/]+\/pdf$/, (_q, p) => ({ filename: `문서_${p[3]}.pdf`, contentType: "application/pdf", data: "JVBERi0xLjQK", url: "about:blank", no: cpDocs.find((x) => x.id === p[3])?.no, canceled: cpDocs.find((x) => x.id === p[3])?.canceled })],
   [/^\/company\/[^/]+\/seal$/, () => ({ data: null })],
+  [/^\/company\/[^/]+\/notifications$/, () => ({
+    unread: 2,
+    notifications: [
+      { type: "service_assigned", title: "내게 A/S 배정 AS-2026-0012", body: "서울중앙초등학교 · A-000001 · 용지 걸림이 하루에도 여러 번, 2단 카세트에서 소리가 남", url: "/company/cp1/services/sv1", at: now, unread: true },
+      { type: "overdue", title: "새로 연체된 미수 2건", body: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소 외 1곳 · 1,320,000원", url: "/company/cp1/money", at: now, unread: true },
+      { type: "stock_low", title: "재고 부족: D420 토너 검정", body: "T-2026-00009 이후 최소 재고보다 적습니다", url: "/company/cp1/items", at: now, unread: false },
+    ],
+  })],
+  [/^\/company\/[^/]+\/notify\/settings$/, () => ({
+    publicKey: "BOrUfOcdUj5TB7pHUD2ZRqtn5C8kByqbhJjOdx0nqY9p8jmKjqQ3KXRSzv6dyuCK0oa0iLu6v2kwJX5n6KTfNzM",
+    devices: 1,
+    types: [
+      { id: "service_assigned", label: "내게 A/S 배정", group: "instant", on: true },
+      { id: "service_new", label: "A/S 접수", group: "instant", on: false },
+      { id: "service_done", label: "A/S 완료", group: "instant", on: false },
+      { id: "receipt_new", label: "입금 들어옴", group: "instant", on: true },
+      { id: "stock_low", label: "재고 부족으로 떨어짐", group: "instant", on: true },
+      { id: "rental", label: "임대 출고·수거", group: "instant", on: false },
+      { id: "overdue", label: "새로 연체된 미수", group: "daily", on: true },
+      { id: "contract_expiring", label: "계약 만료 30일 전", group: "daily", on: true },
+      { id: "billing_due", label: "새 청구 대기", group: "daily", on: true },
+      { id: "readings_due", label: "검침 필요", group: "daily", on: false },
+      { id: "service_stale", label: "3일 넘게 안 끝난 A/S", group: "daily", on: true },
+    ],
+  })],
+  [/^\/company\/[^/]+\/dashboard$/, () => ({
+    month: T.slice(0, 7),
+    money: { this: { salesTotal: 4180000, receipts: 3250000, purchaseTotal: 7040000, expenses: 1388000 }, last: { salesTotal: 3920000, receipts: 3600000, purchaseTotal: 0, expenses: 1420000 } },
+    receivables: { total: 1560000, partners: 3, overdueDays: 30, top: [
+      { id: "pa3", name: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", receivable: 1320000, overdue: 680000 },
+      { id: "pa1", name: "서울중앙초등학교", receivable: 240000, overdue: 0 },
+    ] },
+    lowStock: [{ id: "it4", name: "D420 토너 검정", qty: 3, minStock: 5, unit: "개" }, { id: "it8", name: "D420 정착기 유닛 (아주 긴 부품 이름 테스트)", qty: 0, minStock: 1, unit: "개" }],
+    expiring: [{ id: "k1", no: "C-2026-0001", partnerName: "서울중앙초등학교", termEnd: d(20) }],
+    assets: { rented: 3, in_stock: 1, repair: 1 },
+  })],
+  [/^\/company\/[^/]+\/reports$/, () => ({
+    from: "2026-05", to: T.slice(0, 7),
+    monthly: ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10"].map((m, i) => ({ month: m, salesSupply: 2400000 + i * 310000, salesVat: 240000 + i * 31000, salesTotal: 2640000 + i * 341000, receipts: 2100000 + i * 280000, purchaseSupply: i === 3 ? 6400000 : 400000, purchaseTotal: i === 3 ? 7040000 : 440000, payments: 500000, expenses: 1300000 + i * 20000 })),
+    partners: cpPartners.map((p, i) => ({ id: p.id, name: p.name, salesTotal: 1200000 - i * 150000, receipts: 900000 - i * 100000, purchaseTotal: p.kind === "supplier" ? 7040000 : 0, payments: 0, receivable: p.receivable, payable: p.payable })),
+    items: cpItems.filter((i) => i.tracking === "stock").map((i, k) => ({ id: i.id, name: i.name, unit: i.unit, saleQty: 12 - k, saleSupply: 980000 - k * 90000, usedQty: k % 2, purchaseQty: 20 - k, purchaseSupply: 600000 - k * 50000 })),
+    expenses: [{ category: "임차료", amount: 3600000 }, { category: "인건비", amount: 2800000 }, { category: "유류비", amount: 195000 }],
+    assets: [{ id: "it1", name: "신도리코 D420 컬러복합기", total: 8, rented: 5, in_stock: 2, repair: 1 }, { id: "it2", name: "캐논 iR2630 흑백복합기", total: 4, rented: 3, in_stock: 1, repair: 0 }],
+  })],
   [/^\/health$/, () => ({ status: "ok", service: "mock" })],
 ];
 
