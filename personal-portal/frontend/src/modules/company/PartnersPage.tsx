@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from "react";
 import { Link, useParams } from "react-router";
 import { ArrowLeftIcon, MapPinIcon, PhoneIcon, PlusIcon } from "lucide-react";
-import { type Partner, type PartnerInput, type PartnerKind, PARTNER_KIND_LABEL, useMasterMutations, usePartner, usePartners } from "@/api/company";
+import { type Partner, type PartnerInput, type PartnerKind, PARTNER_KIND_LABEL, useMasterMutations, usePartner, usePartners, useTxns } from "@/api/company";
+import { TxnRow } from "./TxnsPage";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { NativeSelect } from "@/components/NativeSelect";
 import { ErrorAlert, InlineSpinner } from "@/components/states";
@@ -114,18 +115,18 @@ export function PartnerDetailPage() {
         }
       />
       {p.receivable !== undefined && (
-        <section className="grid grid-cols-3 gap-3 rounded-2xl border bg-card p-4">
+        <section className="grid grid-cols-3 gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-4">
           {[
             ["미수금", p.receivable, "text-red-600 dark:text-red-400"],
             ["선수금", p.advance, ""],
             ["미지급금", p.payable, ""],
+            ...(p.prepaid ? [["선급금", p.prepaid, ""]] : []),
           ].map(([label, v, tone]) => (
             <div key={label as string} className="min-w-0">
               <p className="text-xs text-muted-foreground">{label}</p>
               <p className={cn("truncate font-semibold tabular-nums", (v as number) > 0 && (tone as string))}>{money(v as number)}</p>
             </div>
           ))}
-          <p className="col-span-3 text-[11px] text-muted-foreground">잔액은 거래(C3)가 생기면 자동으로 바뀝니다.</p>
         </section>
       )}
       <section className="grid gap-2 rounded-2xl border bg-card p-4 text-sm">
@@ -138,10 +139,11 @@ export function PartnerDetailPage() {
         <Info label="주소" value={p.address} icon={<MapPinIcon className="size-3.5" />} />
         {p.memo && <p className="whitespace-pre-wrap rounded-lg bg-muted/50 p-2 text-muted-foreground">{p.memo}</p>}
       </section>
+      <PartnerQuickActions cid={cid} pid={p.id} kind={p.kind} />
       <section className="grid gap-2">
         <h2 className="text-sm font-medium">나가 있는 기기 {assets.length}대</h2>
         {assets.length === 0 ? (
-          <p className="text-sm text-muted-foreground">이 거래처에 임대 중인 기기가 없습니다. (임대 출고는 C3)</p>
+          <p className="text-sm text-muted-foreground">이 거래처에 임대 중인 기기가 없습니다.</p>
         ) : (
           <ul className="grid gap-1.5">
             {assets.map((a) => (
@@ -156,8 +158,59 @@ export function PartnerDetailPage() {
           </ul>
         )}
       </section>
+      {detail.me.perms.txns !== "none" && <PartnerTxns cid={cid} pid={p.id} />}
       {editing && <PartnerDialog cid={cid} partner={p} onClose={() => setEditing(false)} />}
     </main>
+  );
+}
+
+/** 이 거래처로 바로 거래 입력 */
+function PartnerQuickActions({ cid, pid, kind }: { cid: string; pid: string; kind: Partner["kind"] }) {
+  const { detail } = useCompanyOutlet();
+  const me = detail.me;
+  const acts: [string, string][] = [];
+  if (kind !== "supplier") {
+    if (me.perms.txns === "edit" && me.perms.assets === "edit") acts.push(["rental_out", "임대 출고"], ["rental_return", "수거"]);
+    if (me.perms.txns === "edit" && me.showAmounts) acts.push(["charge", "청구"], ["sale", "판매"]);
+    if (me.perms.money === "edit" && me.showAmounts) acts.push(["receipt", "입금 받기"]);
+  }
+  if (kind !== "customer") {
+    if (me.perms.txns === "edit" && me.showAmounts) acts.push(["purchase", "매입"]);
+    if (me.perms.money === "edit" && me.showAmounts) acts.push(["payment", "지급"]);
+  }
+  if (acts.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {acts.map(([type, label]) => (
+        <Button key={type} size="sm" variant="outline" nativeButton={false} render={<Link to={`/company/${cid}/txns/new?type=${type}&partner=${pid}`} />}>
+          {label}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+function PartnerTxns({ cid, pid }: { cid: string; pid: string }) {
+  const txns = useTxns(cid, { partnerId: pid });
+  return (
+    <section className="grid gap-2">
+      <h2 className="text-sm font-medium">거래 내역</h2>
+      {txns.isPending ? (
+        <InlineSpinner />
+      ) : txns.isError ? (
+        <ErrorAlert error={txns.error} />
+      ) : txns.data.length === 0 ? (
+        <p className="text-sm text-muted-foreground">거래가 없습니다.</p>
+      ) : (
+        <ul className="grid gap-1.5">
+          {txns.data.slice(0, 50).map((t) => (
+            <li key={t.id}>
+              <TxnRow cid={cid} t={t} showPartner={false} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

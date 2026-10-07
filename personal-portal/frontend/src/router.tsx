@@ -12,6 +12,9 @@ import { AssetDetailPage, AssetsPage } from "./modules/company/AssetsPage";
 import { CompanyAuditPage } from "./modules/company/CompanyAuditPage";
 import { CompanyMorePage } from "./modules/company/CompanyMorePage";
 import { ItemsPage } from "./modules/company/ItemsPage";
+import { MoneyPage } from "./modules/company/MoneyPage";
+import { TxnNewPage } from "./modules/company/TxnNewPage";
+import { TxnDetailPage, TxnsPage } from "./modules/company/TxnsPage";
 import { PartnerDetailPage, PartnersPage } from "./modules/company/PartnersPage";
 import { CompanyHomePage } from "./modules/company/CompanyHomePage";
 import { CompanyLayout } from "./modules/company/CompanyLayout";
@@ -58,6 +61,10 @@ export const router = createBrowserRouter([
       { path: "assets/:aid", element: <AssetDetailPage /> },
       { path: "accounts", element: <AccountsPage /> },
       { path: "more", element: <CompanyMorePage /> },
+      { path: "txns", element: <TxnsPage /> },
+      { path: "txns/new", element: <TxnNewPage /> },
+      { path: "txns/:day/:tid", element: <TxnDetailPage /> },
+      { path: "money", element: <MoneyPage /> },
     ],
   },
   { path: "/mfa-setup", element: <RequireAuth><MfaSetupPage /></RequireAuth> },

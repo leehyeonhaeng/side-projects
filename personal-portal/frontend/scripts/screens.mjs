@@ -71,6 +71,18 @@ const SCREENS = [
   ["company-asset-register", "/company/cp1/assets", async (p) => p.getByRole("button", { name: "기기 등록" }).click()],
   ["company-accounts", "/company/cp1/accounts"],
   ["company-more", "/company/cp1/more"],
+  ["company-txns", "/company/cp1/txns"],
+  ["company-txn-pick", "/company/cp1/txns/new"],
+  ["company-txn-rental", "/company/cp1/txns/new?type=rental_out&partner=pa1"],
+  ["company-txn-sale", "/company/cp1/txns/new?type=sale&partner=pa2"],
+  ["company-txn-sale-manual", "/company/cp1/txns/new?type=sale&partner=pa2", async (p) => p.getByRole("button", { name: /직접 수정/ }).first().click()],
+  ["company-txn-receipt", "/company/cp1/txns/new?type=receipt&partner=pa2", async (p) => p.getByLabel("금액 (원)").fill("100000")],
+  ["company-txn-adjust", "/company/cp1/txns/new?type=adjust"],
+  ["company-txn-detail", "/company/cp1/txns/x/tx3"],
+  ["company-txn-detail-purchase", "/company/cp1/txns/x/tx4"],
+  ["company-money", "/company/cp1/money"],
+  ["company-ledger", "/company/cp1/money", async (p) => p.getByRole("tab", { name: "회사 장부" }).click()],
+  ["company-close", "/company/cp1/money", async (p) => p.getByRole("tab", { name: "월 마감" }).click()],
 ];
 
 /** 페이지 안에서 실행: 문제 요소 찾기 */

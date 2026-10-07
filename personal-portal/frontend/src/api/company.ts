@@ -155,9 +155,10 @@ export type Partner = {
   receivable?: number;
   advance?: number;
   payable?: number;
+  prepaid?: number;
   createdAt: string;
 };
-export type PartnerInput = Partial<Omit<Partner, "id" | "createdAt" | "receivable" | "advance" | "payable">>;
+export type PartnerInput = Partial<Omit<Partner, "id" | "createdAt" | "receivable" | "advance" | "payable" | "prepaid">>;
 
 export type Tracking = "asset" | "stock";
 export type Item = {
@@ -205,7 +206,7 @@ export type Asset = {
   memo: string;
   createdAt: string;
 };
-export type AssetLog = { at: string; actor: string; action: string; from?: string; to?: string; note?: string };
+export type AssetLog = { at: string; actor: string; action: string; from?: string; to?: string; note?: string; partnerId?: string; partnerName?: string; txnNo?: string };
 
 export type AccountKind = "cash" | "bank" | "card";
 export const ACCOUNT_KIND_LABEL: Record<AccountKind, string> = { cash: "현금", bank: "은행", card: "카드" };
@@ -255,3 +256,134 @@ export function useMasterMutations(cid: string) {
 
 /** 품목 분류 예시 (자유 입력, 자동완성용) */
 export const ITEM_CATEGORIES = ["복합기", "프린터", "플로터", "토너", "잉크", "드럼", "용지", "부품", "라벨지", "기타"];
+
+// ── C3 거래 (backend/domains/company_txn.py) ──
+
+export type TxnType = "sale" | "charge" | "purchase" | "rental_out" | "rental_return" | "receipt" | "payment" | "expense" | "adjust";
+export const TXN_LABEL: Record<TxnType, string> = {
+  sale: "판매",
+  charge: "청구",
+  purchase: "매입",
+  rental_out: "임대 출고",
+  rental_return: "수거",
+  receipt: "입금",
+  payment: "지급",
+  expense: "경비",
+  adjust: "재고 조정",
+};
+export const TXN_TONE: Record<TxnType, string> = {
+  sale: "text-sky-700 bg-sky-100 dark:text-sky-300 dark:bg-sky-400/15",
+  charge: "text-sky-700 bg-sky-100 dark:text-sky-300 dark:bg-sky-400/15",
+  rental_out: "text-violet-700 bg-violet-100 dark:text-violet-300 dark:bg-violet-400/15",
+  rental_return: "text-violet-700 bg-violet-100 dark:text-violet-300 dark:bg-violet-400/15",
+  purchase: "text-amber-700 bg-amber-100 dark:text-amber-300 dark:bg-amber-400/15",
+  receipt: "text-emerald-700 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-400/15",
+  payment: "text-rose-700 bg-rose-100 dark:text-rose-300 dark:bg-rose-400/15",
+  expense: "text-rose-700 bg-rose-100 dark:text-rose-300 dark:bg-rose-400/15",
+  adjust: "text-zinc-700 bg-zinc-200 dark:text-zinc-300 dark:bg-zinc-500/20",
+};
+export const CHARGE_TYPES: TxnType[] = ["sale", "charge", "rental_out", "rental_return"];
+
+export type TxnLine = { itemId?: string; name: string; unit?: string; qty: number; unitPrice?: number; vatMode?: VatMode; supply?: number; vat?: number; total?: number; manual?: boolean; memo: string; assetIds?: string[] };
+export type Link = { txnId: string; date: string; amount: number; no?: string };
+export type Txn = {
+  id: string;
+  no: string;
+  type: TxnType;
+  date: string;
+  status: "confirmed" | "canceled";
+  partnerId?: string;
+  partnerName?: string;
+  accountId?: string;
+  accountName?: string;
+  lines: TxnLine[];
+  supply?: number;
+  vat?: number;
+  total?: number;
+  paid?: number;
+  paidBy?: Link[];
+  amount?: number;
+  allocated?: number;
+  unallocated?: number;
+  allocations?: Link[];
+  assetIds?: string[];
+  assetCodes?: string[];
+  assetNames?: string[];
+  category?: string;
+  memo: string;
+  createdBy: string;
+  createdAt: string;
+  canceledAt?: string;
+  cancelReason?: string;
+};
+export type LineInput = { itemId?: string; name: string; qty: number; unitPrice: number; vatMode: VatMode; supply?: number; vat?: number; total?: number; memo: string };
+export type TxnInput = {
+  type: TxnType;
+  date: string;
+  partnerId?: string;
+  accountId?: string;
+  lines?: LineInput[] | { itemId: string; name: string; qty: number; memo: string }[];
+  assetIds?: string[];
+  returnLocation?: string;
+  amount?: number;
+  allocations?: { txnId: string; date: string; amount: number }[];
+  payNow?: { accountId: string };
+  category?: string;
+  memo: string;
+};
+export type OpenCharge = { id: string; no: string; date: string; type: TxnType; total: number; paid: number; open: number; summary: string };
+export type BalanceRow = { id: string; name: string; kind: PartnerKind; receivable: number; advance: number; payable: number; prepaid: number };
+export type LedgerRow = { date: string; id: string; no: string; type: TxnType; accountId: string; accountName: string; partnerName: string; category: string; memo: string; amount: number; balanceAfter: number };
+
+export function useTxns(cid: string, params: { from?: string; to?: string; partnerId?: string; type?: string }, enabled = true) {
+  const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+  return useQuery({ queryKey: sub(cid, "txns", q), queryFn: () => api.get<{ txns: Txn[] }>(`/company/${cid}/txns?${q}`), select: (d) => d.txns, enabled });
+}
+export function useTxn(cid: string, day: string, tid: string) {
+  return useQuery({ queryKey: sub(cid, "txns", day, tid), queryFn: () => api.get<{ txn: Txn }>(`/company/${cid}/txns/${day}/${tid}`), select: (d) => d.txn });
+}
+export function useOpenCharges(cid: string, partnerId: string | undefined, side: "receivable" | "payable", enabled = true) {
+  return useQuery({
+    queryKey: sub(cid, "open", partnerId ?? "", side),
+    queryFn: () => api.get<{ charges: OpenCharge[] }>(`/company/${cid}/open-charges?partnerId=${partnerId}&side=${side}`),
+    select: (d) => d.charges,
+    enabled: !!partnerId && enabled,
+  });
+}
+export function useReceivables(cid: string, enabled = true) {
+  return useQuery({ queryKey: sub(cid, "receivables"), queryFn: () => api.get<{ partners: BalanceRow[] }>(`/company/${cid}/receivables`), select: (d) => d.partners, enabled });
+}
+export function useLedger(cid: string, from: string, to: string, accountId?: string) {
+  const q = `from=${from}&to=${to}${accountId ? `&accountId=${accountId}` : ""}`;
+  return useQuery({ queryKey: sub(cid, "ledger", q), queryFn: () => api.get<{ rows: LedgerRow[]; accounts: { id: string; name: string; balance: number }[] }>(`/company/${cid}/ledger?${q}`) });
+}
+export function useCloses(cid: string) {
+  return useQuery({ queryKey: sub(cid, "closes"), queryFn: () => api.get<{ closes: { month: string; closedAt: string }[] }>(`/company/${cid}/closes`), select: (d) => d.closes.map((c) => c.month).sort() });
+}
+
+export function useTxnMutations(cid: string) {
+  const qc = useQueryClient();
+  const settled = () => void qc.invalidateQueries({ queryKey: ["company", cid] });
+  return {
+    create: useMutation({ mutationFn: (body: TxnInput) => api.post<{ txn: Txn; related: Txn[]; createdAssets: Asset[] }>(`/company/${cid}/txns`, body), onSettled: settled }),
+    cancel: useMutation({ mutationFn: ({ date, id, reason }: { date: string; id: string; reason: string }) => api.post<{ txn: Txn }>(`/company/${cid}/txns/${date}/${id}/cancel`, { reason }), onSettled: settled }),
+    close: useMutation({ mutationFn: (month: string) => api.post(`/company/${cid}/closes`, { month }), onSettled: settled }),
+    reopen: useMutation({ mutationFn: (month: string) => api.del(`/company/${cid}/closes/${month}`), onSettled: settled }),
+  };
+}
+
+/** 금액 줄 제안값 (백엔드 price_line과 같은 규칙, COMPANY.md 6장) */
+export function priceLine(qty: number, unitPrice: number, mode: VatMode): { supply: number; vat: number; total: number } {
+  const base = Math.round(qty * unitPrice);
+  if (mode === "included") {
+    const supply = Math.round(base / 1.1);
+    return { supply, vat: base - supply, total: base };
+  }
+  if (mode === "excluded") {
+    const vat = Math.round(base * 0.1);
+    return { supply: base, vat, total: base + vat };
+  }
+  return { supply: base, vat: 0, total: base };
+}
+
+export const EXPENSE_CATEGORIES = ["임차료", "인건비", "유류비", "차량유지비", "통신비", "소모품비", "수리비", "운반비", "식대", "세금과공과", "기타"];

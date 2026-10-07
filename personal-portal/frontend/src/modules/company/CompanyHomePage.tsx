@@ -8,7 +8,6 @@ import { useCompanyOutlet } from "./CompanyLayout";
 
 // COMPANY.md 11장 구현 단계 — 대시보드가 생기기 전까지 홈에서 진행 상황을 보여 준다
 const COMING = [
-  { phase: "C3", items: "판매 · 매입 · 임대 출고·수거 · 입금·지급 · 장부" },
   { phase: "C4", items: "임대 계약 · 정기 청구 · 카운터 검침 · A/S" },
   { phase: "C5", items: "직인 영수증·명세서·청구서 PDF · 기기 라벨 QR" },
   { phase: "C6", items: "대시보드 · 보고서 · 알림" },
@@ -27,6 +26,7 @@ export function CompanyHomePage() {
         <p className="text-sm text-muted-foreground">{me.data?.name}님 · {access.isAdmin ? "관리자" : "직원"}</p>
       </div>
 
+      <QuickTxns cid={cid} />
       {access.isAdmin && (
         <section className="flex flex-wrap items-center gap-3 rounded-2xl border bg-card p-4">
           <UserPlusIcon className="size-5 text-primary" />
@@ -68,5 +68,31 @@ export function CompanyHomePage() {
         </ul>
       </section>
     </main>
+  );
+}
+
+const QUICK: { type: string; label: string; area: "txns" | "money"; money: boolean }[] = [
+  { type: "rental_out", label: "임대 출고", area: "txns", money: false },
+  { type: "rental_return", label: "수거", area: "txns", money: false },
+  { type: "receipt", label: "입금 받기", area: "money", money: true },
+  { type: "sale", label: "판매", area: "txns", money: true },
+  { type: "charge", label: "청구", area: "txns", money: true },
+  { type: "purchase", label: "매입", area: "txns", money: true },
+];
+
+/** 자주 쓰는 거래 바로 입력 (현장에서 폰으로) */
+function QuickTxns({ cid }: { cid: string }) {
+  const { detail } = useCompanyOutlet();
+  const me = detail.me;
+  const acts = QUICK.filter((q) => me.perms[q.area] === "edit" && (!q.money || me.showAmounts));
+  if (acts.length === 0) return null;
+  return (
+    <section className="grid grid-cols-3 gap-2">
+      {acts.map((q) => (
+        <Link key={q.type} to={`/company/${cid}/txns/new?type=${q.type}`} className="grid place-items-center rounded-2xl border bg-card px-2 py-4 text-sm font-medium hover:bg-muted/50 active:bg-muted">
+          {q.label}
+        </Link>
+      ))}
+    </section>
   );
 }

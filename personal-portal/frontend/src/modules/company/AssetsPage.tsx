@@ -207,6 +207,9 @@ function RegisterDialog({ cid, models, defaultItem, showAmounts, onClose }: { ci
 const LOG_LABEL: Record<string, (l: AssetLog) => string> = {
   registered: (l) => `등록${l.note ? ` (${l.note})` : ""}`,
   status: (l) => `상태 ${ASSET_STATUS_LABEL[l.from as AssetStatus] ?? l.from} → ${ASSET_STATUS_LABEL[l.to as AssetStatus] ?? l.to}`,
+  rental_out: (l) => `임대 출고 → ${l.partnerName ?? ""} (${l.txnNo ?? ""})`,
+  rental_return: (l) => `수거 ← ${l.partnerName ?? ""} (${l.txnNo ?? ""})`,
+  cancel: (l) => `${l.note ?? "취소"} (${l.txnNo ?? ""})`,
 };
 
 /** 기기 상세: 정보, 상태 바꾸기(창고·수리·폐기), 이력. 라벨 QR(C5)이 이 화면을 연다 */
@@ -255,7 +258,16 @@ export function AssetDetailPage() {
                   {s === "in_stock" ? "창고로" : s === "repair" ? "수리로" : "폐기"}
                 </Button>
               ))}
-          {a.status === "rented" && <p className="text-xs text-muted-foreground">임대 중인 기기는 수거 거래(C3)로 창고에 돌아옵니다.</p>}
+          {a.status === "in_stock" && (
+            <Button size="sm" nativeButton={false} render={<Link to={`/company/${cid}/txns/new?type=rental_out&asset=${a.id}`} />}>
+              임대 출고
+            </Button>
+          )}
+          {a.status === "rented" && a.partnerId && (
+            <Button size="sm" nativeButton={false} render={<Link to={`/company/${cid}/txns/new?type=rental_return&partner=${a.partnerId}&asset=${a.id}`} />}>
+              수거
+            </Button>
+          )}
           <ConfirmButton size="sm" variant="ghost" className="ml-auto" title="기기를 삭제할까요?" description="잘못 등록한 기기만 지울 수 있습니다. 이력이 있으면 '폐기'로 바꾸세요." confirmLabel="삭제" onConfirm={() => mut.deleteAsset.mutateAsync(a.id).then(() => navigate(`/company/${cid}/assets`))}>
             삭제
           </ConfirmButton>

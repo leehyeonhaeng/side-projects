@@ -29,7 +29,7 @@ Day = date
 Money = Annotated[int, Field(ge=0, le=10_000_000_000)]
 MAX_BULK = 50
 
-PARTNER_MONEY = ("receivable", "advance", "payable")
+PARTNER_MONEY = ("receivable", "advance", "payable", "prepaid")
 ITEM_MONEY = ("price", "rentPrice", "cost")
 ASSET_MONEY = ("cost",)
 ACCOUNT_MONEY = ("openingBalance", "balance")
@@ -108,7 +108,7 @@ def create_partner(cid: str) -> dict[str, Any]:
     if any(p["name"] == data["name"] for p in _list(cid, "PARTNER#")):
         raise BadRequestError("a partner with the same name exists")
     pid = _new_id()
-    item = {"id": pid, "active": True, "receivable": 0, "advance": 0, "payable": 0, **data, "createdAt": now_iso()}
+    item = {"id": pid, "active": True, "receivable": 0, "advance": 0, "payable": 0, "prepaid": 0, **data, "createdAt": now_iso()}
     return _partner_view(ctx, _save(ctx, f"PARTNER#{pid}", item, "partner_create", data["name"]))
 
 

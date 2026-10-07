@@ -151,6 +151,17 @@ const cpAccounts = [
 ];
 
 
+// 행컴퍼니 C3 거래
+const cpTxns = [
+  { id: "tx1", no: "T-2026-00012", type: "rental_out", date: T, status: "confirmed", partnerId: "pa1", partnerName: "서울중앙초등학교", lines: [{ name: "설치비", qty: 1, unitPrice: 50000, vatMode: "excluded", supply: 50000, vat: 5000, total: 55000, manual: false, memo: "" }], supply: 50000, vat: 5000, total: 55000, paid: 0, paidBy: [], assetIds: ["as1"], assetCodes: ["A-000001"], assetNames: ["신도리코 D420 컬러복합기"], memo: "", createdBy: "u6", createdAt: now },
+  { id: "tx2", no: "T-2026-00011", type: "receipt", date: T, status: "confirmed", partnerId: "pa2", partnerName: "한빛정형외과의원", accountId: "ac1", accountName: "국민 주거래", lines: [], amount: 200000, allocated: 150000, unallocated: 50000, allocations: [{ txnId: "tx3", date: d(-3), amount: 150000, no: "T-2026-00009" }], memo: "", createdBy: "u5", createdAt: now },
+  { id: "tx3", no: "T-2026-00009", type: "sale", date: d(-3), status: "confirmed", partnerId: "pa2", partnerName: "한빛정형외과의원", lines: [{ itemId: "it4", name: "D420 토너 검정", unit: "개", qty: 2, unitPrice: 85000, vatMode: "included", supply: 154545, vat: 15455, total: 170000, manual: false, memo: "" }], supply: 154545, vat: 15455, total: 170000, paid: 150000, paidBy: [{ txnId: "tx2", date: T, amount: 150000 }], memo: "", createdBy: "u5", createdAt: now },
+  { id: "tx4", no: "T-2026-00008", type: "purchase", date: d(-4), status: "confirmed", partnerId: "pa4", partnerName: "(주)대한오피스솔루션", lines: [{ itemId: "it1", name: "신도리코 D420 컬러복합기", unit: "대", qty: 2, unitPrice: 3200000, vatMode: "excluded", supply: 6400000, vat: 640000, total: 7040000, manual: false, memo: "", assetIds: ["as7", "as8"] }], supply: 6400000, vat: 640000, total: 7040000, paid: 3540000, paidBy: [], memo: "", createdBy: "mock-host", createdAt: now },
+  { id: "tx5", no: "T-2026-00007", type: "expense", date: d(-5), status: "confirmed", accountId: "ac2", accountName: "현금 시재", lines: [], amount: 65000, category: "유류비", memo: "배송 차량 주유", createdBy: "u6", createdAt: now },
+  { id: "tx6", no: "T-2026-00006", type: "charge", date: d(-6), status: "canceled", partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", lines: [{ name: "9월 임대료 (아주 긴 설명이 붙은 청구 내역 테스트)", qty: 1, unitPrice: 120000, vatMode: "included", supply: 109091, vat: 10909, total: 120000, manual: false, memo: "" }], supply: 109091, vat: 10909, total: 120000, paid: 0, paidBy: [], memo: "", canceledAt: now, cancelReason: "중복 입력", createdBy: "u5", createdAt: now },
+];
+
+
 type Handler = (q: URLSearchParams, parts: string[]) => unknown;
 const GET: [RegExp, Handler][] = [
   [/^\/me$/, () => me],
@@ -235,6 +246,18 @@ const GET: [RegExp, Handler][] = [
     ],
   })],
   [/^\/company\/[^/]+\/accounts$/, () => ({ accounts: cpAccounts })],
+  [/^\/company\/[^/]+\/txns$/, () => ({ txns: cpTxns })],
+  [/^\/company\/[^/]+\/txns\/[^/]+\/[^/]+$/, (_q, p) => ({ txn: cpTxns.find((t) => t.id === p[4]) ?? cpTxns[0] })],
+  [/^\/company\/[^/]+\/open-charges$/, () => ({ charges: [{ id: "tx3", no: "T-2026-00009", date: d(-3), type: "sale", total: 170000, paid: 150000, open: 20000, summary: "D420 토너 검정" }, { id: "tx1", no: "T-2026-00012", date: T, type: "rental_out", total: 55000, paid: 0, open: 55000, summary: "설치비" }] })],
+  [/^\/company\/[^/]+\/receivables$/, () => ({ partners: cpPartners.filter((p) => p.receivable || p.advance || p.payable).map((p) => ({ id: p.id, name: p.name, kind: p.kind, receivable: p.receivable, advance: p.advance, payable: p.payable, prepaid: 0 })) })],
+  [/^\/company\/[^/]+\/ledger$/, () => ({
+    rows: [
+      { date: T, id: "tx2", no: "T-2026-00011", type: "receipt", accountId: "ac1", accountName: "국민 주거래", partnerName: "한빛정형외과의원", category: "", memo: "", amount: 200000, balanceAfter: 15840000 },
+      { date: d(-5), id: "tx5", no: "T-2026-00007", type: "expense", accountId: "ac2", accountName: "현금 시재", partnerName: "", category: "유류비", memo: "배송 차량 주유", amount: -65000, balanceAfter: 185000 },
+    ],
+    accounts: cpAccounts.map((a) => ({ id: a.id, name: a.name, balance: a.balance })),
+  })],
+  [/^\/company\/[^/]+\/closes$/, () => ({ closes: [{ month: "2026-08", closedAt: now }] })],
   [/^\/health$/, () => ({ status: "ok", service: "mock" })],
 ];
 

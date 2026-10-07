@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, NavLink, Outlet, useOutletContext, useParams } from "react-router";
-import { ArrowLeftIcon, Building2Icon, ContactIcon, HistoryIcon, HouseIcon, LandmarkIcon, LayoutGridIcon, PackageIcon, PrinterIcon, SettingsIcon, UsersIcon } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightLeftIcon, Building2Icon, WalletIcon, ContactIcon, HistoryIcon, HouseIcon, LandmarkIcon, LayoutGridIcon, PackageIcon, PrinterIcon, SettingsIcon, UsersIcon } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { type CompanyDetail, useCompany } from "@/api/company";
 import { ErrorAlert, PageSpinner } from "@/components/states";
@@ -16,9 +16,11 @@ const can = (area: keyof CompanyDetail["me"]["perms"]) => (d: CompanyDetail) => 
 /** 회사 메뉴 (COMPANY.md 4장). 단계마다 메뉴가 늘어난다 — 권한 없는 메뉴는 숨김 */
 export const COMPANY_NAV: NavItem[] = [
   { to: "", label: "홈", icon: <HouseIcon />, show: () => true, end: true, phone: true },
+  { to: "txns", label: "거래", icon: <ArrowRightLeftIcon />, show: (d) => can("txns")(d) || can("money")(d), phone: true },
   { to: "assets", label: "기기", icon: <PrinterIcon />, show: can("assets"), phone: true },
   { to: "partners", label: "거래처", icon: <ContactIcon />, show: can("partners"), phone: true },
-  { to: "items", label: "품목·재고", icon: <PackageIcon />, show: can("items"), phone: true },
+  { to: "money", label: "돈 (미수·장부)", icon: <WalletIcon />, show: (d) => can("money")(d) && d.me.showAmounts },
+  { to: "items", label: "품목·재고", icon: <PackageIcon />, show: can("items") },
   { to: "accounts", label: "계좌", icon: <LandmarkIcon />, show: can("money") },
   { to: "members", label: "직원·권한", icon: <UsersIcon />, show: (d) => d.me.isAdmin },
   { to: "audit", label: "활동 기록", icon: <HistoryIcon />, show: (d) => d.me.isAdmin },
