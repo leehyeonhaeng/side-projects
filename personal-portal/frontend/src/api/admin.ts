@@ -61,7 +61,7 @@ export function useAudit(month: string) {
 }
 
 /** 관리자 변경 작업. 성공하면 관리자 화면 데이터를 모두 새로 받는다. */
-function useAdminMutation<V>(fn: (vars: V) => Promise<unknown>) {
+function useAdminMutation<V, R = unknown>(fn: (vars: V) => Promise<R>) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: fn,
@@ -75,7 +75,10 @@ export const useReject = () => useAdminMutation((sub: string) => api.post(`/admi
 export const useSuspend = () => useAdminMutation((sub: string) => api.post(`/admin/users/${sub}/suspend`));
 export const useReactivate = () => useAdminMutation((sub: string) => api.post(`/admin/users/${sub}/reactivate`));
 export const useDeleteUser = () => useAdminMutation((sub: string) => api.del(`/admin/users/${sub}`));
-export const useResetPassword = () => useAdminMutation((sub: string) => api.post(`/admin/users/${sub}/reset-password`));
+export type IssuedAccount = { email: string; temporaryPassword: string; name?: string; presetName?: string };
+export const useResetPassword = () => useAdminMutation((sub: string) => api.post<IssuedAccount>(`/admin/users/${sub}/reset-password`));
+/** 메일 없이 바로 쓰는 행포털 계정 (프리셋 권한, 임시 비밀번호) */
+export const useCreateAccount = () => useAdminMutation((body: { name: string; email: string; presetId: string; note: string }) => api.post<IssuedAccount & { sub: string }>("/admin/users", body));
 export const useUpdatePerms = () =>
   useAdminMutation(({ sub, perms }: { sub: string; perms: Partial<Perms> }) => api.put(`/admin/users/${sub}/permissions`, { perms }));
 export const useSavePreset = () =>

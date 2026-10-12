@@ -205,7 +205,8 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 ### 4.4 관리자 화면 (Host 전용)
 
 - 승인 대기 목록: 승인(프리셋 선택) / 거절
-- 계정 목록: 상태 필터(대기·활성·정지), 정지, 삭제, 비밀번호 초기화
+- 계정 목록: 상태 필터(대기·활성·정지), 정지, 삭제, 비밀번호 초기화(임시 비밀번호를 화면에 보여 줌, 메일 없음 — 2026-10-12)
+- 계정 만들어 주기(2026-10-12): 이름·이메일·권한 프리셋 → 인증 메일·승인 없이 바로 활성 + 임시 비밀번호(한 번만 표시). 첫 로그인에 새 비밀번호 정하기. 인증 메일(Cognito 기본 발신)이 안 오는 경우 대비
 - 권한 매트릭스: 사용자 × 모듈 표에서 권한 변경
 - 권한 프리셋 관리
 - 활동 로그: 로그인(Cognito Post Authentication 트리거), 권한·계정 변경(승인·거절·정지·재활성·삭제·비밀번호 초기화·권한 변경)만 기록
@@ -621,7 +622,8 @@ WebSocket 인프라 추가 대신 "앱 열 때 + 당겨서 새로고침" 방식�
 | `POST /admin/users/{sub}/reject` | 거절 (완전 삭제) |
 | `POST /admin/users/{sub}/suspend` · `/reactivate` | 정지 · 재활성 |
 | `DELETE /admin/users/{sub}` | 삭제 (개인 데이터 포함) |
-| `POST /admin/users/{sub}/reset-password` | 비밀번호 초기화 (이메일 코드) |
+| `POST /admin/users` | 계정 만들어 주기 `{name, email, presetId, note}` → 임시 비밀번호 |
+| `POST /admin/users/{sub}/reset-password` | 임시 비밀번호로 초기화 (메일 없음, Host 자신은 불가) |
 | `GET /admin/permissions` · `PUT /admin/users/{sub}/permissions` | 권한 매트릭스 조회 · 변경 |
 | `GET` · `POST /admin/presets`, `PUT` · `DELETE /admin/presets/{id}` | 프리셋 (최초 조회 시 가족·팀 기본 생성) |
 | `GET /admin/audit?month=YYYY-MM` | 활동 로그 |

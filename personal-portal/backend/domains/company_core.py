@@ -10,6 +10,7 @@
 영역 권한은 none/view/edit, "금액 보기"가 꺼진 직원에게는 금액 필드를 보내지 않는다(C2부터 각 도메인이 redact 사용).
 """
 
+import os
 import secrets
 import time
 from dataclasses import dataclass
@@ -22,10 +23,13 @@ from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 from pydantic import BaseModel, ConfigDict, Field
 
+from common import users
 from common.access import current_access
-from common.aws import table
+from common.aws import cognito, table
 from common.http import parse_body
 from common.serialize import to_dynamo, to_plain
+from common.perms import DEFAULT_PRESETS, Module, Role, Status
+from common.perms import Level as PermLevel
 from common.users import now_iso, user_pk
 from domains.sharing import person, profiles, query_all
 
@@ -308,7 +312,8 @@ def list_members(cid: str) -> dict[str, Any]:
     company_ctx(router, cid, admin=True)
     items = [_strip(m) for m in _members(cid)]
     found = profiles([m["sub"] for m in items])
-    out = [{**person(found.get(m["sub"]), m["sub"]), **m} for m in items]
+    # managed: 관리자가 만들어 준 계정 (임시 비밀번호를 다시 만들 수 있음)
+    out = [{**person(found.get(m["sub"]), m["sub"]), **m, "managed": (found.get(m["sub"]) or {}).get("createdByCompany") == cid} for m in items]
     return {"members": sorted(out, key=lambda m: (not m["isAdmin"], m["name"]))}
 
 
@@ -374,6 +379,71 @@ def remove_member(cid: str, msub: str) -> dict[str, Any]:
     table().delete_item(Key={"PK": pk(cid), "SK": f"MEMBER#{msub}"})
     table().put_item(Item=company_audit(cid, ctx.sub, "member_remove", msub))
     return {"removed": msub}
+
+
+# ── 관리자가 만들어 주는 계정 (common/users.create_cognito_account) ──
+# 이렇게 만든 계정에만 회사 관리자가 임시 비밀번호를 다시 만들 수 있다 (직접 가입한 계정을 회사 관리자가 가로채지 못하게)
+
+class AccountCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=50)
+    email: str = Field(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", max_length=254)
+    roleId: str = Field(min_length=1, max_length=40)
+
+
+def staff_perms() -> dict[Module, PermLevel]:
+    """회사 직원의 행포털 개인 권한: Host가 고친 "회사 직원" 프리셋, 없으면 기본값 (초대 가입·만들어 준 계정 공통)"""
+    item = table().get_item(Key={"PK": "PRESET", "SK": "PRESET#staff"}).get("Item")
+    raw = item["perms"] if item else next(p["perms"] for p in DEFAULT_PRESETS if p["id"] == "staff")
+    granted = {Module(k): PermLevel(v) for k, v in raw.items()}  # type: ignore[union-attr]
+    return {m: granted.get(m, PermLevel.NONE) for m in Module}
+
+
+@router.post("/company/<cid>/members/accounts")
+def create_account(cid: str) -> dict[str, Any]:
+    """회사 관리자가 직원 계정을 직접 만든다 (인증 메일 없음). 응답의 임시 비밀번호는 이때 한 번만 보여 준다"""
+    ctx = company_ctx(router, cid, admin=True)
+    body = parse_body(router, AccountCreate)
+    email = body.email.strip().lower()
+    meta = table().get_item(Key={"PK": pk(cid), "SK": "META"})["Item"]
+    role = _roles(meta).get(body.roleId)
+    if role is None:
+        raise BadRequestError("unknown role")
+    if len(_members(cid)) >= MAX_MEMBERS:
+        raise BadRequestError("too many members")
+    pool = os.environ["USER_POOL_ID"]
+    password = users.temp_password()
+    try:
+        sub = users.create_cognito_account(pool, email, body.name.strip(), password)
+    except users.AccountExistsError as exc:
+        raise BadRequestError("이미 가입된 이메일입니다. 초대 링크를 보내 '참여하기'로 회사에 넣어 주세요.") from exc
+    try:
+        users.create_profile(sub, email, body.name.strip(), f"{meta['name']} 관리자가 만든 계정", Status.ACTIVE, Role.MEMBER)
+        table().update_item(Key={"PK": user_pk(sub), "SK": "PROFILE"}, UpdateExpression="SET createdByCompany = :c", ExpressionAttributeValues={":c": cid})
+        users.set_perms(sub, staff_perms())
+        with table().batch_writer() as batch:
+            batch.put_item(Item=_member_item(cid, sub, body.roleId, role))
+            batch.put_item(Item=company_audit(cid, ctx.sub, "member_create", sub, {"name": body.name.strip(), "email": email, "role": role["name"]}))
+    except Exception:
+        users.delete_cognito_account(pool, email)  # 반쪽 계정을 남기지 않는다
+        raise
+    return {"sub": sub, "email": email, "name": body.name.strip(), "roleName": role["name"], "temporaryPassword": password}
+
+
+@router.post("/company/<cid>/members/<msub>/password")
+def reset_password(cid: str, msub: str) -> dict[str, Any]:
+    """관리자가 만든 계정의 임시 비밀번호 다시 만들기 (직원이 비밀번호를 잊었을 때, 메일 없이)"""
+    ctx = company_ctx(router, cid, admin=True)
+    if table().get_item(Key={"PK": pk(cid), "SK": f"MEMBER#{msub}"}).get("Item") is None:
+        raise NotFoundError("member not found")
+    profile = users.get_profile(msub)
+    if not profile or profile.get("createdByCompany") != cid:
+        raise BadRequestError("직접 가입한 계정은 로그인 화면의 '비밀번호 찾기'를 쓰세요. 관리자가 만든 계정만 여기서 다시 만들 수 있습니다.")
+    password = users.temp_password()
+    cognito().admin_set_user_password(UserPoolId=os.environ["USER_POOL_ID"], Username=profile["email"], Password=password, Permanent=False)
+    table().put_item(Item=company_audit(cid, ctx.sub, "member_password", msub))
+    return {"email": profile["email"], "temporaryPassword": password}
 
 
 # ── 초대 ─────────────────────────────────────────────

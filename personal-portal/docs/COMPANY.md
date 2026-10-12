@@ -340,6 +340,20 @@
 | 데모 | 위 10장. dev의 이전 데모 회사를 지우고 다시 만듦 (원래 회사는 그대로) |
 | 폰 화면 점검 | `npm run screens` 전체(행포털+행컴퍼니) 168개 × 밝은·어두운 모드. 걸린 것은 캘린더 3일 보기의 "아주 긴 제목" 시험 일정이 칸 끝에서 잘리는 것뿐(칸 크기만큼 보이고 누르면 전체 — 그대로 둠) |
 
+### 관리자가 만들어 주는 직원 계정 (2026-10-12)
+
+인증 메일(Cognito 기본 발신)이 스팸·발송 한도로 안 오는 경우가 있어 추가 (사용자 요청).
+
+| 항목 | 구현 |
+|---|---|
+| 만들기 | 직원·권한 → 계정 만들어 주기(이름·이메일·역할, 회사 관리자). `AdminCreateUser`(이메일 인증됨, 메일 안 보냄 `SUPPRESS`) + 활성 프로필(`createdByCompany`) + "회사 직원" 프리셋 + 회사 멤버. 실패하면 Cognito 계정을 지워 반쪽 계정을 남기지 않음 |
+| 임시 비밀번호 | 12자(소문자·대문자·숫자·특수문자, 헷갈리는 글자 제외), 응답으로 한 번만 보여 줌 + 안내 문구 복사. 7일 안에 첫 로그인 → 로그인 화면이 "새 비밀번호 정하기"(`NEW_PASSWORD_REQUIRED`) |
+| 멈춘 가입 | 같은 이메일이 `UNCONFIRMED`(인증 메일 못 받음)이고 프로필이 없으면 지우고 새로 만듦. 이미 쓰는 계정이면 거절 → 초대 링크로 참여 |
+| 다시 만들기 | 관리자가 만든 계정(`createdByCompany` = 이 회사)에만 임시 비밀번호 다시 만들기(`AdminSetUserPassword` 임시). 직접 가입한 계정은 비밀번호 찾기 (회사 관리자가 개인 계정을 가로채지 못하게) |
+| 가입 트리거 | 이미 활성 프로필이면 아무것도 안 함 (만든 계정이 승인 대기로 바뀌지 않게) |
+| 인프라 | company Lambda에 `USER_POOL_ID`, Cognito `AdminCreateUser`·`AdminGetUser`·`AdminDeleteUser`·`AdminSetUserPassword` |
+| API | `POST /company/{cid}/members/accounts` `{name, email, roleId}`, `POST …/members/{sub}/password` |
+
 ## 13. 나중에 (지금 범위 밖)
 
 - 보증금 (고객 요청 시)

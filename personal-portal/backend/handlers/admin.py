@@ -18,7 +18,7 @@ from common import audit, users
 from common.access import Access, current_access
 from common.app import create_app
 from common.aws import cognito, table
-from common.perms import DEFAULT_PRESETS, Level, Module, Status
+from common.perms import DEFAULT_PRESETS, Level, Module, Role, Status
 
 app, logger = create_app("admin")
 
@@ -60,6 +60,13 @@ class ApproveBody(BaseModel):
 
 class PermissionsBody(BaseModel):
     perms: dict[Module, Level]
+
+
+class AccountBody(BaseModel):
+    name: str = Field(min_length=1, max_length=50)
+    email: str = Field(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", max_length=254)
+    presetId: str = Field(min_length=1, max_length=64)
+    note: str = Field(default="", max_length=100)
 
 
 class PresetBody(BaseModel):
@@ -171,12 +178,36 @@ def delete_user(sub: str) -> dict[str, Any]:
     return {"ok": True}
 
 
+@app.post("/admin/users")
+def create_account() -> dict[str, Any]:
+    """Host가 행포털 계정을 직접 만든다 (인증 메일·승인 없이 바로 활성, 프리셋 권한). 임시 비밀번호는 응답으로 한 번만"""
+    body = parse(AccountBody)
+    email = body.email.strip().lower()
+    preset = get_preset(body.presetId)
+    password = users.temp_password()
+    try:
+        sub = users.create_cognito_account(pool_id(), email, body.name.strip(), password)
+    except users.AccountExistsError as exc:
+        raise BadRequestError("이미 가입된 이메일입니다") from exc
+    try:
+        users.create_profile(sub, email, body.name.strip(), body.note.strip() or "관리자가 만든 계정", Status.ACTIVE, Role.MEMBER)
+        users.set_perms(sub, full_perms({Module(k): Level(v) for k, v in preset["perms"].items()}))
+    except Exception:
+        users.delete_cognito_account(pool_id(), email)
+        raise
+    log("create_account", sub, {"email": email, "preset": preset["name"]})
+    return {"sub": sub, "email": email, "name": body.name.strip(), "presetName": preset["name"], "temporaryPassword": password}
+
+
 @app.post("/admin/users/<sub>/reset-password")
 def reset_password(sub: str) -> dict[str, Any]:
+    """임시 비밀번호로 초기화 (메일 없이). 화면에 보여 준 임시 비밀번호로 로그인하면 새 비밀번호를 정한다"""
     profile = target_profile(sub)
-    cognito().admin_reset_user_password(UserPoolId=pool_id(), Username=sub)
+    ensure_not_host(profile)
+    password = users.temp_password()
+    cognito().admin_set_user_password(UserPoolId=pool_id(), Username=sub, Password=password, Permanent=False)
     log("reset_password", sub, {"email": profile["email"]})
-    return {"ok": True}
+    return {"email": profile["email"], "temporaryPassword": password}
 
 
 # ── 권한 매트릭스 ────────────────────────────────────

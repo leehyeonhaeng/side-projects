@@ -150,6 +150,9 @@ data "aws_iam_policy_document" "admin" {
       "cognito-idp:AdminDeleteUser",
       "cognito-idp:AdminUserGlobalSignOut",
       "cognito-idp:AdminResetUserPassword",
+      # 관리자 화면에서 계정 만들어 주기·임시 비밀번호로 초기화 (메일 없이)
+      "cognito-idp:AdminCreateUser",
+      "cognito-idp:AdminSetUserPassword",
     ]
     resources = [module.cognito.user_pool_arn]
   }
@@ -288,6 +291,13 @@ data "aws_iam_policy_document" "company" {
     actions   = ["ssm:GetParameter"]
     resources = [aws_ssm_parameter.vapid.arn]
   }
+
+  # 회사 관리자가 직원 계정을 만들어 줌 (인증 메일 없이, 임시 비밀번호). 멈춘 가입은 지우고 다시 만든다
+  statement {
+    effect    = "Allow"
+    actions   = ["cognito-idp:AdminCreateUser", "cognito-idp:AdminGetUser", "cognito-idp:AdminDeleteUser", "cognito-idp:AdminSetUserPassword"]
+    resources = [module.cognito.user_pool_arn]
+  }
 }
 
 # company Lambda 문서 레이어 (reportlab + pillow + Pretendard 글꼴 /opt/fonts).
@@ -338,7 +348,7 @@ module "lambda" {
     { TABLE_NAME = module.table.name },
     each.key == "admin" ? { USER_POOL_ID = module.cognito.user_pool_id } : {},
     each.key == "ai" ? { BEDROCK_MODEL_ID = var.bedrock_model_id } : {},
-    each.key == "company" ? merge({ DOCS_BUCKET = aws_s3_bucket.docs.bucket }, local.push_env) : {},
+    each.key == "company" ? merge({ DOCS_BUCKET = aws_s3_bucket.docs.bucket, USER_POOL_ID = module.cognito.user_pool_id }, local.push_env) : {},
   )
 }
 

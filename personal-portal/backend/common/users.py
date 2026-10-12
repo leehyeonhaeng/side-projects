@@ -126,3 +126,56 @@ def delete_user_data(sub: str) -> int:
         for key in unique:
             batch.delete_item(Key=key)
     return len(unique)
+
+
+# ── 관리자가 만들어 주는 계정 (Host 관리자 화면·회사 관리자 공통) ──
+# 인증 메일 없이 바로 쓰는 계정: Cognito에 이메일 인증된 상태로 만들고 임시 비밀번호를 관리자에게 보여 준다.
+# 사용자는 처음 로그인할 때 새 비밀번호를 정한다(7일 안). 메일을 못 받아 멈춘(UNCONFIRMED) 가입은 지우고 새로 만든다
+
+
+class AccountExistsError(Exception):
+    """이미 쓰고 있는 이메일"""
+
+
+def temp_password() -> str:
+    """비밀번호 정책(8자 이상, 소문자·숫자·특수문자 — 대문자를 요구하는 풀에도 맞게 대문자 1자)에 맞는 12자 임시 비밀번호.
+    헷갈리는 글자(l, o, I, O, 0, 1)는 뺀다"""
+    import secrets  # noqa: PLC0415
+
+    lower, upper, digits = "abcdefghijkmnpqrstuvwxyz", "ABCDEFGHJKLMNPQRSTUVWXYZ", "23456789"
+    body = [secrets.choice(lower) for _ in range(6)] + [secrets.choice(upper)] + [secrets.choice(digits) for _ in range(3)]
+    secrets.SystemRandom().shuffle(body)
+    return "".join(body[:5]) + "!" + "".join(body[5:]) + secrets.choice("#$%")
+
+
+def _sub_of(user: dict[str, Any]) -> str:
+    return next(a["Value"] for a in user.get("Attributes", user.get("UserAttributes", [])) if a["Name"] == "sub")
+
+
+def create_cognito_account(pool_id: str, email: str, name: str, password: str) -> str:
+    """메일 없이 Cognito 계정을 만들고 sub를 돌려준다. 이미 쓰는 이메일이면 AccountExistsError"""
+    from botocore.exceptions import ClientError  # noqa: PLC0415
+
+    from common.aws import cognito  # noqa: PLC0415
+
+    attrs = [{"Name": "email", "Value": email}, {"Name": "email_verified", "Value": "true"}, {"Name": "name", "Value": name}]
+
+    def make() -> dict[str, Any]:
+        return cognito().admin_create_user(UserPoolId=pool_id, Username=email, UserAttributes=attrs, TemporaryPassword=password, MessageAction="SUPPRESS")["User"]
+
+    try:
+        return _sub_of(make())
+    except ClientError as exc:
+        if exc.response["Error"]["Code"] != "UsernameExistsException":
+            raise
+        old = cognito().admin_get_user(UserPoolId=pool_id, Username=email)
+        if old.get("UserStatus") != "UNCONFIRMED" or get_profile(_sub_of(old)):
+            raise AccountExistsError(email) from exc
+        cognito().admin_delete_user(UserPoolId=pool_id, Username=email)  # 인증 메일을 못 받아 멈춘 가입
+        return _sub_of(make())
+
+
+def delete_cognito_account(pool_id: str, email: str) -> None:
+    from common.aws import cognito  # noqa: PLC0415
+
+    cognito().admin_delete_user(UserPoolId=pool_id, Username=email)

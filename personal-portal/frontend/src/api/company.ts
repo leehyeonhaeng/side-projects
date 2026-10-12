@@ -41,7 +41,9 @@ export type CompanyInfo = {
 };
 export type MyCompanyAccess = { isAdmin: boolean; perms: AreaPerms; showAmounts: boolean };
 export type CompanyDetail = { company: CompanyInfo; me: MyCompanyAccess };
-export type CompanyMember = { sub: string; name: string; email: string; roleId: string; isAdmin: boolean; showAmounts: boolean; perms: AreaPerms; joinedAt: string };
+export type CompanyMember = { sub: string; name: string; email: string; roleId: string; isAdmin: boolean; showAmounts: boolean; perms: AreaPerms; joinedAt: string; managed?: boolean };
+/** 관리자가 만들어 준 계정의 로그인 정보 (임시 비밀번호는 이때만 보인다) */
+export type AccountCredentials = { email: string; name?: string; roleName?: string; temporaryPassword: string };
 export type CompanyRole = { id: string; name: string; isAdmin: boolean; showAmounts: boolean; perms: AreaPerms };
 export type Invite = { code: string; cid: string; companyName: string; roleId: string; roleName: string; note: string; createdAt: string; expiresAt: number };
 export type InviteInfo = { companyName: string; roleName: string; expiresAt: number };
@@ -94,6 +96,8 @@ export function useCompanyMutations(cid: string) {
     putRole: useMutation({ mutationFn: ({ id, ...body }: Omit<CompanyRole, "isAdmin">) => api.put<CompanyRole>(`/company/${cid}/roles/${id}`, body), onSettled: settled }),
     createInvite: useMutation({ mutationFn: (body: { roleId: string; note: string }) => api.post<Invite>(`/company/${cid}/invites`, body), onSettled: settled }),
     deleteInvite: useMutation({ mutationFn: (code: string) => api.del(`/company/${cid}/invites/${code}`), onSettled: settled }),
+    createAccount: useMutation({ mutationFn: (body: { name: string; email: string; roleId: string }) => api.post<AccountCredentials & { sub: string }>(`/company/${cid}/members/accounts`, body), onSettled: settled }),
+    resetPassword: useMutation({ mutationFn: (sub: string) => api.post<AccountCredentials>(`/company/${cid}/members/${sub}/password`) }),
   };
 }
 

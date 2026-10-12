@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { CheckIcon, ChevronDownIcon, CopyIcon, EyeOffIcon, Share2Icon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, CopyIcon, EyeOffIcon, KeyRoundIcon, Share2Icon, UserPlusIcon } from "lucide-react";
 import {
   AREAS,
+  type AccountCredentials,
   type AreaLevel,
   type AreaPerms,
   type CompanyMember,
@@ -17,8 +18,9 @@ import {
 import { useMe } from "@/api/me";
 import { copyText } from "@/api/hub";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { CredentialsCard } from "@/components/CredentialsCard";
 import { NativeSelect } from "@/components/NativeSelect";
-import { ErrorAlert, InlineSpinner } from "@/components/states";
+import { ErrorAlert, FormError, InlineSpinner } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -67,12 +69,27 @@ function Members({ cid, roles }: { cid: string; roles: CompanyRole[] }) {
   const mut = useCompanyMutations(cid);
   const me = useMe();
   const [open, setOpen] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [issued, setIssued] = useState<AccountCredentials | null>(null);
   const roleName = (id: string) => roles.find((r) => r.id === id)?.name ?? id;
 
   if (members.isPending) return <InlineSpinner />;
   if (members.isError) return <ErrorAlert error={members.error} />;
   return (
     <div className="grid gap-2">
+      {issued ? (
+        <Credentials cred={issued} onClose={() => setIssued(null)} />
+      ) : creating ? (
+        <AccountForm cid={cid} roles={roles} onDone={(c) => (setCreating(false), setIssued(c))} onCancel={() => setCreating(false)} />
+      ) : (
+        <section className="flex flex-wrap items-center gap-3 rounded-2xl border bg-card p-4">
+          <UserPlusIcon className="size-5 text-primary" />
+          <p className="min-w-0 flex-1 text-sm">인증 메일 없이 바로 쓰는 계정을 만들어 아이디·임시 비밀번호를 전해 줄 수 있습니다.</p>
+          <Button size="sm" onClick={() => setCreating(true)}>
+            계정 만들어 주기
+          </Button>
+        </section>
+      )}
       <ul className="grid gap-2">
         {members.data.map((m) => (
           <li key={m.sub} className="grid gap-2 rounded-2xl border bg-card p-3">
@@ -90,7 +107,7 @@ function Members({ cid, roles }: { cid: string; roles: CompanyRole[] }) {
                 권한 <ChevronDownIcon className={cn("transition-transform", open === m.sub && "rotate-180")} />
               </Button>
             </div>
-            {open === m.sub && <MemberEditor member={m} roles={roles} mut={mut} self={m.sub === me.data?.sub} />}
+            {open === m.sub && <MemberEditor member={m} roles={roles} mut={mut} self={m.sub === me.data?.sub} onPassword={setIssued} />}
           </li>
         ))}
       </ul>
@@ -99,7 +116,7 @@ function Members({ cid, roles }: { cid: string; roles: CompanyRole[] }) {
   );
 }
 
-function MemberEditor({ member: m, roles, mut, self }: { member: CompanyMember; roles: CompanyRole[]; mut: ReturnType<typeof useCompanyMutations>; self: boolean }) {
+function MemberEditor({ member: m, roles, mut, self, onPassword }: { member: CompanyMember; roles: CompanyRole[]; mut: ReturnType<typeof useCompanyMutations>; self: boolean; onPassword: (c: AccountCredentials) => void }) {
   const [perms, setPerms] = useState<AreaPerms>(m.perms);
   const dirty = AREAS.some((a) => perms[a.id] !== m.perms[a.id]);
   return (
@@ -130,6 +147,18 @@ function MemberEditor({ member: m, roles, mut, self }: { member: CompanyMember; 
         <Button size="sm" disabled={!dirty || mut.patchMember.isPending} onClick={() => mut.patchMember.mutate({ sub: m.sub, perms })}>
           권한 저장
         </Button>
+        {m.managed && !self && (
+          <ConfirmButton
+            size="sm"
+            variant="outline"
+            title="임시 비밀번호를 다시 만들까요?"
+            description={`${m.name || m.email} — 지금 비밀번호는 더 이상 쓸 수 없고, 새 임시 비밀번호로 로그인해 새 비밀번호를 정해야 합니다.`}
+            confirmLabel="다시 만들기"
+            onConfirm={() => mut.resetPassword.mutateAsync(m.sub).then((c) => onPassword({ ...c, name: m.name }))}
+          >
+            <KeyRoundIcon /> 임시 비밀번호 다시 만들기
+          </ConfirmButton>
+        )}
         <ConfirmButton
           size="sm"
           variant="ghost"
@@ -295,4 +324,61 @@ function RoleCard({ role, mut }: { role: CompanyRole; mut: ReturnType<typeof use
       )}
     </section>
   );
+}
+
+function AccountForm({ cid, roles, onDone, onCancel }: { cid: string; roles: CompanyRole[]; onDone: (c: AccountCredentials) => void; onCancel: () => void }) {
+  const mut = useCompanyMutations(cid);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [roleId, setRoleId] = useState(roles.find((r) => r.id === "field")?.id ?? roles[0]?.id ?? "");
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <form
+      className="grid gap-3 rounded-2xl border bg-card p-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        setError(null);
+        if (!name.trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) return setError("이름과 올바른 이메일을 넣으세요.");
+        mut.createAccount.mutate({ name: name.trim(), email: email.trim(), roleId }, { onSuccess: (c) => onDone(c) });
+      }}
+    >
+      <p className="text-sm font-medium">계정 만들어 주기</p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="grid gap-1 text-xs text-muted-foreground">
+          이름
+          <Input id="acc-name" maxLength={50} value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <label className="grid gap-1 text-xs text-muted-foreground">
+          이메일 (로그인 아이디)
+          <Input id="acc-email" type="email" autoComplete="off" maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} />
+        </label>
+        <label className="grid gap-1 text-xs text-muted-foreground">
+          역할
+          <NativeSelect id="acc-role" value={roleId} onChange={(e) => setRoleId(e.target.value)} className="h-9">
+            {roles.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </NativeSelect>
+        </label>
+      </div>
+      <p className="text-xs text-muted-foreground">인증 메일을 보내지 않습니다. 만들면 임시 비밀번호가 한 번 나오니 직원에게 전해 주세요. 직원은 처음 로그인할 때 새 비밀번호를 정합니다 (임시 비밀번호는 7일 안에).</p>
+      <FormError message={error} />
+      <ErrorAlert error={mut.createAccount.error} />
+      <div className="flex gap-2">
+        <Button type="submit" size="sm" disabled={mut.createAccount.isPending}>
+          만들기
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+          취소
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function Credentials({ cred, onClose }: { cred: AccountCredentials; onClose: () => void }) {
+  const { detail } = useCompanyOutlet();
+  return <CredentialsCard heading={`[${detail.company.name}] 행컴퍼니 계정`} label={`${cred.name ? `${cred.name}님 ` : ""}계정 정보`} sub={cred.roleName} email={cred.email} password={cred.temporaryPassword} onClose={onClose} />;
 }

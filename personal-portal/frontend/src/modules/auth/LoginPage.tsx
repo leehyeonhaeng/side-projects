@@ -16,6 +16,9 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [needsOtp, setNeedsOtp] = useState(false);
+  const [needsNewPassword, setNeedsNewPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [newPassword2, setNewPassword2] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -30,7 +33,12 @@ export function LoginPage() {
     const username = normalizeEmail(email);
     switch (nextStep.signInStep) {
       case "CONFIRM_SIGN_IN_WITH_TOTP_CODE":
+        setNeedsNewPassword(false);
         setNeedsOtp(true);
+        return;
+      case "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED":
+        // 회사 관리자가 만들어 준 계정의 첫 로그인(임시 비밀번호)
+        setNeedsNewPassword(true);
         return;
       case "CONFIRM_SIGN_UP":
         navigate(`/signup/confirm?email=${encodeURIComponent(username)}`);
@@ -51,6 +59,12 @@ export function LoginPage() {
     try {
       if (needsOtp) {
         await handleStep(await confirmSignIn({ challengeResponse: otp.trim() }));
+      } else if (needsNewPassword) {
+        if (newPassword !== newPassword2) {
+          setError("두 비밀번호가 다릅니다.");
+          return;
+        }
+        await handleStep(await confirmSignIn({ challengeResponse: newPassword }));
       } else {
         await handleStep(await signIn({ username: normalizeEmail(email), password }));
       }
@@ -62,9 +76,21 @@ export function LoginPage() {
   };
 
   return (
-    <AuthCard title="로그인" description={needsOtp ? "OTP 앱에 표시된 6자리 코드를 입력하세요." : undefined}>
+    <AuthCard
+      title={needsNewPassword ? "새 비밀번호 정하기" : "로그인"}
+      description={needsOtp ? "OTP 앱에 표시된 6자리 코드를 입력하세요." : needsNewPassword ? "임시 비밀번호로 로그인했습니다. 앞으로 쓸 비밀번호를 정하세요 (8자 이상, 소문자·숫자·특수문자 포함)." : undefined}
+    >
       <form className="grid gap-4" onSubmit={(e) => void onSubmit(e)}>
-        {needsOtp ? (
+        {needsNewPassword ? (
+          <>
+            <Field id="new-password" label="새 비밀번호">
+              <Input id="new-password" type="password" autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoFocus required minLength={8} />
+            </Field>
+            <Field id="new-password2" label="새 비밀번호 확인">
+              <Input id="new-password2" type="password" autoComplete="new-password" value={newPassword2} onChange={(e) => setNewPassword2(e.target.value)} required minLength={8} />
+            </Field>
+          </>
+        ) : needsOtp ? (
           <Field id="otp" label="OTP 코드">
             <Input id="otp" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={otp} onChange={(e) => setOtp(e.target.value)} autoFocus required />
           </Field>
@@ -80,7 +106,7 @@ export function LoginPage() {
         )}
         <FormError message={error} />
         <Button type="submit" size="lg" disabled={busy}>
-          {needsOtp ? "확인" : "로그인"}
+          {needsOtp ? "확인" : needsNewPassword ? "비밀번호 정하고 로그인" : "로그인"}
         </Button>
       </form>
       <div className="mt-4 flex justify-between text-sm">

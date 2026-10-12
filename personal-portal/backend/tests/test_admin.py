@@ -139,3 +139,28 @@ def test_preset_crud(env: dict[str, str], ctx: FakeContext) -> None:
 def test_audit_month_validation(env: dict[str, str], ctx: FakeContext) -> None:
     assert req(ctx, "GET", "/admin/audit", query={"month": "2026-13"})[0] == 400
     assert req(ctx, "GET", "/admin/audit")[0] == 200
+
+
+def test_create_account_without_mail(env: dict[str, str], ctx: FakeContext) -> None:
+    """Host가 만드는 행포털 계정: 인증 메일·승인 없이 바로 활성, 프리셋 권한, 임시 비밀번호"""
+    req(ctx, "GET", "/admin/presets")
+    status, acc = req(ctx, "POST", "/admin/users", {"name": "가족", "email": "Family@X.com", "presetId": "family"})
+    assert status == 200, acc
+    assert acc["email"] == "family@x.com" and len(acc["temporaryPassword"]) == 12
+    profile = users.get_profile(acc["sub"])
+    assert profile and profile["status"] == "active" and profile["role"] == "member"
+    assert users.get_perms(acc["sub"])[Module.CALENDAR] != Level.NONE
+    u = boto3.client("cognito-idp").admin_get_user(UserPoolId=env["pool_id"], Username="family@x.com")
+    assert u["UserStatus"] == "FORCE_CHANGE_PASSWORD"
+    assert req(ctx, "POST", "/admin/users", {"name": "x", "email": "family@x.com", "presetId": "family"})[0] == 400
+    assert req(ctx, "POST", "/admin/users", {"name": "x", "email": "new@x.com", "presetId": "nope"})[0] == 404
+    assert any(log["action"] == "create_account" for log in audit_logs())
+
+
+def test_reset_password_gives_temporary_password(env: dict[str, str], ctx: FakeContext) -> None:
+    req(ctx, "GET", "/admin/presets")
+    req(ctx, "POST", "/admin/users/m1/approve", {"presetId": "family"})
+    status, body = req(ctx, "POST", "/admin/users/m1/reset-password")
+    assert status == 200 and len(body["temporaryPassword"]) == 12
+    assert boto3.client("cognito-idp").admin_get_user(UserPoolId=env["pool_id"], Username="m1")["UserStatus"] == "FORCE_CHANGE_PASSWORD"
+    assert req(ctx, "POST", "/admin/users/h1/reset-password")[0] == 400  # Host 자신은 여기서 못 바꿈
