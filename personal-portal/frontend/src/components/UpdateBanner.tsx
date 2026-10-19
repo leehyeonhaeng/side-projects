@@ -25,7 +25,13 @@ export function UpdateBanner() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
-  if (!needRefresh) return null;
+  // 로그인·가입 화면에는 잃을 입력이 없으니 묻지 않고 바로 새 버전으로 (예전 화면이 새 로그인 단계를 모르는 일 방지)
+  const onAuthPage = /^\/(login|signup|forgot-password|invite)(\/|$)/.test(location.pathname);
+  useEffect(() => {
+    if (needRefresh && onAuthPage) void updateServiceWorker(true);
+  }, [needRefresh, onAuthPage, updateServiceWorker]);
+
+  if (!needRefresh || onAuthPage) return null;
   return (
     <div role="status" className="fixed inset-x-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 mx-auto flex max-w-md items-center gap-2 rounded-2xl border bg-card p-3 text-sm shadow-lg md:bottom-6">
       <RefreshCwIcon className="size-4 shrink-0 text-primary" />
