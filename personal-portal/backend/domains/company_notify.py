@@ -1,7 +1,7 @@
 """행컴퍼니 알림 (COMPANY.md 4장 "알림", C6): 앱 안 알림 + 폰 푸시. 종류마다 직원이 직접 켜고 끈다.
 
-- 바로 알림: 일이 생긴 순간 (A/S 배정·접수·완료, 입금, 재고 부족으로 떨어짐, 임대 출고·수거). 한 사람은 자기가 한 일은 안 받는다
-- 아침 확인(매일 08:30 KST, company-daily Lambda): 연체 미수·계약 만료 임박·청구 대기·검침 필요·밀린 A/S 중 **새로 생긴 것만**
+- 바로 알림: 일이 생긴 순간 (서비스 배정·접수·완료, 입금, 재고 부족으로 떨어짐, 임대 출고·수거). 한 사람은 자기가 한 일은 안 받는다
+- 아침 확인(매일 08:30 KST, company-daily Lambda): 연체 미수·계약 만료 임박·청구 대기·검침 필요·밀린 서비스 중 **새로 생긴 것만**
   (지난번에 알린 목록을 ALERTSTATE#<종류>에 두고 비교)
 - 권한 없는 종류는 안 받는다 (금액 종류는 금액 보기도 필요)
 
@@ -38,9 +38,9 @@ log = logging.getLogger(__name__)
 
 # id → (이름, 묶음, 기본 켜짐, 필요한 영역, 금액 보기 필요)
 TYPES: dict[str, tuple[str, str, bool, str, bool]] = {
-    "service_assigned": ("내게 A/S 배정", "instant", True, "assets", False),
-    "service_new": ("A/S 접수", "instant", False, "assets", False),
-    "service_done": ("A/S 완료", "instant", False, "assets", False),
+    "service_assigned": ("내게 서비스 배정", "instant", True, "assets", False),
+    "service_new": ("서비스 접수", "instant", False, "assets", False),
+    "service_done": ("서비스 완료", "instant", False, "assets", False),
     "receipt_new": ("입금 들어옴", "instant", False, "money", True),
     "stock_low": ("재고 부족으로 떨어짐", "instant", True, "items", False),
     "rental": ("임대 출고·수거", "instant", False, "contracts", False),
@@ -48,7 +48,7 @@ TYPES: dict[str, tuple[str, str, bool, str, bool]] = {
     "contract_expiring": ("계약 만료 30일 전", "daily", True, "contracts", False),
     "billing_due": ("새 청구 대기", "daily", True, "contracts", True),
     "readings_due": ("검침 필요", "daily", False, "assets", False),
-    "service_stale": ("3일 넘게 안 끝난 A/S", "daily", True, "assets", False),
+    "service_stale": ("3일 넘게 안 끝난 서비스", "daily", True, "assets", False),
 }
 NOTI_DAYS = 60
 STALE_DAYS = 3
@@ -300,9 +300,9 @@ def daily(cid: str, today: date) -> dict[str, int]:
         sent["readings_due"] = notify(cid, "readings_due", f"검침할 기기 {len(new)}대", ", ".join(sorted(readings[k] for k in new))[:120], f"{base}/readings")
 
     stale_day = (today - timedelta(days=STALE_DAYS)).isoformat()
-    stale = {s["id"]: s for s in _items(cid, "SERVICE#") if s["status"] == "open" and s["date"] <= stale_day}
+    stale = {s["id"]: s for s in _items(cid, "SERVICE#") if "#HIST#" not in s["SK"] and s["status"] in ("open", "in_progress") and s["date"] <= stale_day}
     new = _new_keys(cid, "service_stale", set(stale))
     if new:
         first = stale[sorted(new)[0]]
-        sent["service_stale"] = notify(cid, "service_stale", f"{STALE_DAYS}일 넘은 A/S {len(new)}건", f"{first['partnerName']} · {first['symptom'][:40]}{' 외' if len(new) > 1 else ''}", f"{base}/services")
+        sent["service_stale"] = notify(cid, "service_stale", f"{STALE_DAYS}일 넘은 서비스 {len(new)}건", f"{first['partnerName']} · {first['symptom'][:40]}{' 외' if len(new) > 1 else ''}", f"{base}/services")
     return sent

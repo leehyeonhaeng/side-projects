@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { ArrowLeftIcon } from "lucide-react";
-import { type ContractMachine, type MachineInput, type Terms, VAT_LABEL, type VatMode, billingDayLabel, useAssets, useContract, useContracts, useItems, usePartners, useRentalMutations } from "@/api/company";
+import { type ContractMachine, type MachineInput, type Terms, VAT_LABEL, type VatMode, billingDayLabel, serviceLabel, useAssets, useContract, useContracts, useItems, usePartners, useRentalMutations, useService } from "@/api/company";
 import { NativeSelect } from "@/components/NativeSelect";
 import { ErrorAlert, FormError, InlineSpinner } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -105,6 +105,7 @@ export function RentalOutPage() {
   const [partnerId, setPartnerId] = useState(params.get("partner") ?? "");
   const contracts = useContracts(cid, { partnerId, status: "active" }, !!partnerId);
   const [target, setTarget] = useState<string>(params.get("contract") ?? "new"); // "new" 또는 계약 id
+  const serviceId = params.get("service") ?? undefined; // 설치 접수에서 왔으면 같이 완료
   const [date, setDate] = useState(todayStr());
   const [billingDay, setBillingDay] = useState("25");
   const [vatMode, setVatMode] = useState<VatMode>(detail.company.vatDefault);
@@ -137,12 +138,12 @@ export function RentalOutPage() {
       return { assetId: aid, ...termsOf(d, me.showAmounts), ...(d.counter && d.startMono ? { startMono: num(d.startMono), startColor: num(d.startColor) } : {}) };
     });
     const ls = withLines ? lines.map((l) => toLineInput(l, [])).filter((l) => l.name) : [];
-    const done = (kid: string) => void navigate(`/company/${cid}/contracts/${kid}`, { replace: true, state: { notice: "출고했습니다. 기기가 임대 중으로 바뀌었습니다." } });
-    if (isAdd) mut.addMachines.mutate({ id: target, date, machines, lines: ls, memo: memo.trim() }, { onSuccess: () => done(target) });
+    const done = (kid: string) => void navigate(`/company/${cid}/contracts/${kid}`, { replace: true, state: { notice: `출고했습니다. 기기가 임대 중으로 바뀌었습니다.${serviceId ? " 설치 접수도 처리했습니다." : ""}` } });
+    if (isAdd) mut.addMachines.mutate({ id: target, date, machines, lines: ls, memo: memo.trim(), serviceId }, { onSuccess: () => done(target) });
     else {
       const day = Number(billingDay);
       if (!(day >= 1 && day <= 31)) return setError("청구일은 1~31 (31 = 말일)");
-      mut.createContract.mutate({ partnerId, date, billingDay: day, vatMode, ...(termEnd ? { termEnd } : {}), machines, lines: ls, memo: memo.trim() }, { onSuccess: (r) => done(r.contract.id) });
+      mut.createContract.mutate({ partnerId, date, billingDay: day, vatMode, ...(termEnd ? { termEnd } : {}), machines, lines: ls, memo: memo.trim(), serviceId }, { onSuccess: (r) => done(r.contract.id) });
     }
   };
 
@@ -155,6 +156,7 @@ export function RentalOutPage() {
         <ArrowLeftIcon className="size-4" /> 임대 계약
       </Link>
       <h1 className="text-xl font-bold tracking-tight">임대 출고</h1>
+      {serviceId && <ServiceNote cid={cid} sid={serviceId} what="출고" />}
       <form
         className="grid gap-4"
         onSubmit={(e) => {
@@ -259,6 +261,7 @@ export function ContractReturnPage() {
   const mut = useRentalMutations(cid);
   const [date, setDate] = useState(todayStr());
   const [assetIds, setAssetIds] = useState<string[]>(params.get("asset") ? [params.get("asset")!] : []);
+  const serviceId = params.get("service") ?? undefined;
   const [readings, setReadings] = useState<Record<string, { mono: string; color: string }>>({});
   const [returnLocation, setReturnLocation] = useState("");
   const [withLines, setWithLines] = useState(false);
@@ -278,8 +281,8 @@ export function ContractReturnPage() {
     const rs = assetIds.filter((aid) => readings[aid]?.mono).map((aid) => ({ assetId: aid, mono: num(readings[aid]!.mono), color: num(readings[aid]!.color) }));
     const ls = withLines ? lines.map((l) => toLineInput(l, [])).filter((l) => l.name) : [];
     mut.returnMachines.mutate(
-      { id: kid, date, assetIds, readings: rs, returnLocation: returnLocation.trim(), lines: ls, memo: memo.trim() },
-      { onSuccess: () => void navigate(`/company/${cid}/contracts/${kid}`, { replace: true, state: { notice: all ? "수거하고 계약을 종료했습니다. 마지막 달 정산은 청구 대기에 올라옵니다." : "수거했습니다." } }) },
+      { id: kid, date, assetIds, readings: rs, returnLocation: returnLocation.trim(), lines: ls, memo: memo.trim(), serviceId },
+      { onSuccess: () => void navigate(`/company/${cid}/contracts/${kid}`, { replace: true, state: { notice: (all ? "수거하고 계약을 종료했습니다. 마지막 달 정산은 청구 대기에 올라옵니다." : "수거했습니다.") + (serviceId ? " 설치 접수도 처리했습니다." : "") } }) },
     );
   };
 
@@ -289,6 +292,7 @@ export function ContractReturnPage() {
         <ArrowLeftIcon className="size-4" /> {c.no}
       </Link>
       <h1 className="text-xl font-bold tracking-tight">수거 · {c.partnerName}</h1>
+      {serviceId && <ServiceNote cid={cid} sid={serviceId} what="수거" />}
       <form
         className="grid gap-4"
         onSubmit={(e) => {
@@ -435,5 +439,15 @@ export function ContractEditPage() {
         </Button>
       </form>
     </main>
+  );
+}
+
+/** 설치 접수에서 온 출고·수거: 어떤 접수와 연결되는지 */
+function ServiceNote({ cid, sid, what }: { cid: string; sid: string; what: string }) {
+  const s = useService(cid, sid).data?.service;
+  return (
+    <p className="rounded-xl border border-primary/40 bg-primary/5 p-3 text-sm">
+      설치 접수 {s ? `${s.no} (${serviceLabel(s)} · ${s.partnerName})` : ""}와 연결됩니다. {what}하면 그 접수도 같이 처리됩니다.
+    </p>
   );
 }

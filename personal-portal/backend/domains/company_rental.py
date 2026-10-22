@@ -27,7 +27,8 @@ from common.users import now_iso
 from domains.company_core import CompanyCtx, company_audit, company_ctx, pk
 from domains.company_master import asset_log, next_seq
 from domains.company_notify import notify
-from domains.company_txn import ID, LineIn, Tx, TxnCreate, _get, _partner_txns, _strip, _view, build_txn, finish_txn
+from domains.company_service import link_contract_op, notify_linked
+from domains.company_txn import ID, Build, LineIn, Tx, TxnCreate, _get, _partner_txns, _strip, _view, build_txn, finish_txn
 from domains.sharing import query_all
 
 router = Router()
@@ -81,6 +82,7 @@ class ContractCreate(BaseModel):
     machines: list[Machine] = Field(min_length=1, max_length=MAX_MACHINES)
     lines: list[LineIn] = Field(default_factory=list, max_length=10)  # 설치비 등 같이 청구
     memo: str = Field(default="", max_length=500)
+    serviceId: str | None = Field(default=None, pattern=ID)  # 설치 접수에서 왔으면 같이 완료
 
 
 class MachinesAdd(BaseModel):
@@ -90,6 +92,7 @@ class MachinesAdd(BaseModel):
     machines: list[Machine] = Field(min_length=1, max_length=MAX_MACHINES)
     lines: list[LineIn] = Field(default_factory=list, max_length=10)
     memo: str = Field(default="", max_length=500)
+    serviceId: str | None = Field(default=None, pattern=ID)
 
 
 class Reading(BaseModel):
@@ -109,6 +112,7 @@ class ReturnBody(BaseModel):
     returnLocation: str = Field(default="", max_length=60)
     lines: list[LineIn] = Field(default_factory=list, max_length=10)  # 수거비 등
     memo: str = Field(default="", max_length=500)
+    serviceId: str | None = Field(default=None, pattern=ID)
 
 
 class ContractPatch(BaseModel):
@@ -248,6 +252,7 @@ def create_contract(cid: str) -> dict[str, Any]:
     for s in sets.values():
         s["contractId"] = kid
     b = build_txn(ctx, cid, TxnCreate(type="rental_out", date=body.date, partnerId=body.partnerId, assetIds=[m.assetId for m in body.machines], lines=body.lines, memo=body.memo or f"계약 {no}"), extra={"contractId": kid, "contractNo": no, "contractOp": "create"}, asset_set=sets)
+    svc = _link(ctx, cid, body.serviceId, body.partnerId, b, day, "out")
     partner = b.partner or {}
     contract = {
         "PK": pk(cid),
@@ -273,6 +278,8 @@ def create_contract(cid: str) -> dict[str, Any]:
     res = finish_txn(b)
     table().put_item(Item=company_audit(cid, ctx.sub, "contract_create", no, {"partner": partner["name"], "machines": len(rows)}))
     _rental_notify(cid, ctx.sub, "임대 출고", partner["name"], kid, b.txn)
+    if svc:
+        notify_linked(cid, ctx.sub, *svc)
     return {"contract": _contract_view(ctx, contract), **res}
 
 
@@ -294,12 +301,15 @@ def add_machines(cid: str, kid: str) -> dict[str, Any]:
     for s in sets.values():
         s["contractId"] = kid
     b = build_txn(ctx, cid, TxnCreate(type="rental_out", date=body.date, partnerId=c["partnerId"], assetIds=[m.assetId for m in body.machines], lines=body.lines, memo=body.memo or f"계약 {c['no']} 기기 추가"), extra={"contractId": kid, "contractNo": c["no"], "contractOp": "add"}, asset_set=sets)
+    svc = _link(ctx, cid, body.serviceId, c["partnerId"], b, day, "out")
     names = {f"#a{i}": aid for i, aid in enumerate(rows)}
     vals: dict[str, Any] = {f":r{i}": row for i, row in enumerate(rows.values())}
     sets_expr = ", ".join(f"machines.#a{i} = :r{i}" for i in range(len(rows)))
     b.tx.update({"PK": pk(cid), "SK": f"CONTRACT#{kid}"}, f"SET {sets_expr}, ver = ver + :one, updatedAt = :now", names | {"#st": "status"}, vals | {":one": 1, ":now": now_iso(), ":v": c["ver"], ":a": "active"}, "ver = :v AND #st = :a", "계약이 바뀌었습니다. 새로 고친 뒤 다시 시도하세요")
     res = finish_txn(b)
     _rental_notify(cid, ctx.sub, "임대 출고(추가)", c["partnerName"], kid, b.txn)
+    if svc:
+        notify_linked(cid, ctx.sub, *svc)
     return res
 
 
@@ -328,6 +338,7 @@ def return_machines(cid: str, kid: str) -> dict[str, Any]:
             raise BadRequestError(f"counter is lower than the last billed value: {row['code']}")
     sets = {aid: {"lastReading": {"date": day, "mono": readings[aid].mono, "color": readings[aid].color or 0, "note": "수거"}} for aid in body.assetIds if aid in readings}
     b = build_txn(ctx, cid, TxnCreate(type="rental_return", date=body.date, partnerId=c["partnerId"], assetIds=body.assetIds, lines=body.lines, returnLocation=body.returnLocation, memo=body.memo or f"계약 {c['no']} 수거"), extra={"contractId": kid, "contractNo": c["no"], "contractOp": "return"}, asset_set=sets)
+    svc = _link(ctx, cid, body.serviceId, c["partnerId"], b, day, "return")
     remaining = [aid for aid, row in c["machines"].items() if not row.get("endedAt") and aid not in body.assetIds]
     names = {f"#a{i}": aid for i, aid in enumerate(body.assetIds)}
     vals: dict[str, Any] = {":d": day, ":one": 1, ":now": now_iso(), ":v": c["ver"]}
@@ -347,7 +358,18 @@ def return_machines(cid: str, kid: str) -> dict[str, Any]:
         b.tx.put(asset_log(cid, aid, ctx.sub, "reading", mono=readings[aid].mono, color=readings[aid].color or 0, date=day, note="수거"))
     res = finish_txn(b)
     _rental_notify(cid, ctx.sub, "수거" + (" · 계약 종료" if not remaining else ""), c["partnerName"], kid, b.txn)
+    if svc:
+        notify_linked(cid, ctx.sub, *svc)
     return res
+
+
+def _link(ctx: CompanyCtx, cid: str, sid: str | None, partner_id: str, b: Build, day: str, op: Literal["out", "return"]) -> tuple[dict[str, Any], bool] | None:
+    """설치 접수(서비스)에서 온 출고·수거면 서비스도 같은 트랜잭션에서 넘긴다 (거래의 fromServiceId)"""
+    if not sid:
+        return None
+    s, finished = link_contract_op(ctx, cid, sid, partner_id, b.tx, day, op, b.txn)
+    b.txn |= {"fromServiceId": sid, "serviceNo": s["no"]}
+    return s, finished
 
 
 def _rental_notify(cid: str, actor: str, what: str, partner: str, kid: str, txn: dict[str, Any]) -> None:

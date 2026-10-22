@@ -215,9 +215,10 @@ const LOG_LABEL: Record<string, (l: AssetLog) => string> = {
   rental_out: (l) => `임대 출고 → ${l.partnerName ?? ""} (${[l.contractNo, l.txnNo].filter(Boolean).join(" · ")})`,
   rental_return: (l) => `수거 ← ${l.partnerName ?? ""} (${[l.contractNo, l.txnNo].filter(Boolean).join(" · ")})`,
   reading: (l) => `검침 ${l.date ?? ""} · 흑백 ${(l.mono ?? 0).toLocaleString()}${l.color ? ` / 컬러 ${l.color.toLocaleString()}` : ""}${l.note ? ` (${l.note})` : ""}`,
-  service_open: (l) => `A/S 접수 ${l.serviceNo ?? ""}${l.note ? ` · ${l.note}` : ""}`,
-  service_done: (l) => `A/S 완료 ${l.serviceNo ?? ""}${l.note ? ` · ${l.note}` : ""}`,
-  service_cancel: (l) => `A/S 접수 취소 ${l.serviceNo ?? ""}`,
+  service_open: (l) => `서비스 접수 ${l.serviceNo ?? ""}${l.note ? ` · ${l.note}` : ""}`,
+  service_done: (l) => `서비스 완료 ${l.serviceNo ?? ""}${l.note ? ` · ${l.note}` : ""}`,
+  service_cancel: (l) => `서비스 취소 ${l.serviceNo ?? ""}`,
+  service_delete: (l) => `서비스 접수 삭제 ${l.serviceNo ?? ""}`,
   cancel: (l) => `${l.note ?? "취소"} (${l.txnNo ?? ""})`,
 };
 
@@ -287,7 +288,7 @@ export function AssetDetailPage() {
           )}
           {a.partnerId && (
             <Button size="sm" variant="outline" nativeButton={false} render={<Link to={`/company/${cid}/services/new?partner=${a.partnerId}&asset=${a.id}`} />}>
-              A/S 접수
+              서비스 접수
             </Button>
           )}
           <Button size="sm" variant="outline" nativeButton={false} render={<Link to={`/company/${cid}/labels?ids=${a.id}`} />}>

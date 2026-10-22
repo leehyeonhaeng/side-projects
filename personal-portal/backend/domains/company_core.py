@@ -14,14 +14,14 @@ import os
 import secrets
 import time
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import uuid4
 
 from aws_lambda_powertools.event_handler.api_gateway import Router
 from aws_lambda_powertools.event_handler.exceptions import BadRequestError, ForbiddenError, NotFoundError
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from common import users
 from common.access import current_access
@@ -174,6 +174,16 @@ class CompanyInfo(BaseModel):
     vatDefault: Literal["included", "excluded", "exempt"] | None = None
     assetPrefix: str | None = Field(default=None, pattern=r"^[A-Z0-9]{1,5}$")  # 기기 고유번호 앞글자 (예: A → A-000001)
     overdueDays: int | None = Field(default=None, ge=1, le=365)  # 청구 후 며칠 지나면 연체 (알림·대시보드, 기본 30)
+    serviceTypes: list[Annotated[str, Field(min_length=1, max_length=10)]] | None = Field(default=None, min_length=1, max_length=20)  # 서비스 유형 (기본 고장·점검·설치·원격)
+
+    @field_validator("serviceTypes")
+    @classmethod
+    def _unique_types(cls, v: list[str] | None) -> list[str] | None:
+        if v is not None:
+            v = [t.strip() for t in v]
+            if any(not t for t in v) or len(set(v)) != len(v):
+                raise ValueError("service types must be non-empty and unique")
+        return v
 
 
 class RoleBody(BaseModel):

@@ -232,7 +232,7 @@ def issue_doc(cid: str) -> dict[str, Any]:
             return {"doc": _doc_view(ctx, old), "created": False}
         sv = _get(cid, f"SERVICE#{body.serviceId}", "service")
         if sv["status"] != "done":
-            raise BadRequestError("only completed A/S has a work confirmation")
+            raise BadRequestError("only completed services have a work confirmation")
         parts: list[dict[str, Any]] = []
         sources: list[dict[str, Any]] = [{"kind": "service", "id": sv["id"], "no": sv["no"]}]
         if sv.get("txn"):
@@ -241,7 +241,7 @@ def issue_doc(cid: str) -> dict[str, Any]:
             sources.append({"kind": "txn", "id": t["id"], "date": t["date"], "no": t["no"]})
         done = sv.get("done", {})
         snap = {
-            "service": {"no": sv["no"], "assetCode": sv.get("assetCode", ""), "itemName": sv.get("itemName", ""), "date": sv["date"], "symptom": sv["symptom"], "doneDate": done.get("date", ""), "action": done.get("action", ""), "technician": member_names(cid).get(done.get("by", ""), "")},
+            "service": {"no": sv["no"], "assetCode": sv.get("assetCode", ""), "itemName": sv.get("itemName", ""), "date": sv["date"], "symptom": sv["symptom"], "type": sv.get("type") or "고장", "subtype": sv.get("subtype", ""), "doneDate": done.get("date", ""), "action": done.get("action", ""), "method": done.get("method", ""), "report": sv.get("report", ""), "technician": member_names(cid).get(done.get("by", ""), "")},
             "parts": parts,
             "billable": bool(sv.get("needsBilling") or sv.get("chargeTxn")),
         }

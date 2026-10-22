@@ -36,6 +36,7 @@ export type CompanyInfo = {
   bankAccount?: string;
   assetPrefix?: string;
   overdueDays?: number;
+  serviceTypes?: string[];
   vatDefault: VatMode;
   createdAt: string;
 };
@@ -278,7 +279,7 @@ export const TXN_LABEL: Record<TxnType, string> = {
   payment: "지급",
   expense: "경비",
   adjust: "재고 조정",
-  service: "A/S",
+  service: "서비스",
 };
 export const TXN_TONE: Record<TxnType, string> = {
   sale: "text-sky-700 bg-sky-100 dark:text-sky-300 dark:bg-sky-400/15",
@@ -470,9 +471,36 @@ export type ReadingRow = {
   billedReadAt: string;
 };
 export type MachineInput = Terms & { assetId: string; startMono?: number; startColor?: number };
-export type ServiceStatus = "open" | "done" | "canceled";
-export const SERVICE_STATUS_LABEL: Record<ServiceStatus, string> = { open: "접수", done: "완료", canceled: "취소" };
-export type Service = {
+export type ServiceStatus = "open" | "in_progress" | "done" | "canceled";
+export const SERVICE_STATUS_LABEL: Record<ServiceStatus, string> = { open: "접수", in_progress: "진행", done: "완료", canceled: "취소" };
+export const DEFAULT_SERVICE_TYPES = ["고장", "점검", "설치", "원격"];
+export const INSTALL_SUBTYPES = ["신규 설치", "기기 교체", "수거"] as const;
+export const SERVICE_METHODS = ["방문", "원격", "전화", "입고"];
+/** 소모품 잔량 칸: 토너 K·C·M·Y, 드럼 K·C·M·Y, 회수통 */
+export const CONSUMABLES = [
+  ["KT", "토너 K"], ["CT", "토너 C"], ["MT", "토너 M"], ["YT", "토너 Y"],
+  ["KD", "드럼 K"], ["CD", "드럼 C"], ["MD", "드럼 M"], ["YD", "드럼 Y"],
+  ["WTC", "회수통"],
+] as const;
+export type ServiceCounters = { a4Mono?: number; a4Color?: number; a3Mono?: number; a3Color?: number };
+export type ServiceFields = {
+  type: string;
+  subtype?: string;
+  symptom: string; // 접수 내용
+  requester?: string;
+  phone?: string;
+  contact?: string;
+  visitAt?: string; // YYYY-MM-DD 또는 YYYY-MM-DDTHH:MM
+  assignee?: string;
+  urgent?: boolean;
+  support?: boolean; // 지원 요청
+  department?: string;
+  progressNote?: string; // 진행 내용
+  report?: string; // 보고 내용
+  remark?: string; // 특이사항
+};
+export type ServiceLink = { id: string; date: string; no: string; op: "out" | "return" };
+export type Service = ServiceFields & {
   id: string;
   no: string;
   status: ServiceStatus;
@@ -481,18 +509,29 @@ export type Service = {
   partnerName: string;
   assetId?: string;
   assetCode?: string;
+  assetSerial?: string;
+  saleType?: string;
   itemName?: string;
-  symptom: string;
-  contact: string;
-  assignee?: string;
   assigneeName?: string;
-  done?: { date: string; action: string; by: string; at: string };
+  createdBy?: string;
+  createdByName?: string;
+  startedAt?: string;
+  startedBy?: string;
+  startedByName?: string;
+  done?: { date: string; action: string; method?: string; by: string; at: string; consumables?: Record<string, number>; counters?: ServiceCounters };
+  doneByName?: string;
   txn?: { id: string; date: string; no: string };
   chargeTxn?: { id: string; date: string; no: string };
+  links?: ServiceLink[];
   needsBilling?: boolean;
   cancelReason?: string;
+  canceledAt?: string;
   createdAt: string;
+  updatedAt?: string;
 };
+export type ServiceHistory = { at: string; actor: string; actorName: string; action: "edit" | "start" | "done" | "cancel" | "link"; changes: Record<string, { from: unknown; to: unknown }> };
+export const serviceTypesOf = (company: { serviceTypes?: string[] }) => company.serviceTypes ?? DEFAULT_SERVICE_TYPES;
+export const serviceLabel = (s: Pick<Service, "type" | "subtype">) => (s.subtype ? `${s.type}·${s.subtype}` : s.type);
 
 export const monthLabel = (ym: string) => `${Number(ym.slice(5, 7))}월`;
 export const billingDayLabel = (d: number) => (d >= 31 ? "말일" : `${d}일`);
@@ -510,23 +549,24 @@ export function useBilling(cid: string, enabled = true) {
 export function useReadings(cid: string, enabled = true) {
   return useQuery({ queryKey: sub(cid, "readings"), queryFn: () => api.get<{ rows: ReadingRow[] }>(`/company/${cid}/readings`), select: (d) => d.rows, enabled });
 }
-export function useServices(cid: string, params: { status?: string; assetId?: string; partnerId?: string } = {}, enabled = true) {
+export function useServices(cid: string, params: { status?: string; type?: string; assetId?: string; partnerId?: string; doneSince?: string } = {}, enabled = true) {
   const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
   return useQuery({ queryKey: sub(cid, "services", q), queryFn: () => api.get<{ services: Service[] }>(`/company/${cid}/services?${q}`), select: (d) => d.services, enabled });
 }
 export function useService(cid: string, sid: string) {
-  return useQuery({ queryKey: sub(cid, "services", sid), queryFn: () => api.get<{ service: Service; txn: Txn | null }>(`/company/${cid}/services/${sid}`) });
+  return useQuery({ queryKey: sub(cid, "services", sid), queryFn: () => api.get<{ service: Service; txn: Txn | null; history: ServiceHistory[]; types: string[] }>(`/company/${cid}/services/${sid}`), enabled: !!sid });
 }
 export function useStaff(cid: string) {
   return useQuery({ queryKey: sub(cid, "staff"), queryFn: () => api.get<{ staff: { sub: string; name: string }[] }>(`/company/${cid}/staff`), select: (d) => d.staff, staleTime: 60_000 });
 }
 
 type TxnResult = { txn: Txn; related: Txn[]; createdAssets: Asset[] };
-type ContractBody = { partnerId: string; date: string; billingDay: number; vatMode: VatMode; termEnd?: string; machines: MachineInput[]; lines: LineInput[]; memo: string };
-type ReturnInput = { id: string; date: string; assetIds: string[]; readings: { assetId: string; mono: number; color?: number }[]; returnLocation: string; lines: LineInput[]; memo: string };
+type ContractBody = { partnerId: string; date: string; billingDay: number; vatMode: VatMode; termEnd?: string; machines: MachineInput[]; lines: LineInput[]; memo: string; serviceId?: string };
+type ReturnInput = { id: string; date: string; assetIds: string[]; readings: { assetId: string; mono: number; color?: number }[]; returnLocation: string; lines: LineInput[]; memo: string; serviceId?: string };
 type ContractPatch = { id: string; billingDay?: number; vatMode?: VatMode; termEnd?: string | null; memo?: string; machines?: Record<string, Partial<Terms>> };
 type BillResult = { contractId: string; month: string; ok: boolean; error?: string; txn?: { id: string; no: string; date: string; total?: number } };
-type ServiceDoneInput = { id: string; date: string; action: string; parts: LineInput[]; fees: LineInput[]; billable: boolean };
+type ServiceDoneInput = { id: string; date: string; action: string; method: string; parts: LineInput[]; fees: LineInput[]; billable: boolean; report?: string; remark?: string; consumables?: Record<string, number>; counters?: ServiceCounters };
+export type ServiceCreateInput = Partial<ServiceFields> & { partnerId: string; assetId?: string; date: string; symptom: string };
 
 export function useRentalMutations(cid: string) {
   const qc = useQueryClient();
@@ -535,13 +575,15 @@ export function useRentalMutations(cid: string) {
   const base = `/company/${cid}`;
   return {
     createContract: useMutation(m((body: ContractBody) => api.post<TxnResult & { contract: Contract }>(`${base}/contracts`, body))),
-    addMachines: useMutation(m(({ id, ...body }: { id: string; date: string; machines: MachineInput[]; lines: LineInput[]; memo: string }) => api.post<TxnResult>(`${base}/contracts/${id}/machines`, body))),
+    addMachines: useMutation(m(({ id, ...body }: { id: string; date: string; machines: MachineInput[]; lines: LineInput[]; memo: string; serviceId?: string }) => api.post<TxnResult>(`${base}/contracts/${id}/machines`, body))),
     returnMachines: useMutation(m(({ id, ...body }: ReturnInput) => api.post<TxnResult>(`${base}/contracts/${id}/return`, body))),
     patchContract: useMutation(m(({ id, ...body }: ContractPatch) => api.patch<{ contract: Contract }>(`${base}/contracts/${id}`, body))),
     issueBills: useMutation(m((items: { contractId: string; month: string; date: string; lines: LineInput[] }[]) => api.post<{ results: BillResult[] }>(`${base}/billing`, { items }))),
     addReading: useMutation(m(({ assetId, ...body }: { assetId: string; date: string; mono: number; color?: number; fix?: boolean; memo?: string }) => api.post<{ lastReading: Reading }>(`${base}/assets/${assetId}/readings`, body))),
-    createService: useMutation(m((body: { partnerId: string; assetId?: string; date: string; symptom: string; contact: string; assignee?: string }) => api.post<{ service: Service }>(`${base}/services`, body))),
-    patchService: useMutation(m(({ id, ...body }: { id: string; symptom?: string; contact?: string; assignee?: string }) => api.patch<{ service: Service }>(`${base}/services/${id}`, body))),
+    createService: useMutation(m((body: ServiceCreateInput) => api.post<{ service: Service }>(`${base}/services`, body))),
+    patchService: useMutation(m(({ id, ...body }: { id: string } & Partial<ServiceFields>) => api.patch<{ service: Service }>(`${base}/services/${id}`, body))),
+    startService: useMutation(m(({ id, note }: { id: string; note: string }) => api.post<{ service: Service }>(`${base}/services/${id}/start`, { note }))),
+    deleteService: useMutation(m((id: string) => api.del<{ deleted: string }>(`${base}/services/${id}`))),
     completeService: useMutation(m(({ id, ...body }: ServiceDoneInput) => api.post<Partial<TxnResult> & { service: Service }>(`${base}/services/${id}/complete`, body))),
     cancelService: useMutation(m(({ id, reason }: { id: string; reason: string }) => api.post<{ service: Service }>(`${base}/services/${id}/cancel`, { reason }))),
   };

@@ -194,7 +194,7 @@ function PartnerQuickActions({ cid, pid, kind }: { cid: string; pid: string; kin
   if (kind !== "supplier") {
     if (me.perms.contracts === "edit" && me.perms.assets === "edit") acts.push(["rental_out", "임대 출고"]);
     if (me.perms.txns === "edit" && me.perms.assets === "edit") acts.push(["rental_return", "수거"]);
-    if (me.perms.assets === "edit") acts.push(["service", "A/S 접수"]);
+    if (me.perms.assets === "edit") acts.push(["service", "서비스 접수"]);
     if (me.perms.txns === "edit" && me.showAmounts) acts.push(["charge", "청구"], ["sale", "판매"]);
     if (me.perms.money === "edit" && me.showAmounts) acts.push(["receipt", "입금 받기"]);
   }
@@ -239,11 +239,11 @@ function PartnerContracts({ cid, pid }: { cid: string; pid: string }) {
 
 function PartnerServices({ cid, pid }: { cid: string; pid: string }) {
   const services = useServices(cid, { partnerId: pid });
-  const shown = (services.data ?? []).filter((s) => s.status === "open" || s.needsBilling).slice(0, 10);
+  const shown = (services.data ?? []).filter((s) => s.status === "open" || s.status === "in_progress" || s.needsBilling).slice(0, 10);
   if (shown.length === 0) return null;
   return (
     <section className="grid gap-2">
-      <h2 className="text-sm font-medium">처리 중인 A/S</h2>
+      <h2 className="text-sm font-medium">처리 중인 서비스</h2>
       <ul className="grid gap-1.5">
         {shown.map((s) => (
           <li key={s.id}>

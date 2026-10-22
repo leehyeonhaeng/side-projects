@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { type CompanyInfo, VAT_LABEL, type VatMode, useCompanyMutations, useDocMutations, useSeal } from "@/api/company";
+import { ArrowDownIcon, ArrowUpIcon, XIcon } from "lucide-react";
+import { type CompanyInfo, DEFAULT_SERVICE_TYPES, VAT_LABEL, type VatMode, serviceTypesOf, useCompanyMutations, useDocMutations, useSeal } from "@/api/company";
 import { NativeSelect } from "@/components/NativeSelect";
 import { ErrorAlert, FormError } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCompanyOutlet } from "./CompanyLayout";
 
-type Form = Required<Omit<CompanyInfo, "id" | "createdAt" | "vatDefault" | "overdueDays">> & { vatDefault: VatMode; overdueDays: string };
+type Form = Required<Omit<CompanyInfo, "id" | "createdAt" | "vatDefault" | "overdueDays" | "serviceTypes">> & { vatDefault: VatMode; overdueDays: string };
 
 const FIELDS: { key: keyof Omit<Form, "vatDefault" | "overdueDays">; label: string; placeholder?: string; wide?: boolean }[] = [
   { key: "name", label: "상호" },
@@ -92,6 +93,7 @@ export function CompanySettingsPage() {
           </div>
         )}
       </form>
+      <ServiceTypeSettings cid={cid} canEdit={canEdit} types={serviceTypesOf(c)} />
       <SealSettings cid={cid} canEdit={canEdit} companyName={c.name} />
     </main>
   );
@@ -167,6 +169,77 @@ function SealSettings({ cid, canEdit, companyName }: { cid: string; canEdit: boo
       )}
       <FormError message={error} />
       <ErrorAlert error={mut.putSeal.error ?? mut.deleteSeal.error ?? seal.error} />
+    </section>
+  );
+}
+
+/** 서비스 유형 (기본 고장·점검·설치·원격). 설치는 계약 출고·수거와 이어지므로 지우지 않기를 권한다 */
+function ServiceTypeSettings({ cid, canEdit, types }: { cid: string; canEdit: boolean; types: string[] }) {
+  const mut = useCompanyMutations(cid);
+  const [list, setList] = useState(types);
+  const [name, setName] = useState("");
+  const [saved, setSaved] = useState(false);
+  const changed = list.join("|") !== types.join("|");
+  const move = (i: number, d: number) => {
+    const next = [...list];
+    [next[i], next[i + d]] = [next[i + d]!, next[i]!];
+    setList(next);
+    setSaved(false);
+  };
+  const add = () => {
+    const t = name.trim();
+    if (!t || list.includes(t)) return;
+    setList([...list, t]);
+    setName("");
+    setSaved(false);
+  };
+  return (
+    <section className="grid gap-3 rounded-2xl border bg-card p-4">
+      <div>
+        <h2 className="text-sm font-medium">서비스 유형</h2>
+        <p className="text-xs text-muted-foreground">서비스 접수할 때 고르는 유형입니다. 홈 현황판도 이 순서로 나옵니다. 설치는 계약 출고·수거와 이어집니다.</p>
+      </div>
+      <ul className="grid gap-1">
+        {list.map((t, i) => (
+          <li key={t} className="flex items-center gap-1 rounded-lg border px-2 py-1 text-sm">
+            <span className="min-w-0 flex-1 truncate">{t}</span>
+            {canEdit && (
+              <>
+                <Button type="button" size="icon-sm" variant="ghost" aria-label="위로" disabled={i === 0} onClick={() => move(i, -1)}>
+                  <ArrowUpIcon />
+                </Button>
+                <Button type="button" size="icon-sm" variant="ghost" aria-label="아래로" disabled={i === list.length - 1} onClick={() => move(i, 1)}>
+                  <ArrowDownIcon />
+                </Button>
+                <Button type="button" size="icon-sm" variant="ghost" aria-label={`${t} 빼기`} disabled={list.length === 1} onClick={() => (setList(list.filter((x) => x !== t)), setSaved(false))}>
+                  <XIcon />
+                </Button>
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+      {canEdit && (
+        <>
+          <div className="flex gap-2">
+            <Input value={name} maxLength={10} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())} placeholder="새 유형 (예: 배송)" className="h-9" />
+            <Button type="button" variant="outline" onClick={add} disabled={!name.trim() || list.length >= 20}>
+              추가
+            </Button>
+          </div>
+          {list.length !== new Set(list).size && <FormError message="같은 이름이 있습니다." />}
+          <ErrorAlert error={mut.patchCompany.error} />
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="button" disabled={!changed || mut.patchCompany.isPending} onClick={() => mut.patchCompany.mutate({ serviceTypes: list }, { onSuccess: () => setSaved(true) })}>
+              유형 저장
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => (setList(DEFAULT_SERVICE_TYPES), setSaved(false))}>
+              기본값으로
+            </Button>
+            {saved && !changed && <span className="text-sm text-muted-foreground">저장했습니다.</span>}
+          </div>
+        </>
+      )}
     </section>
   );
 }

@@ -1,30 +1,38 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { Link } from "react-router";
-import { ChevronRightIcon, EyeOffIcon, GaugeIcon, ReceiptTextIcon, ShieldCheckIcon, UserPlusIcon, WrenchIcon } from "lucide-react";
-import { AREAS, LEVEL_LABEL, type MoneySums, useBilling, useDashboard, useNotifications, useReadings, useServices } from "@/api/company";
+import { ChevronRightIcon, EyeOffIcon, GaugeIcon, PlusIcon, ReceiptTextIcon, ShieldCheckIcon, UserPlusIcon } from "lucide-react";
+import { AREAS, LEVEL_LABEL, type MoneySums, type Service, serviceTypesOf, useBilling, useDashboard, useNotifications, useReadings, useServices, useStaff } from "@/api/company";
 import { useMe } from "@/api/me";
+import { ErrorAlert, InlineSpinner } from "@/components/states";
 import { Button } from "@/components/ui/button";
-import { formatTime } from "@/lib/dates";
+import { formatTime, todayStr } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { useCompanyOutlet } from "./CompanyLayout";
+import { ACTIVE, ServiceDialog, ServiceTable } from "./ServicesPage";
 import { money } from "./ui";
 
-
-/** 회사 홈 (대시보드, C6): 오늘 할 일, 빠른 입력, 이번 달 돈, 미수 상위, 재고 부족, 계약 만료 임박, 최근 알림, 내 권한 */
+/** 회사 홈 (C6 → C8): 서비스 접수 버튼, 서비스 현황(유형별 처리 중인 건, 누르면 팝업), 사원별 현황, 청구 대기·검침, 이번 달 돈, 최근 알림, 내 권한 */
 export function CompanyHomePage() {
   const { cid, detail } = useCompanyOutlet();
   const me = useMe();
   const { company, me: access } = detail;
 
   return (
-    <main className="mx-auto grid max-w-3xl gap-4 p-4 md:p-6">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight">{company.name}</h1>
-        <p className="text-sm text-muted-foreground">{me.data?.name}님 · {access.isAdmin ? "관리자" : "직원"}</p>
+    <main className="mx-auto grid max-w-6xl gap-4 p-4 md:p-6">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-bold tracking-tight">{company.name}</h1>
+          <p className="text-sm text-muted-foreground">{me.data?.name}님 · {access.isAdmin ? "관리자" : "직원"}</p>
+        </div>
+        {access.perms.assets === "edit" && (
+          <Button size="lg" nativeButton={false} render={<Link to={`/company/${cid}/services/new`} />}>
+            <PlusIcon /> 서비스 접수
+          </Button>
+        )}
       </div>
 
+      {access.perms.assets !== "none" && <ServiceBoard cid={cid} />}
       <Todos cid={cid} />
-      <QuickTxns cid={cid} />
       <DashboardCards cid={cid} />
       <RecentNotes cid={cid} />
       {access.isAdmin && (
@@ -60,31 +68,20 @@ export function CompanyHomePage() {
   );
 }
 
-const QUICK: { to: string; label: string; area: "txns" | "money" | "contracts" | "assets"; money: boolean }[] = [
-  { to: "contracts/new", label: "임대 출고", area: "contracts", money: false },
-  { to: "txns/new?type=rental_return", label: "수거", area: "txns", money: false },
-  { to: "readings", label: "검침", area: "assets", money: false },
-  { to: "services/new", label: "A/S 접수", area: "assets", money: false },
-  { to: "txns/new?type=receipt", label: "입금 받기", area: "money", money: true },
-  { to: "txns/new?type=sale", label: "판매", area: "txns", money: true },
-];
-
-/** 오늘 할 일: 청구 대기, 처리할 A/S, 검침 필요 (권한 있는 것만) */
+/** 오늘 할 일: 청구 대기, 검침 필요 (권한 있는 것만). 서비스는 위 현황판에 */
 function Todos({ cid }: { cid: string }) {
   const { detail } = useCompanyOutlet();
   const me = detail.me;
   const canBill = me.perms.contracts !== "none" && me.showAmounts;
   const canAssets = me.perms.assets !== "none";
   const billing = useBilling(cid, canBill);
-  const services = useServices(cid, { status: "open" }, canAssets);
   const readings = useReadings(cid, canAssets);
   const rows: { to: string; icon: ReactNode; label: string; n: number }[] = [];
   if (canBill && billing.data) rows.push({ to: "billing", icon: <ReceiptTextIcon />, label: "청구 대기", n: billing.data.length });
-  if (canAssets && services.data) rows.push({ to: "services", icon: <WrenchIcon />, label: "처리할 A/S", n: services.data.length });
   if (canAssets && readings.data) rows.push({ to: "readings", icon: <GaugeIcon />, label: "검침 필요", n: readings.data.filter((r) => !r.lastReading || r.lastReading.date <= r.billedReadAt).length });
   if (rows.length === 0) return null;
   return (
-    <section className="grid grid-cols-3 gap-2">
+    <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       {rows.map((r) => (
         <Link key={r.to} to={`/company/${cid}/${r.to}`} className={cn("grid gap-1 rounded-2xl border bg-card p-3 hover:bg-muted/50 [&_svg]:size-4", r.n > 0 && "border-primary/40")}>
           <span className="flex items-center justify-between text-xs text-muted-foreground">
@@ -93,23 +90,6 @@ function Todos({ cid }: { cid: string }) {
           </span>
           <span className={cn("text-2xl font-bold tabular-nums", r.n === 0 && "text-muted-foreground")}>{r.n}</span>
           <span className="truncate text-xs">{r.label}</span>
-        </Link>
-      ))}
-    </section>
-  );
-}
-
-/** 자주 쓰는 거래 바로 입력 (현장에서 폰으로) */
-function QuickTxns({ cid }: { cid: string }) {
-  const { detail } = useCompanyOutlet();
-  const me = detail.me;
-  const acts = QUICK.filter((q) => me.perms[q.area] === "edit" && (!q.money || me.showAmounts) && (q.area !== "contracts" || me.perms.assets === "edit"));
-  if (acts.length === 0) return null;
-  return (
-    <section className="grid grid-cols-3 gap-2">
-      {acts.map((q) => (
-        <Link key={q.to} to={`/company/${cid}/${q.to}`} className="grid place-items-center rounded-2xl border bg-card px-2 py-4 text-sm font-medium hover:bg-muted/50 active:bg-muted">
-          {q.label}
         </Link>
       ))}
     </section>
@@ -233,6 +213,94 @@ function RecentNotes({ cid }: { cid: string }) {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+/** 서비스 현황: 유형별 처리 중(접수·진행)인 건 + 사원별 현황. 줄을 누르면 팝업 */
+function ServiceBoard({ cid }: { cid: string }) {
+  const { detail } = useCompanyOutlet();
+  const today = todayStr();
+  const services = useServices(cid, { doneSince: today });
+  const [open, setOpen] = useState("");
+  if (services.isPending) return <InlineSpinner />;
+  if (services.isError) return <ErrorAlert error={services.error} />;
+  const all = services.data;
+  const active = all.filter((s) => ACTIVE.includes(s.status));
+  const types = [...new Set([...serviceTypesOf(detail.company), ...active.map((s) => s.type)])];
+  return (
+    <>
+      <section className="grid gap-3">
+        <h2 className="flex items-center justify-between text-sm font-medium">
+          서비스 현황 · 처리 중 {active.length}건
+          <Link to={`/company/${cid}/services`} className="text-xs font-normal text-primary">
+            전체 목록
+          </Link>
+        </h2>
+        {types.map((t) => {
+          const rows = active.filter((s) => s.type === t);
+          const going = rows.filter((s) => s.status === "in_progress").length;
+          return (
+            <div key={t} className="grid gap-1.5">
+              <h3 className="flex items-center gap-2 text-sm font-semibold">
+                {t}
+                <span className="text-xs font-normal text-muted-foreground">
+                  {rows.length}건{going > 0 && ` · 진행 ${going}`}
+                </span>
+              </h3>
+              {rows.length ? <ServiceTable rows={rows} onOpen={setOpen} /> : <p className="rounded-xl border border-dashed px-3 py-2 text-xs text-muted-foreground">처리할 {t} 없음</p>}
+            </div>
+          );
+        })}
+      </section>
+      <StaffBoard cid={cid} all={all} today={today} />
+      <ServiceDialog cid={cid} id={open} onClose={() => setOpen("")} />
+    </>
+  );
+}
+
+/** 사원별 현황: 담당 접수·진행·긴급, 오늘 완료 */
+function StaffBoard({ cid, all, today }: { cid: string; all: Service[]; today: string }) {
+  const staff = useStaff(cid);
+  const rows = [...(staff.data ?? []), { sub: "", name: "미배정" }].map((p) => {
+    const mine = all.filter((s) => (s.assignee ?? "") === p.sub && ACTIVE.includes(s.status));
+    return {
+      ...p,
+      open: mine.filter((s) => s.status === "open").length,
+      progress: mine.filter((s) => s.status === "in_progress").length,
+      urgent: mine.filter((s) => s.urgent).length,
+      done: p.sub ? all.filter((s) => s.done?.by === p.sub && s.done.date === today).length : 0,
+    };
+  });
+  const shown = rows.filter((r) => r.sub || r.open + r.progress > 0);
+  if (shown.length === 0) return null;
+  return (
+    <section className="grid gap-1.5">
+      <h2 className="text-sm font-medium">사원별 현황</h2>
+      <div className="overflow-x-auto rounded-xl border bg-card">
+        <table className="w-full text-sm tabular-nums">
+          <thead className="bg-muted/50 text-xs text-muted-foreground">
+            <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:font-medium">
+              <th className="text-left">직원</th>
+              <th className="text-right">접수</th>
+              <th className="text-right">진행</th>
+              <th className="text-right">긴급</th>
+              <th className="text-right">오늘 완료</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((r) => (
+              <tr key={r.sub || "none"} className="border-t [&>td]:px-3 [&>td]:py-1.5">
+                <td className={cn(!r.sub && "text-muted-foreground")}>{r.name}</td>
+                <td className="text-right">{r.open || ""}</td>
+                <td className="text-right">{r.progress || ""}</td>
+                <td className={cn("text-right", r.urgent > 0 && "font-semibold text-red-600")}>{r.urgent || ""}</td>
+                <td className="text-right">{r.sub ? r.done || "" : ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

@@ -176,10 +176,19 @@ const readingRows = [
   { contractId: "k1", contractNo: "C-2026-0001", partnerId: "pa1", partnerName: "서울중앙초등학교", billingDay: 25, assetId: "as1", code: "A-000001", itemName: "신도리코 D420 컬러복합기", color: true, lastReading: { date: d(-50), mono: 46500, color: 11800 }, billedMono: 46500, billedColor: 11800, billedReadAt: d(-40) },
   { contractId: "k2", contractNo: "C-2026-0002", partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", billingDay: 31, assetId: "as2", code: "A-000002", itemName: "신도리코 D420 컬러복합기", color: false, billedMono: 0, billedColor: 0, billedReadAt: d(-90) },
 ];
+const ago = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
 const cpServices = [
-  { id: "sv1", no: "AS-2026-0012", status: "open", date: T, partnerId: "pa1", partnerName: "서울중앙초등학교", assetId: "as1", assetCode: "A-000001", itemName: "신도리코 D420 컬러복합기", symptom: "용지 걸림이 하루에도 여러 번, 2단 카세트에서 소리가 남", contact: "행정실 김주무관 010-0000-0000", assignee: "u6", assigneeName: "박기사", createdAt: now },
-  { id: "sv2", no: "AS-2026-0011", status: "done", date: d(-3), partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", assetId: "as2", assetCode: "A-000002", itemName: "신도리코 D420 컬러복합기", symptom: "인쇄물 세로 줄", contact: "", needsBilling: true, done: { date: d(-2), action: "드럼 청소, 정착기 점검", by: "u6", at: now }, txn: { id: "tx7", date: d(-2), no: "T-2026-00013" }, createdAt: now },
-  { id: "sv3", no: "AS-2026-0010", status: "canceled", date: d(-9), partnerId: "pa2", partnerName: "한빛정형외과의원", symptom: "토너 교체 요청", contact: "", cancelReason: "고객이 직접 교체", createdAt: now },
+  { id: "sv1", no: "AS-2026-0012", type: "고장", status: "open", urgent: true, date: T, partnerId: "pa1", partnerName: "서울중앙초등학교", department: "행정실", saleType: "임대", assetId: "as1", assetCode: "A-000001", assetSerial: "D420-7K1123", itemName: "신도리코 D420 컬러복합기", symptom: "용지 걸림이 하루에도 여러 번, 2단 카세트에서 소리가 남", requester: "김주무관", phone: "010-0000-0000", visitAt: `${T}T14:00`, contact: "", assignee: "u6", assigneeName: "박기사", createdBy: "u5", createdByName: "김경리", createdAt: ago(3) },
+  { id: "sv4", no: "AS-2026-0013", type: "고장", status: "in_progress", date: T, partnerId: "pa2", partnerName: "한빛정형외과의원", department: "원무과", saleType: "유지보수", assetId: "as2", assetCode: "A-000002", itemName: "신도리코 D420 컬러복합기", symptom: "스캔하면 PC로 안 넘어감", requester: "이실장", contact: "", progressNote: "네트워크 설정 확인 중", assignee: "u6", assigneeName: "박기사", createdBy: "mock-host", createdByName: "이현행", startedAt: ago(1), startedBy: "u6", startedByName: "박기사", createdAt: ago(2) },
+  { id: "sv5", no: "AS-2026-0014", type: "점검", status: "open", date: T, partnerId: "pa1", partnerName: "서울중앙초등학교", department: "3층 교무실", saleType: "임대", assetId: "as1", assetCode: "A-000001", itemName: "신도리코 D420 컬러복합기", symptom: "정기 점검 (토너 잔량, 카운터)", contact: "", createdBy: "u5", createdByName: "김경리", createdAt: ago(5) },
+  { id: "sv6", no: "AS-2026-0015", type: "설치", subtype: "신규 설치", status: "open", date: T, partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", department: "2층 사무국", symptom: "복합기 1대 추가 설치", visitAt: d(2), contact: "", assignee: "mock-host", assigneeName: "이현행", createdBy: "mock-host", createdByName: "이현행", createdAt: ago(20) },
+  { id: "sv7", no: "AS-2026-0016", type: "원격", status: "open", date: T, partnerId: "pa2", partnerName: "한빛정형외과의원", symptom: "새 PC에 프린터 드라이버 설치 요청", requester: "이실장", phone: "02-000-0000", contact: "", support: true, createdBy: "u5", createdByName: "김경리", createdAt: ago(0.5) },
+  { id: "sv2", no: "AS-2026-0011", type: "고장", status: "done", date: d(-3), partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", department: "2층 사무국", saleType: "임대", assetId: "as2", assetCode: "A-000002", itemName: "신도리코 D420 컬러복합기", symptom: "인쇄물 세로 줄", contact: "", needsBilling: true, report: "드럼 수명 거의 다 됨, 다음 방문 때 교체 권장", done: { date: d(-2), action: "드럼 청소, 정착기 점검", method: "방문", by: "u6", at: ago(40), consumables: { KT: 40, CT: 65, MT: 70, YT: 55, KD: 15, WTC: 60 }, counters: { a4Mono: 48210, a4Color: 9120, a3Mono: 310 } }, doneByName: "박기사", txn: { id: "tx7", date: d(-2), no: "T-2026-00013" }, createdBy: "u5", createdByName: "김경리", startedAt: ago(44), startedBy: "u6", startedByName: "박기사", createdAt: ago(72) },
+  { id: "sv3", no: "AS-2026-0010", type: "고장", status: "canceled", date: d(-9), partnerId: "pa2", partnerName: "한빛정형외과의원", symptom: "토너 교체 요청", contact: "", cancelReason: "고객이 직접 교체", canceledAt: ago(200), createdBy: "u5", createdByName: "김경리", createdAt: ago(210) },
+];
+const cpServiceHistory = [
+  { at: ago(1), actor: "u6", actorName: "박기사", action: "start", changes: { progressNote: { from: "", to: "네트워크 설정 확인 중" } } },
+  { at: ago(1.5), actor: "mock-host", actorName: "이현행", action: "edit", changes: { assignee: { from: "", to: "u6" }, requester: { from: "", to: "이실장" } } },
 ];
 
 // 행컴퍼니 C5 문서
@@ -305,8 +314,19 @@ const GET: [RegExp, Handler][] = [
   }],
   [/^\/company\/[^/]+\/billing$/, () => ({ pending: pendingBills })],
   [/^\/company\/[^/]+\/readings$/, () => ({ rows: readingRows })],
-  [/^\/company\/[^/]+\/services$/, (q) => ({ services: cpServices.filter((x) => (!q.get("status") || x.status === q.get("status")) && (!q.get("partnerId") || x.partnerId === q.get("partnerId"))) })],
-  [/^\/company\/[^/]+\/services\/[^/]+$/, (_q, p) => ({ service: cpServices.find((x) => x.id === p[3]) ?? cpServices[0], txn: null })],
+  [
+    /^\/company\/[^/]+\/services$/,
+    (q) => ({
+      services: cpServices.filter(
+        (x) =>
+          (!q.get("status") || (q.get("status") === "active" ? ["open", "in_progress"].includes(x.status) : x.status === q.get("status"))) &&
+          (!q.get("partnerId") || x.partnerId === q.get("partnerId")) &&
+          (!q.get("doneSince") || ["open", "in_progress"].includes(x.status) || (x.done?.date ?? "") >= q.get("doneSince")!),
+      ),
+      types: ["고장", "점검", "설치", "원격"],
+    }),
+  ],
+  [/^\/company\/[^/]+\/services\/[^/]+$/, (_q, p) => ({ service: cpServices.find((x) => x.id === p[3]) ?? cpServices[0], txn: null, history: p[3] === "sv4" ? cpServiceHistory : [], types: ["고장", "점검", "설치", "원격"] })],
   [/^\/company\/[^/]+\/staff$/, () => ({ staff: [{ sub: "mock-host", name: "이현행" }, { sub: "u5", name: "김경리" }, { sub: "u6", name: "박기사" }] })],
   [/^\/company\/[^/]+\/docs$/, (q) => ({ docs: cpDocs.filter((x) => (!q.get("source") || x.sources.some((s) => s.id === q.get("source"))) && (!q.get("partnerId") || x.partnerId === q.get("partnerId"))) })],
   [/^\/company\/[^/]+\/docs\/[^/]+\/pdf$/, (_q, p) => ({ filename: `문서_${p[3]}.pdf`, contentType: "application/pdf", data: "JVBERi0xLjQK", url: "about:blank", no: cpDocs.find((x) => x.id === p[3])?.no, canceled: cpDocs.find((x) => x.id === p[3])?.canceled })],

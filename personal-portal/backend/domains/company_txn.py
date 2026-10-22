@@ -243,6 +243,18 @@ class Tx:
         self.ops.append({"Update": op})
         self.fails.append(fail)
 
+    def delete(self, key: dict[str, str], cond: str | None = None, names: dict[str, str] | None = None, values: dict[str, Any] | None = None, fail: str = "conflict") -> None:
+        self._key(key)
+        op: dict[str, Any] = {"TableName": table().name, "Key": _av(key)}
+        if cond:
+            op["ConditionExpression"] = cond
+            if names:
+                op["ExpressionAttributeNames"] = names
+            if values:
+                op["ExpressionAttributeValues"] = _av(values)
+        self.ops.append({"Delete": op})
+        self.fails.append(fail)
+
     def run(self) -> None:
         if len(self.ops) > 100:
             raise BadRequestError("too many changes in one transaction")
@@ -738,10 +750,15 @@ def cancel_txn(cid: str, day: str, tid: str) -> dict[str, Any]:
 
     if txn.get("serviceId"):
         skey = {"PK": pk(cid), "SK": f"SERVICE#{txn['serviceId']}"}
-        if t == "service":  # A/S 완료 취소 → 다시 접수 상태
-            tx.update(skey, "SET #st = :o, ver = ver + :one REMOVE done, txn", {"#st": "status"}, {":o": "open", ":one": 1, ":t": tid}, "txn.id = :t", "A/S 기록이 바뀌었습니다")
+        if t == "service":  # A/S 완료 취소 → 진행했던 건 진행, 아니면 접수 상태로
+            back = "in_progress" if _get(cid, skey["SK"], "service").get("startedAt") else "open"
+            tx.update(skey, "SET #st = :o, ver = ver + :one REMOVE done, txn", {"#st": "status"}, {":o": back, ":one": 1, ":t": tid}, "txn.id = :t", "A/S 기록이 바뀌었습니다")
         else:  # A/S 청구 취소 → 다시 청구 필요
             tx.update(skey, "SET needsBilling = :y REMOVE chargeTxn", None, {":y": True, ":t": tid}, "chargeTxn.id = :t", "A/S 기록이 바뀌었습니다")
+    if txn.get("fromServiceId"):  # 설치 접수로 한 출고·수거
+        from domains.company_service import unlink_on_cancel  # noqa: PLC0415 (순환 import)
+
+        unlink_on_cancel(cid, txn["fromServiceId"], tid, tx)
     if txn.get("contractId"):
         _cancel_contract(cid, txn, tx)
     # 이 거래로 발행한 문서(영수증·명세서·청구서·작업 확인서)에 취소 표시 → 다시 받으면 "취소됨" 판

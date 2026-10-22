@@ -83,7 +83,7 @@ function TxnForm({ cid, type, defaultVat, showAmounts, presetPartner, presetAsse
 
   const [date, setDate] = useState(todayStr());
   const [partnerId, setPartnerId] = useState(presetPartner);
-  const [memo, setMemo] = useState(presetService ? "A/S 작업비" : "");
+  const [memo, setMemo] = useState(presetService ? "서비스 작업비" : "");
   const serviceId = type === "charge" ? presetService : "";
   const contracts = useContracts(cid, { partnerId, status: "active" }, type === "rental_return" && !!partnerId);
   const [lines, setLines] = useState<DraftLine[]>(() => [newLine(defaultVat)]);

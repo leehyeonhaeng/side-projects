@@ -159,7 +159,7 @@ export function TxnDetailPage() {
         <Row label="날짜" value={formatDay(t.date)} />
         {t.partnerId && <Row label="거래처" value={<Link className="text-primary" to={`/company/${cid}/partners/${t.partnerId}`}>{t.partnerName}</Link>} />}
         {t.contractId && <Row label="계약" value={<Link className="text-primary" to={`/company/${cid}/contracts/${t.contractId}`}>{t.contractNo}{t.billMonth ? ` · ${monthLabel(t.billMonth)} 정기 청구` : ""}</Link>} />}
-        {t.serviceId && <Row label="A/S" value={<Link className="text-primary" to={`/company/${cid}/services/${t.serviceId}`}>{t.serviceNo}</Link>} />}
+        {t.serviceId && <Row label="서비스" value={<Link className="text-primary" to={`/company/${cid}/services/${t.serviceId}`}>{t.serviceNo}</Link>} />}
         {t.accountName && <Row label="계좌" value={t.accountName} />}
         {t.category && <Row label="항목" value={t.category} />}
         {t.memo && <Row label="메모" value={t.memo} />}

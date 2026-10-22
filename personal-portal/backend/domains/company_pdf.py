@@ -347,16 +347,20 @@ def invoice(s: dict[str, Any], seal: bytes | None, canceled: bool = False) -> by
 
 
 def work(s: dict[str, Any], seal: bytes | None, canceled: bool = False) -> bytes:
-    """작업 확인서: 완료한 A/S (금액은 넣지 않음)"""
+    """작업 확인서: 완료한 서비스 (금액은 넣지 않음)"""
     sv = s["service"]
+    kind = (sv.get("type") or "고장") + (f" ({sv['subtype']})" if sv.get("subtype") else "")
     story: list[Any] = [_title("작업 확인서", s["no"], sv.get("doneDate", "")), Spacer(1, 4 * mm), _parties(s, seal, "고객"), Spacer(1, 5 * mm)]
     rows = [
-        ["A/S 번호", sv.get("no", "")],
+        ["접수 번호", sv.get("no", "")],
+        ["서비스 유형", kind],
         ["기기", " ".join(x for x in (sv.get("assetCode", ""), sv.get("itemName", "")) if x) or "—"],
         ["접수일", sv.get("date", "")],
-        ["증상", _p(sv.get("symptom", ""), 9)],
+        ["접수 내용", _p(sv.get("symptom", ""), 9)],
         ["완료일", sv.get("doneDate", "")],
-        ["조치 내용", _p(sv.get("action", ""), 9)],
+        ["처리 내용", _p(sv.get("action", ""), 9)],
+        *([["처리 방식", sv["method"]]] if sv.get("method") else []),
+        *([["보고 내용", _p(sv["report"], 9)]] if sv.get("report") else []),
         ["담당 기사", sv.get("technician", "")],
     ]
     story.append(_grid([[_p(k, 9, color=colors.Color(0.3, 0.3, 0.3)), v if isinstance(v, Flowable) else _p(v, 9)] for k, v in rows], [30 * mm, 150 * mm], head_rows=0, extra=[("BACKGROUND", (0, 0), (0, -1), SHADE)]))

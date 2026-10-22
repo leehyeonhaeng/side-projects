@@ -27,7 +27,7 @@ export function ReadingsPage() {
 
   return (
     <main className="mx-auto grid max-w-3xl gap-4 p-4 md:p-6">
-      <PageHead title="검침" sub="카운터 과금 기기의 카운터를 입력하면 다음 청구에 초과 매수가 계산됩니다" />
+      <PageHead title="카운터 검침" sub="카운터 과금 기기의 카운터를 입력하면 다음 청구에 초과 매수가 계산됩니다" />
       <div className="flex flex-wrap items-center gap-2">
         <Search value={q} onChange={setQ} placeholder="거래처·기기 번호" />
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
