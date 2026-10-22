@@ -69,6 +69,8 @@ function ReadingCard({ cid, r, date, canEdit }: { cid: string; r: ReadingRow; da
   const mut = useRentalMutations(cid);
   const [mono, setMono] = useState("");
   const [color, setColor] = useState("");
+  const [a3Mono, setA3Mono] = useState("");
+  const [a3Color, setA3Color] = useState("");
   const [saved, setSaved] = useState(false);
   const last = r.lastReading;
   const n = (v: string) => Number(v.replace(/,/g, "")) || 0;
@@ -77,12 +79,14 @@ function ReadingCard({ cid, r, date, canEdit }: { cid: string; r: ReadingRow; da
 
   const save = (fix = false) =>
     mut.addReading.mutate(
-      { assetId: r.assetId, date, mono: n(mono), ...(r.color ? { color: n(color) } : {}), fix },
+      { assetId: r.assetId, date, mono: n(mono), ...(r.color ? { color: n(color) } : {}), ...(r.a3 && a3Mono ? { a3Mono: n(a3Mono) } : {}), ...(r.a3 && a3Color ? { a3Color: n(a3Color) } : {}), fix },
       {
         onSuccess: () => {
           setSaved(true);
           setMono("");
           setColor("");
+          setA3Mono("");
+          setA3Color("");
         },
       },
     );
@@ -97,7 +101,7 @@ function ReadingCard({ cid, r, date, canEdit }: { cid: string; r: ReadingRow; da
         {saved && <CheckIcon className="size-4 text-emerald-600" />}
       </p>
       <p className="text-xs text-muted-foreground">
-        {last ? `최근 ${last.date} · 흑백 ${last.mono.toLocaleString()}${r.color ? ` / 컬러 ${last.color.toLocaleString()}` : ""}` : "검침 기록 없음"}
+        {last ? `최근 ${last.date} · 흑백 ${last.mono.toLocaleString()}${r.color ? ` / 컬러 ${last.color.toLocaleString()}` : ""}${r.a3 ? ` / A3 ${(last.a3Mono ?? 0).toLocaleString()}·${(last.a3Color ?? 0).toLocaleString()}` : ""}` : "검침 기록 없음"}
         {last && ` · 지난 청구 이후 ${(last.mono - r.billedMono).toLocaleString()}매`}
       </p>
       {canEdit && (
@@ -110,7 +114,13 @@ function ReadingCard({ cid, r, date, canEdit }: { cid: string; r: ReadingRow; da
         >
           <Input inputMode="numeric" placeholder="흑백 카운터" aria-label={`${r.code} 흑백 카운터`} value={mono} onChange={(e) => (setMono(e.target.value.replace(/[^\d,]/g, "")), setSaved(false))} className="h-10" />
           {r.color && <Input inputMode="numeric" placeholder="컬러 카운터" aria-label={`${r.code} 컬러 카운터`} value={color} onChange={(e) => (setColor(e.target.value.replace(/[^\d,]/g, "")), setSaved(false))} className="h-10" />}
-          <Button type="submit" className="h-10" disabled={!mono || mut.addReading.isPending}>
+          {r.a3 && (
+            <>
+              <Input inputMode="numeric" placeholder="A3 흑백" aria-label={`${r.code} A3 흑백 카운터`} value={a3Mono} onChange={(e) => (setA3Mono(e.target.value.replace(/[^\d,]/g, "")), setSaved(false))} className="h-10" />
+              <Input inputMode="numeric" placeholder="A3 컬러" aria-label={`${r.code} A3 컬러 카운터`} value={a3Color} onChange={(e) => (setA3Color(e.target.value.replace(/[^\d,]/g, "")), setSaved(false))} className="h-10" />
+            </>
+          )}
+          <Button type="submit" className={cn("h-10", r.a3 && "col-span-full")} disabled={!mono || mut.addReading.isPending}>
             저장
           </Button>
         </form>

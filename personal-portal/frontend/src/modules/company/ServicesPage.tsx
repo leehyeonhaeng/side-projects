@@ -349,7 +349,8 @@ export function ServiceNewPage() {
 
   if (partners.isPending || assets.isPending) return <main className="p-4"><InlineSpinner /></main>;
   const partnerList = (partners.data ?? []).filter((p) => p.active && p.kind !== "supplier");
-  const atPartner = (assets.data ?? []).filter((a) => a.partnerId === partnerId && a.status === "rented");
+  const atPartner = (assets.data ?? []).filter((a) => a.partnerId === partnerId && (a.status === "rented" || a.status === "customer"));
+  const partnerDepts = partnerList.find((p) => p.id === partnerId)?.departments ?? [];
 
   const submit = () => {
     setError(null);
@@ -405,17 +406,31 @@ export function ServiceNewPage() {
           </NativeSelect>
         </Field>
         <Field label="장비">
-          <NativeSelect value={assetId} onChange={(e) => setAssetId(e.target.value)} className="h-9" disabled={!partnerId}>
+          <NativeSelect
+            value={assetId}
+            onChange={(e) => {
+              setAssetId(e.target.value);
+              const dep = atPartner.find((a) => a.id === e.target.value)?.department;
+              if (dep && !f.department) setF({ ...f, department: dep });
+            }}
+            className="h-9"
+            disabled={!partnerId}
+          >
             <option value="">{atPartner.length ? "고르세요 (없으면 비워 두기)" : "이 거래처에 나가 있는 장비 없음"}</option>
             {atPartner.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.code} {a.itemName} {a.serial && `(${a.serial})`}
+                {a.code} {a.itemName} {a.department && `· ${a.department}`} {a.serial && `(${a.serial})`}
               </option>
             ))}
           </NativeSelect>
         </Field>
         <Field label="부서 (선택)">
-          <Input maxLength={40} value={f.department ?? ""} onChange={set("department")} placeholder="예: 행정실, 3층 교무실" />
+          <Input list="service-depts" maxLength={40} value={f.department ?? ""} onChange={set("department")} placeholder={partnerDepts[0] ? `예: ${partnerDepts[0]}` : "예: 행정실, 3층 교무실"} />
+          <datalist id="service-depts">
+            {partnerDepts.map((d) => (
+              <option key={d} value={d} />
+            ))}
+          </datalist>
         </Field>
         <Field label="접수일">
           <Input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />

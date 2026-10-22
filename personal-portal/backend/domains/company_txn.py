@@ -29,7 +29,7 @@ from common.http import parse_body
 from common.serialize import to_dynamo, to_plain
 from common.users import now_iso
 from domains.company_core import CompanyCtx, company_audit, company_ctx, pk, redact
-from domains.company_master import asset_code, asset_log, asset_prefix, next_seq
+from domains.company_master import asset_log, new_codes, next_seq
 from domains.company_notify import notify
 from domains.sharing import query_all
 
@@ -472,11 +472,9 @@ def build_txn(ctx: CompanyCtx, cid: str, body: TxnCreate, extra: dict[str, Any] 
                     raise BadRequestError("asset purchase qty must be a whole number up to 50")
                 ln["assetIds"] = []
                 n = int(ln["qty"])
-                last = next_seq(cid, "asset", n)
-                prefix = asset_prefix(cid)
-                for k in range(last - n + 1, last + 1):
+                for code in new_codes(cid, n):
                     aid = uuid4().hex[:10]
-                    asset = {"PK": pk(cid), "SK": f"ASSET#{aid}", "id": aid, "code": asset_code(prefix, k), "itemId": it["id"], "serial": "", "status": "in_stock", "location": "", "memo": "", "acquiredAt": day, "cost": round(ln["supply"] / n) if n else 0, "createdAt": now_iso(), "updatedAt": now_iso()}
+                    asset = {"PK": pk(cid), "SK": f"ASSET#{aid}", "id": aid, "code": code, "itemId": it["id"], "serial": "", "status": "in_stock", "location": "", "memo": "", "acquiredAt": day, "cost": round(ln["supply"] / n) if n else 0, "createdAt": now_iso(), "updatedAt": now_iso()}
                     created_assets.append(asset)
                     ln["assetIds"].append(aid)
             elif t in {"sale", "adjust", "service"}:
@@ -658,6 +656,10 @@ def _cancel_contract(cid: str, txn: dict[str, Any], tx: Tx) -> None:
             names[f"#a{i}"] = c["assetId"]
             vals |= {f":bm{i}": c["fromMono"], f":bc{i}": c["fromColor"], f":br{i}": c.get("fromReadAt", "")}
             sets += [f"machines.#a{i}.billedMono = :bm{i}", f"machines.#a{i}.billedColor = :bc{i}", f"machines.#a{i}.billedReadAt = :br{i}"]
+            for k, field in (("fromA3Mono", "billedA3Mono"), ("fromA3Color", "billedA3Color")):
+                if k in c:
+                    vals[f":{field}{i}"] = c[k]
+                    sets.append(f"machines.#a{i}.{field} = :{field}{i}")
         tx.update(key, "SET " + ", ".join(sets) + ", ver = ver + :one", names or None, vals, "billedThrough = :m", "이후 달 청구를 먼저 취소하세요")
         return
     op = txn.get("contractOp")
@@ -668,7 +670,7 @@ def _cancel_contract(cid: str, txn: dict[str, Any], tx: Tx) -> None:
         rm = ", ".join(f"machines.#a{i}" for i in range(len(names)))
         tx.update(key, f"SET ver = ver + :one REMOVE {rm}", names, {":one": 1, ":sm": txn["date"][:7]}, "billedThrough < :sm", "이 기기가 들어간 달을 이미 청구했습니다. 청구부터 취소하세요")
     elif op == "return":
-        rm = ", ".join(f"machines.#a{i}.endedAt, machines.#a{i}.endMono, machines.#a{i}.endColor" for i in range(len(names)))
+        rm = ", ".join(f"machines.#a{i}.endedAt, machines.#a{i}.endMono, machines.#a{i}.endColor, machines.#a{i}.endA3Mono, machines.#a{i}.endA3Color" for i in range(len(names)))
         tx.update(key, f"SET #st = :act, ver = ver + :one REMOVE endedAt, {rm}", names | {"#st": "status"}, {":act": "active", ":one": 1, ":rm": txn["date"][:7]}, "billedThrough < :rm", "수거한 달을 이미 정산 청구했습니다. 청구부터 취소하세요")
 
 

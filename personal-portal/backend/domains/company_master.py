@@ -4,6 +4,9 @@
 - 재고 수량·거래처 잔액·계좌 잔액은 C3 거래가 바꾼다. 여기서는 처음 값(기초)만 정한다
 - 기기번호: 영문 1자 + 숫자 3자 (A001 … A999 → B001 …, 시작 글자는 설정 assetPrefix). 등록할 때 한 번 붙고 바뀌지 않으며 돌려 쓰지 않음.
   회사별 순번은 SEQ#asset (원자적 증가)
+- 직접 넣은 기기번호(예: B610)도 회사 안에서 겹치면 안 된다. 자동 번호는 이미 쓰인 번호를 건너뛴다
+- 거래처: 부서 목록(departments, 회사 이름은 한 번만) + 판매구분 기본값(saleType: 유지보수·임대·완판)
+- 고객 장비(status=customer): 고객 소유 기기를 거래처에 등록 (재고·매입가 없음, 임대 불가). 판매구분은 장비마다
 - 금액 보기가 꺼진 직원에게는 단가·잔액 필드를 보내지 않는다 (company_core.redact)
 """
 
@@ -35,7 +38,10 @@ ITEM_MONEY = ("price", "rentPrice", "cost")
 ASSET_MONEY = ("cost",)
 ACCOUNT_MONEY = ("openingBalance", "balance")
 
-AssetStatus = Literal["in_stock", "rented", "repair", "retired"]
+AssetStatus = Literal["in_stock", "rented", "repair", "retired", "customer"]
+SaleType = Literal["유지보수", "임대", "완판"]
+Dept = Annotated[str, Field(min_length=1, max_length=40)]
+Code = Annotated[str, Field(min_length=1, max_length=20, pattern=r"^[0-9A-Za-z가-힣_.-]+$")]
 # 직접 바꿀 수 있는 상태 (임대 중은 출고·수거 거래로만)
 MANUAL_STATUS = ("in_stock", "repair", "retired")
 
@@ -84,11 +90,20 @@ class PartnerFields(BaseModel):
     address: str | None = Field(default=None, max_length=200)
     memo: str | None = Field(default=None, max_length=1000)
     active: bool | None = None
+    saleType: SaleType | None = None  # 판매구분 기본값 (장비를 붙일 때 채워짐)
+    departments: list[Dept] | None = Field(default=None, max_length=50)  # 부서 (예: 건축과, 인사팀)
 
 
 class PartnerCreate(PartnerFields):
     name: str = Field(min_length=1, max_length=60)
     kind: Literal["customer", "supplier", "both"] = "customer"
+
+
+def _depts(names: list[str]) -> list[str]:
+    out = [n.strip() for n in names if n.strip()]
+    if len(set(out)) != len(out):
+        raise BadRequestError("duplicate department")
+    return out
 
 
 def _partner_view(ctx: CompanyCtx, p: dict[str, Any]) -> dict[str, Any]:
@@ -106,6 +121,8 @@ def list_partners(cid: str) -> dict[str, Any]:
 def create_partner(cid: str) -> dict[str, Any]:
     ctx = company_ctx(router, cid, "partners", "edit")
     data = parse_body(router, PartnerCreate).model_dump(exclude_none=True)
+    if "departments" in data:
+        data["departments"] = _depts(data["departments"])
     if any(p["name"] == data["name"] for p in _list(cid, "PARTNER#")):
         raise BadRequestError("a partner with the same name exists")
     pid = _new_id()
@@ -129,6 +146,8 @@ def patch_partner(cid: str, pid: str) -> dict[str, Any]:
     if not changes or any(changes.get(k, "") is None for k in ("name", "kind", "active")):
         raise BadRequestError("nothing to update or empty required field")
     current = _strip(_get(cid, f"PARTNER#{pid}", "partner"))
+    if changes.get("departments") is not None:
+        changes["departments"] = _depts(changes["departments"])
     if "name" in changes and changes["name"] != current["name"] and any(p["name"] == changes["name"] for p in _list(cid, "PARTNER#")):
         raise BadRequestError("a partner with the same name exists")
     merged = {k: v for k, v in {**current, **changes}.items() if v is not None}
@@ -177,7 +196,7 @@ def _item_view(ctx: CompanyCtx, item: dict[str, Any], assets: list[dict[str, Any
     out = dict(item)
     if item["tracking"] == "asset" and assets is not None:
         mine = [a for a in assets if a["itemId"] == item["id"]]
-        out["assetCounts"] = {s: sum(1 for a in mine if a["status"] == s) for s in ("in_stock", "rented", "repair", "retired")}
+        out["assetCounts"] = {s: sum(1 for a in mine if a["status"] == s) for s in ("in_stock", "rented", "repair", "retired", "customer")}
     return redact(ctx, out, ITEM_MONEY)
 
 
@@ -277,6 +296,23 @@ def asset_code(start: str, n: int) -> str:
     return f"{chr(letter)}{(n - 1) % 999 + 1:03d}"
 
 
+def new_codes(cid: str, n: int) -> list[str]:
+    """자동 기기번호 n개 (직접 넣은 번호와 겹치면 건너뜀)"""
+    used = {a["code"] for a in _list(cid, "ASSET#")}
+    prefix, out = asset_prefix(cid), []
+    while len(out) < n:
+        last = next_seq(cid, "asset", n - len(out))
+        out += [c for k in range(last - (n - len(out)) + 1, last + 1) if (c := asset_code(prefix, k)) not in used]
+    return out
+
+
+def _check_code(cid: str, code: str, own_id: str = "") -> str:
+    code = code.strip().upper()
+    if any(a["code"] == code and a["id"] != own_id for a in _list(cid, "ASSET#")):
+        raise BadRequestError(f"duplicate asset number: {code}")
+    return code
+
+
 def asset_log(cid: str, aid: str, actor: str, action: str, **detail: Any) -> dict[str, Any]:
     at = now_iso()
     return {"PK": pk(cid), "SK": f"ASSET#{aid}#LOG#{at}#{uuid4().hex[:4]}", "at": at, "actor": actor, "action": action, **to_dynamo(detail)}
@@ -296,9 +332,27 @@ class AssetRegister(BaseModel):
     memo: str = Field(default="", max_length=500)
 
 
+class CustomerAsset(BaseModel):
+    """고객 장비 등록: 고객 소유 기기 (유지보수·완판). 번호를 비우면 자동"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    partnerId: str = Field(pattern=ID)
+    itemId: str = Field(pattern=ID)  # 모델 (개체 품목)
+    code: Code | None = None
+    serial: str = Field(default="", max_length=60)
+    saleType: SaleType | None = None  # 비우면 거래처 기본값, 그것도 없으면 유지보수
+    department: str = Field(default="", max_length=40)
+    location: str = Field(default="", max_length=60)
+    memo: str = Field(default="", max_length=500)
+
+
 class AssetPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    code: Code | None = None  # 기기번호 고치기 (라벨을 다시 뽑아야 함)
+    saleType: SaleType | None = None
+    department: str | None = Field(default=None, max_length=40)
     serial: str | None = Field(default=None, max_length=60)
     status: Literal["in_stock", "repair", "retired"] | None = None
     location: str | None = Field(default=None, max_length=60)
@@ -342,18 +396,17 @@ def register_assets(cid: str) -> dict[str, Any]:
     dup = [s for s in serials if s and (s in existing or serials.count(s) > 1)]
     if dup:
         raise BadRequestError(f"duplicate serial: {dup[0]}")
-    last = next_seq(cid, "asset", body.count)
-    prefix = asset_prefix(cid)
+    codes = new_codes(cid, body.count)
     now = now_iso()
     created = []
     with table().batch_writer() as batch:
-        for n, serial in enumerate(serials, start=last - body.count + 1):
+        for code, serial in zip(codes, serials, strict=True):
             aid = _new_id()
             asset = {
                 "PK": pk(cid),
                 "SK": f"ASSET#{aid}",
                 "id": aid,
-                "code": asset_code(prefix, n),
+                "code": code,
                 "itemId": body.itemId,
                 "serial": serial,
                 "status": "in_stock",
@@ -370,6 +423,32 @@ def register_assets(cid: str) -> dict[str, Any]:
         batch.put_item(Item=company_audit(cid, ctx.sub, "asset_register", model["name"], {"count": body.count, "codes": f"{created[0]['code']}~{created[-1]['code']}"}))
     names = {model["id"]: model["name"]}
     return {"assets": [_asset_view(ctx, a, names) for a in created]}
+
+
+@router.post("/company/<cid>/assets/customer")
+def register_customer_asset(cid: str) -> dict[str, Any]:
+    """고객 장비 등록 (거래처에 있는 고객 소유 기기). 서비스 접수·점검·카운터에 쓴다"""
+    ctx = company_ctx(router, cid, "assets", "edit")
+    body = parse_body(router, CustomerAsset)
+    model = _strip(_get(cid, f"ITEM#{body.itemId}", "item"))
+    if model["tracking"] != "asset":
+        raise BadRequestError("item is not asset-tracked")
+    partner = _strip(_get(cid, f"PARTNER#{body.partnerId}", "partner"))
+    serial = body.serial.strip()
+    if serial and any(a.get("serial") == serial for a in _list(cid, "ASSET#")):
+        raise BadRequestError(f"duplicate serial: {serial}")
+    code = _check_code(cid, body.code) if body.code else new_codes(cid, 1)[0]
+    sale = body.saleType or (partner.get("saleType") if partner.get("saleType") in ("유지보수", "완판") else None) or "유지보수"
+    aid, now = _new_id(), now_iso()
+    asset = {
+        "PK": pk(cid), "SK": f"ASSET#{aid}", "id": aid, "code": code, "itemId": model["id"], "serial": serial, "status": "customer",
+        "partnerId": partner["id"], "saleType": sale, "department": body.department.strip(), "location": body.location, "memo": body.memo, "createdAt": now, "updatedAt": now,
+    }
+    with table().batch_writer() as batch:
+        batch.put_item(Item=asset)
+        batch.put_item(Item=asset_log(cid, aid, ctx.sub, "registered", note=f"고객 장비 · {partner['name']}", partnerId=partner["id"], partnerName=partner["name"]))
+        batch.put_item(Item=company_audit(cid, ctx.sub, "asset_register", model["name"], {"count": 1, "codes": code, "partner": partner["name"]}))
+    return {"asset": _asset_view(ctx, _strip(asset), {model["id"]: model["name"], partner["id"]: partner["name"]})}
 
 
 @router.get("/company/<cid>/assets/<aid>")
@@ -395,6 +474,14 @@ def patch_asset(cid: str, aid: str) -> dict[str, Any]:
             raise BadRequestError("rented asset changes status by return transaction")
         if changes["status"] is None:
             raise BadRequestError("status cannot be empty")
+        if current["status"] == "customer" and changes["status"] != "retired":
+            raise BadRequestError("customer equipment can only be retired")
+    if "code" in changes:
+        if changes["code"] is None:
+            raise BadRequestError("asset number cannot be empty")
+        changes["code"] = _check_code(cid, changes["code"], aid)
+    if "department" in changes and changes["department"] is not None:
+        changes["department"] = changes["department"].strip()
     if "serial" in changes and changes["serial"] and changes["serial"] != current.get("serial"):
         if any(a.get("serial") == changes["serial"] for a in _list(cid, "ASSET#")):
             raise BadRequestError(f"duplicate serial: {changes['serial']}")
@@ -413,7 +500,7 @@ def delete_asset(cid: str, aid: str) -> dict[str, Any]:
     ctx = company_ctx(router, cid, "assets", "edit")
     current = _get(cid, f"ASSET#{aid}", "asset")
     logs = query_all(KeyConditionExpression=Key("PK").eq(pk(cid)) & Key("SK").begins_with(f"ASSET#{aid}#LOG#"))
-    if current["status"] != "in_stock" or any(x["action"] != "registered" for x in logs):
+    if current["status"] not in ("in_stock", "customer") or any(x["action"] != "registered" for x in logs):
         raise BadRequestError("asset has history; retire it instead")
     with table().batch_writer() as batch:
         batch.delete_item(Key={"PK": pk(cid), "SK": f"ASSET#{aid}"})

@@ -157,6 +157,8 @@ export type Partner = {
   address?: string;
   memo?: string;
   active: boolean;
+  saleType?: SaleType; // 판매구분 기본값
+  departments?: string[]; // 부서 (회사 이름은 한 번만)
   // 금액 보기가 꺼져 있으면 오지 않는다
   receivable?: number;
   advance?: number;
@@ -189,14 +191,19 @@ export type Item = {
 };
 export type ItemInput = Partial<Omit<Item, "id" | "createdAt" | "assetCounts" | "qty" | "tracking">> & { tracking?: Tracking; openingQty?: number };
 
-export type AssetStatus = "in_stock" | "rented" | "repair" | "retired";
-export const ASSET_STATUS_LABEL: Record<AssetStatus, string> = { in_stock: "창고", rented: "임대 중", repair: "수리", retired: "폐기" };
+export type SaleType = "유지보수" | "임대" | "완판";
+export const SALE_TYPES: SaleType[] = ["유지보수", "임대", "완판"];
+export type AssetStatus = "in_stock" | "rented" | "repair" | "retired" | "customer";
+export const ASSET_STATUS_LABEL: Record<AssetStatus, string> = { in_stock: "창고", rented: "임대 중", repair: "수리", retired: "폐기", customer: "고객 장비" };
 export const ASSET_STATUS_TONE: Record<AssetStatus, string> = {
   in_stock: "bg-emerald-100 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-300",
   rented: "bg-sky-100 text-sky-700 dark:bg-sky-400/15 dark:text-sky-300",
   repair: "bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300",
   retired: "bg-zinc-200 text-zinc-600 dark:bg-zinc-500/20 dark:text-zinc-400",
+  customer: "bg-violet-100 text-violet-700 dark:bg-violet-400/15 dark:text-violet-300",
 };
+/** 장비의 판매구분: 저장된 값, 없으면 임대 중이면 임대 */
+export const saleTypeOf = (a: Pick<Asset, "saleType" | "status">) => a.saleType ?? (a.status === "rented" ? "임대" : undefined);
 export type Asset = {
   id: string;
   code: string;
@@ -211,10 +218,12 @@ export type Asset = {
   cost?: number;
   memo: string;
   contractId?: string; // 계약에 묶여 임대 중
+  saleType?: SaleType;
+  department?: string;
   lastReading?: Reading;
   createdAt: string;
 };
-export type Reading = { date: string; mono: number; color: number; note?: string };
+export type Reading = { date: string; mono: number; color: number; a3Mono?: number; a3Color?: number; note?: string };
 export type AssetLog = { at: string; actor: string; action: string; from?: string; to?: string; note?: string; partnerId?: string; partnerName?: string; txnNo?: string; contractNo?: string; serviceNo?: string; mono?: number; color?: number; date?: string };
 
 export type AccountKind = "cash" | "bank" | "card";
@@ -256,7 +265,8 @@ export function useMasterMutations(cid: string) {
     registerAssets: useMutation(
       m((body: { itemId: string; count: number; serials: string[]; acquiredAt?: string; cost?: number; location: string; memo: string }) => api.post<{ assets: Asset[] }>(`/company/${cid}/assets`, body)),
     ),
-    patchAsset: useMutation(m(({ id, ...body }: { id: string; serial?: string; status?: AssetStatus; location?: string; acquiredAt?: string | null; cost?: number | null; memo?: string }) => api.patch<Asset>(`/company/${cid}/assets/${id}`, body))),
+    registerCustomerAsset: useMutation(m((body: { partnerId: string; itemId: string; code?: string; serial: string; saleType?: SaleType; department: string; location: string; memo: string }) => api.post<{ asset: Asset }>(`/company/${cid}/assets/customer`, body))),
+    patchAsset: useMutation(m(({ id, ...body }: { id: string; code?: string; saleType?: SaleType; department?: string; serial?: string; status?: AssetStatus; location?: string; acquiredAt?: string | null; cost?: number | null; memo?: string }) => api.patch<Asset>(`/company/${cid}/assets/${id}`, body))),
     deleteAsset: useMutation(m((id: string) => api.del(`/company/${cid}/assets/${id}`))),
     createAccount: useMutation(m((body: { name: string; kind: AccountKind; bank?: string; number?: string; holder?: string; memo?: string; openingBalance: number }) => api.post<Account>(`/company/${cid}/accounts`, body))),
     patchAccount: useMutation(m(({ id, ...body }: { id: string; name?: string; kind?: AccountKind; bank?: string; number?: string; holder?: string; memo?: string; active?: boolean }) => api.patch<Account>(`/company/${cid}/accounts/${id}`, body))),
@@ -408,7 +418,7 @@ export const EXPENSE_CATEGORIES = ["임차료", "인건비", "유류비", "차�
 
 // ── C4 임대 계약·정기 청구·검침·A/S (backend/domains/company_rental.py, company_service.py) ──
 
-export type Terms = { monthly?: number; counter: boolean; freeMono: number; freeColor: number; overMono?: number; overColor?: number };
+export type Terms = { monthly?: number; counter: boolean; freeMono: number; freeColor: number; overMono?: number; overColor?: number; freeA3Mono?: number; freeA3Color?: number; overA3Mono?: number; overA3Color?: number };
 export type ContractMachine = Terms & {
   assetId: string;
   code: string;
@@ -419,6 +429,8 @@ export type ContractMachine = Terms & {
   startColor: number;
   billedMono: number;
   billedColor: number;
+  billedA3Mono?: number;
+  billedA3Color?: number;
   billedReadAt: string;
   endMono?: number;
   endColor?: number;
@@ -465,12 +477,15 @@ export type ReadingRow = {
   code: string;
   itemName: string;
   color: boolean;
+  a3: boolean;
   lastReading?: Reading;
   billedMono: number;
   billedColor: number;
+  billedA3Mono: number;
+  billedA3Color: number;
   billedReadAt: string;
 };
-export type MachineInput = Terms & { assetId: string; startMono?: number; startColor?: number };
+export type MachineInput = Terms & { assetId: string; startMono?: number; startColor?: number; startA3Mono?: number; startA3Color?: number };
 export type ServiceStatus = "open" | "in_progress" | "done" | "canceled";
 export const SERVICE_STATUS_LABEL: Record<ServiceStatus, string> = { open: "접수", in_progress: "진행", done: "완료", canceled: "취소" };
 export const DEFAULT_SERVICE_TYPES = ["고장", "점검", "설치", "원격"];
@@ -562,7 +577,7 @@ export function useStaff(cid: string) {
 
 type TxnResult = { txn: Txn; related: Txn[]; createdAssets: Asset[] };
 type ContractBody = { partnerId: string; date: string; billingDay: number; vatMode: VatMode; termEnd?: string; machines: MachineInput[]; lines: LineInput[]; memo: string; serviceId?: string };
-type ReturnInput = { id: string; date: string; assetIds: string[]; readings: { assetId: string; mono: number; color?: number }[]; returnLocation: string; lines: LineInput[]; memo: string; serviceId?: string };
+type ReturnInput = { id: string; date: string; assetIds: string[]; readings: { assetId: string; mono: number; color?: number; a3Mono?: number; a3Color?: number }[]; returnLocation: string; lines: LineInput[]; memo: string; serviceId?: string };
 type ContractPatch = { id: string; billingDay?: number; vatMode?: VatMode; termEnd?: string | null; memo?: string; machines?: Record<string, Partial<Terms>> };
 type BillResult = { contractId: string; month: string; ok: boolean; error?: string; txn?: { id: string; no: string; date: string; total?: number } };
 type ServiceDoneInput = { id: string; date: string; action: string; method: string; parts: LineInput[]; fees: LineInput[]; billable: boolean; report?: string; remark?: string; consumables?: Record<string, number | string>; counters?: ServiceCounters };
@@ -579,7 +594,7 @@ export function useRentalMutations(cid: string) {
     returnMachines: useMutation(m(({ id, ...body }: ReturnInput) => api.post<TxnResult>(`${base}/contracts/${id}/return`, body))),
     patchContract: useMutation(m(({ id, ...body }: ContractPatch) => api.patch<{ contract: Contract }>(`${base}/contracts/${id}`, body))),
     issueBills: useMutation(m((items: { contractId: string; month: string; date: string; lines: LineInput[] }[]) => api.post<{ results: BillResult[] }>(`${base}/billing`, { items }))),
-    addReading: useMutation(m(({ assetId, ...body }: { assetId: string; date: string; mono: number; color?: number; fix?: boolean; memo?: string }) => api.post<{ lastReading: Reading }>(`${base}/assets/${assetId}/readings`, body))),
+    addReading: useMutation(m(({ assetId, ...body }: { assetId: string; date: string; mono: number; color?: number; a3Mono?: number; a3Color?: number; fix?: boolean; memo?: string }) => api.post<{ lastReading: Reading }>(`${base}/assets/${assetId}/readings`, body))),
     createService: useMutation(m((body: ServiceCreateInput) => api.post<{ service: Service }>(`${base}/services`, body))),
     patchService: useMutation(m(({ id, ...body }: { id: string } & Partial<ServiceFields>) => api.patch<{ service: Service }>(`${base}/services/${id}`, body))),
     startService: useMutation(m(({ id, note }: { id: string; note: string }) => api.post<{ service: Service }>(`${base}/services/${id}/start`, { note }))),

@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { ArrowLeftIcon, PlusIcon } from "lucide-react";
-import { ASSET_STATUS_LABEL, type Asset, type AssetLog, type AssetStatus, useAsset, useAssets, useItems, useMasterMutations, useRentalMutations } from "@/api/company";
+import { ASSET_STATUS_LABEL, type Asset, type AssetLog, type AssetStatus, SALE_TYPES, type SaleType, saleTypeOf, useAsset, useAssets, useItems, useMasterMutations, useRentalMutations } from "@/api/company";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { NativeSelect } from "@/components/NativeSelect";
 import { ErrorAlert, InlineSpinner } from "@/components/states";
@@ -29,7 +29,7 @@ export function AssetsPage() {
   const shown = all
     .filter((a) => (status === "all" ? true : status === "active" ? a.status !== "retired" : a.status === status))
     .filter((a) => !itemFilter || a.itemId === itemFilter)
-    .filter((a) => matches([a.code, a.serial, a.itemName, a.partnerName, a.location, a.memo].join(" "), q));
+    .filter((a) => matches([a.code, a.serial, a.itemName, a.partnerName, a.location, a.memo, a.department ?? ""].join(" "), q));
   const count = (s: AssetStatus) => all.filter((a) => a.status === s).length;
   const models = (items.data ?? []).filter((i) => i.tracking === "asset" && i.active);
 
@@ -37,7 +37,7 @@ export function AssetsPage() {
     <main className="mx-auto grid max-w-3xl gap-4 p-4 md:p-6">
       <PageHead
         title="기기"
-        sub={`임대 중 ${count("rented")} · 창고 ${count("in_stock")} · 수리 ${count("repair")}`}
+        sub={`임대 중 ${count("rented")} · 창고 ${count("in_stock")} · 수리 ${count("repair")}${count("customer") ? ` · 고객 장비 ${count("customer")}` : ""}`}
         action={
           <div className="flex gap-2">
             <Button variant="outline" nativeButton={false} render={<Link to={`/company/${cid}/labels`} />}>
@@ -53,7 +53,7 @@ export function AssetsPage() {
       />
       <Search value={q} onChange={setQ} placeholder="고유번호·제조번호·모델·거래처 검색" />
       <div className="flex flex-wrap gap-1">
-        {(["active", "rented", "in_stock", "repair", "retired", "all"] as const).map((s) => (
+        {(["active", "rented", "in_stock", "repair", "customer", "retired", "all"] as const).map((s) => (
           <Chip key={s} on={status === s} onClick={() => setStatus(s)}>
             {s === "active" ? "사용 중 전체" : s === "all" ? "폐기 포함" : ASSET_STATUS_LABEL[s]}
           </Chip>
@@ -83,7 +83,7 @@ export function AssetsPage() {
                     <span className="font-mono text-sm font-semibold">{a.code}</span>
                     <span className="truncate text-sm">{a.itemName}</span>
                   </span>
-                  <span className="block truncate text-xs text-muted-foreground">{[a.serial && `S/N ${a.serial}`, a.status === "rented" ? a.partnerName : a.location].filter(Boolean).join(" · ") || "—"}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{[a.serial && `S/N ${a.serial}`, a.partnerId ? a.partnerName : a.location, a.department, saleTypeOf(a)].filter(Boolean).join(" · ") || "—"}</span>
                 </span>
                 <StatusBadge status={a.status} />
               </Link>
@@ -250,11 +250,13 @@ export function AssetDetailPage() {
 
       <section className="grid gap-2 rounded-2xl border bg-card p-4 text-sm">
         <Row label="제조번호" value={a.serial || "—"} />
-        <Row label={a.status === "rented" ? "임대처" : "위치"} value={a.status === "rented" ? (a.partnerId ? <Link className="text-primary" to={`/company/${cid}/partners/${a.partnerId}`}>{a.partnerName}</Link> : "—") : a.location || "—"} />
+        <Row label={a.status === "rented" ? "임대처" : a.status === "customer" ? "거래처" : "위치"} value={a.partnerId && (a.status === "rented" || a.status === "customer") ? <Link className="text-primary" to={`/company/${cid}/partners/${a.partnerId}`}>{a.partnerName}</Link> : a.location || "—"} />
+        {saleTypeOf(a) && <Row label="판매구분" value={saleTypeOf(a)} />}
+        {a.department && <Row label="부서" value={a.department} />}
         {a.contractId && <Row label="계약" value={<Link className="text-primary" to={`/company/${cid}/contracts/${a.contractId}`}>계약 보기</Link>} />}
-        {a.lastReading && <Row label="최근 검침" value={`${a.lastReading.date} · 흑백 ${a.lastReading.mono.toLocaleString()}${a.lastReading.color ? ` / 컬러 ${a.lastReading.color.toLocaleString()}` : ""}`} />}
-        <Row label="취득일" value={a.acquiredAt ?? "—"} />
-        {detail.me.showAmounts && <Row label="매입가" value={money(a.cost)} />}
+        {a.lastReading && <Row label="최근 검침" value={`${a.lastReading.date} · 흑백 ${a.lastReading.mono.toLocaleString()}${a.lastReading.color ? ` / 컬러 ${a.lastReading.color.toLocaleString()}` : ""}${a.lastReading.a3Mono ? ` / A3 흑백 ${a.lastReading.a3Mono.toLocaleString()}` : ""}${a.lastReading.a3Color ? ` / A3 컬러 ${a.lastReading.a3Color.toLocaleString()}` : ""}`} />}
+        {a.status !== "customer" && <Row label="취득일" value={a.acquiredAt ?? "—"} />}
+        {detail.me.showAmounts && a.status !== "customer" && <Row label="매입가" value={money(a.cost)} />}
         {a.memo && <Row label="메모" value={a.memo} />}
       </section>
 
@@ -264,7 +266,7 @@ export function AssetDetailPage() {
             정보 수정
           </Button>
           {a.status !== "rented" &&
-            (["in_stock", "repair", "retired"] as const)
+            (a.status === "customer" ? (["retired"] as const) : (["in_stock", "repair", "retired"] as const))
               .filter((s) => s !== a.status)
               .map((s) => (
                 <Button key={s} variant="outline" size="sm" disabled={mut.patchAsset.isPending} onClick={() => mut.patchAsset.mutate({ id: a.id, status: s })}>
@@ -281,7 +283,7 @@ export function AssetDetailPage() {
               수거
             </Button>
           )}
-          {a.status === "rented" && (
+          {(a.status === "rented" || a.status === "customer") && (
             <Button size="sm" variant="outline" onClick={() => setReading(true)}>
               검침 입력
             </Button>
@@ -328,6 +330,9 @@ function Row({ label, value }: { label: string; value: ReactNode }) {
 }
 
 function AssetEditDialog({ cid, asset, showAmounts, onClose }: { cid: string; asset: Asset; showAmounts: boolean; onClose: () => void }) {
+  const [code, setCode] = useState(asset.code);
+  const [sale, setSale] = useState<SaleType | "">(asset.saleType ?? "");
+  const [department, setDepartment] = useState(asset.department ?? "");
   const [serial, setSerial] = useState(asset.serial);
   const [location, setLocation] = useState(asset.location);
   const [acquiredAt, setAcquiredAt] = useState(asset.acquiredAt ?? "");
@@ -346,11 +351,37 @@ function AssetEditDialog({ cid, asset, showAmounts, onClose }: { cid: string; as
           onSubmit={(e) => {
             e.preventDefault();
             mut.patchAsset.mutate(
-              { id: asset.id, serial: serial.trim(), location: location.trim(), memo: memo.trim(), acquiredAt: acquiredAt || null, ...(showAmounts ? { cost: cost ? Number(cost.replace(/,/g, "")) : null } : {}) },
+              {
+                id: asset.id,
+                ...(code.trim() && code.trim() !== asset.code ? { code: code.trim() } : {}),
+                ...(sale ? { saleType: sale } : {}),
+                department: department.trim(),
+                serial: serial.trim(),
+                location: location.trim(),
+                memo: memo.trim(),
+                acquiredAt: acquiredAt || null,
+                ...(showAmounts && asset.status !== "customer" ? { cost: cost ? Number(cost.replace(/,/g, "")) : null } : {}),
+              },
               { onSuccess: onClose },
             );
           }}
         >
+          <Field label="장비번호" hint={code.trim() !== asset.code ? "번호를 바꾸면 라벨을 다시 뽑아 붙여야 합니다" : undefined}>
+            <Input maxLength={20} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} />
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="판매구분">
+              <NativeSelect value={sale} onChange={(e) => setSale(e.target.value as SaleType | "")} className="h-9">
+                <option value="">{asset.status === "rented" ? "임대 (자동)" : "정하지 않음"}</option>
+                {SALE_TYPES.map((t) => (
+                  <option key={t}>{t}</option>
+                ))}
+              </NativeSelect>
+            </Field>
+            <Field label="부서">
+              <Input maxLength={40} value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="예: 인사팀" />
+            </Field>
+          </div>
           <Field label="제조번호">
             <Input maxLength={60} value={serial} onChange={(e) => setSerial(e.target.value)} />
           </Field>
@@ -389,6 +420,8 @@ function ReadingDialog({ cid, asset, onClose }: { cid: string; asset: Asset; onC
   const [date, setDate] = useState(todayStr());
   const [mono, setMono] = useState("");
   const [color, setColor] = useState("");
+  const [a3Mono, setA3Mono] = useState("");
+  const [a3Color, setA3Color] = useState("");
   const n = (v: string) => Number(v.replace(/,/g, "")) || 0;
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -401,7 +434,7 @@ function ReadingDialog({ cid, asset, onClose }: { cid: string; asset: Asset; onC
           className="grid gap-3"
           onSubmit={(e) => {
             e.preventDefault();
-            if (mono) mut.addReading.mutate({ assetId: asset.id, date, mono: n(mono), color: n(color) }, { onSuccess: onClose });
+            if (mono) mut.addReading.mutate({ assetId: asset.id, date, mono: n(mono), color: n(color), ...(a3Mono ? { a3Mono: n(a3Mono) } : {}), ...(a3Color ? { a3Color: n(a3Color) } : {}) }, { onSuccess: onClose });
           }}
         >
           {asset.lastReading && (
@@ -418,6 +451,12 @@ function ReadingDialog({ cid, asset, onClose }: { cid: string; asset: Asset; onC
             </Field>
             <Field label="컬러 카운터">
               <Input inputMode="numeric" value={color} onChange={(e) => setColor(e.target.value.replace(/[^\d,]/g, ""))} />
+            </Field>
+            <Field label="A3 흑백">
+              <Input inputMode="numeric" value={a3Mono} onChange={(e) => setA3Mono(e.target.value.replace(/[^\d,]/g, ""))} />
+            </Field>
+            <Field label="A3 컬러">
+              <Input inputMode="numeric" value={a3Color} onChange={(e) => setA3Color(e.target.value.replace(/[^\d,]/g, ""))} />
             </Field>
           </div>
         </form>

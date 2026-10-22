@@ -1,14 +1,15 @@
 """행컴퍼니 임대 계약·정기 청구·카운터 검침 (COMPANY.md 5장, C4).
 
 계약 CONTRACT#<id>: 거래처 + 기기들(machines, 기기 id → 기기별 요금) + 청구일.
-- 기기별 요금: 월 기본료(monthly), 카운터 과금이면 기본 매수(freeMono·freeColor)와 초과 단가(overMono·overColor)
+- 기기별 요금: 월 기본료(monthly), 카운터 과금이면 기본 매수(freeMono·freeColor)와 초과 단가(overMono·overColor).
+  A3는 따로(C8 2단계): 기본 매수(freeA3Mono·freeA3Color)와 초과 단가(overA3Mono·overA3Color), 카운터 a3Mono·a3Color
 - 계약 출고·기기 추가·수거는 임대 출고/수거 거래(company_txn 엔진)와 계약 변경을 한 트랜잭션으로 쓴다
 - 정기 청구: 달마다 한 번. billedThrough = 마지막으로 청구한 달. 청구일이 지난 다음 달이 "청구 대기"에 뜨고,
   사람이 금액을 확인·수정해서 발행하면 청구 거래가 만들어진다 (자동 발행 없음)
 - 일할 계산: 그 달 중간에 출고·수거한 기기는 사용 일수만큼 나눈 금액을 제안
 - 초과 매수: (최근 검침 − 지난 청구 때 카운터) − 기본 매수. 검침이 없으면 경고만 하고 기본료만 제안
 
-검침: 기기의 lastReading {date, mono, color} + 기기 이력(reading). 카운터는 줄어들 수 없다 (정정은 fix=true)
+검침: 기기의 lastReading {date, mono, color, a3Mono, a3Color} + 기기 이력(reading). 카운터는 줄어들 수 없다 (정정은 fix=true)
 """
 
 import calendar
@@ -34,7 +35,14 @@ from domains.sharing import query_all
 router = Router()
 
 MAX_MACHINES = 30
-TERM_MONEY = ("monthly", "overMono", "overColor")
+TERM_MONEY = ("monthly", "overMono", "overColor", "overA3Mono", "overA3Color")
+# 카운터 종류: (표시 이름, 카운터 키, 기본 매수 키, 초과 단가 키, 계약 기기의 청구 카운터 키, 설치 카운터 키, 수거 카운터 키)
+KINDS = (
+    ("흑백", "mono", "freeMono", "overMono", "billedMono", "startMono", "endMono"),
+    ("컬러", "color", "freeColor", "overColor", "billedColor", "startColor", "endColor"),
+    ("A3 흑백", "a3Mono", "freeA3Mono", "overA3Mono", "billedA3Mono", "startA3Mono", "endA3Mono"),
+    ("A3 컬러", "a3Color", "freeA3Color", "overA3Color", "billedA3Color", "startA3Color", "endA3Color"),
+)
 Count = Annotated[int, Field(ge=0, le=100_000_000)]
 Won = Annotated[int, Field(ge=0, le=100_000_000)]
 
@@ -52,12 +60,18 @@ class Terms(BaseModel):
     freeColor: Count = 0
     overMono: Won = 0  # 초과 1매당
     overColor: Won = 0
+    freeA3Mono: Count = 0  # A3 (따로 받는 단가)
+    freeA3Color: Count = 0
+    overA3Mono: Won = 0
+    overA3Color: Won = 0
 
 
 class Machine(Terms):
     assetId: str = Field(pattern=ID)
     startMono: Count | None = None  # 설치할 때 카운터
     startColor: Count | None = None
+    startA3Mono: Count | None = None
+    startA3Color: Count | None = None
 
 
 class TermsPatch(BaseModel):
@@ -69,6 +83,10 @@ class TermsPatch(BaseModel):
     freeColor: Count | None = None
     overMono: Won | None = None
     overColor: Won | None = None
+    freeA3Mono: Count | None = None
+    freeA3Color: Count | None = None
+    overA3Mono: Won | None = None
+    overA3Color: Won | None = None
 
 
 class ContractCreate(BaseModel):
@@ -101,6 +119,8 @@ class Reading(BaseModel):
     assetId: str = Field(pattern=ID)
     mono: Count
     color: Count | None = None
+    a3Mono: Count | None = None
+    a3Color: Count | None = None
 
 
 class ReturnBody(BaseModel):
@@ -146,6 +166,8 @@ class ReadingIn(BaseModel):
     date: date
     mono: Count
     color: Count | None = None
+    a3Mono: Count | None = None
+    a3Color: Count | None = None
     fix: bool = False  # 잘못 넣은 값 정정 (줄어드는 값 허용)
     memo: str = Field(default="", max_length=200)
 
@@ -194,9 +216,10 @@ def _check_money(ctx: CompanyCtx, machines: list[Terms] | list[TermsPatch], line
 
 
 def _machine_row(m: Machine, day: str, code: str, item_name: str) -> dict[str, Any]:
-    row = m.model_dump(exclude={"startMono", "startColor"})
-    start_mono, start_color = m.startMono or 0, m.startColor or 0
-    return row | {"code": code, "itemName": item_name, "startedAt": day, "startMono": start_mono, "startColor": start_color, "billedMono": start_mono, "billedColor": start_color, "billedReadAt": day}
+    row = m.model_dump(exclude={k[5] for k in KINDS})
+    for _, _, _, _, billed, start, _ in KINDS:
+        row[start] = row[billed] = getattr(m, start) or 0
+    return row | {"code": code, "itemName": item_name, "startedAt": day, "billedReadAt": day}
 
 
 def _rows_and_readings(cid: str, machines: list[Machine], day: str) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
@@ -208,7 +231,7 @@ def _rows_and_readings(cid: str, machines: list[Machine], day: str) -> tuple[dic
         a = _get(cid, f"ASSET#{m.assetId}", "asset")
         it = _get(cid, f"ITEM#{a['itemId']}", "item")
         rows[m.assetId] = _machine_row(m, day, a["code"], it["name"])
-        sets[m.assetId] = {"lastReading": {"date": day, "mono": m.startMono or 0, "color": m.startColor or 0, "note": "설치"}} if m.counter and m.startMono is not None else {}
+        sets[m.assetId] = {"lastReading": {"date": day, "mono": m.startMono or 0, "color": m.startColor or 0, "a3Mono": m.startA3Mono or 0, "a3Color": m.startA3Color or 0, "note": "설치"}} if m.counter and m.startMono is not None else {}
     return rows, sets
 
 
@@ -334,9 +357,9 @@ def return_machines(cid: str, kid: str) -> dict[str, Any]:
         if day < row["startedAt"]:
             raise BadRequestError("return date is before the start")
         r = readings.get(aid)
-        if r and (r.mono < row["billedMono"] or (r.color or 0) < row["billedColor"]):
+        if r and any((getattr(r, key) or 0) < int(row.get(billed, 0)) for _, key, _, _, billed, _, _ in KINDS):
             raise BadRequestError(f"counter is lower than the last billed value: {row['code']}")
-    sets = {aid: {"lastReading": {"date": day, "mono": readings[aid].mono, "color": readings[aid].color or 0, "note": "수거"}} for aid in body.assetIds if aid in readings}
+    sets = {aid: {"lastReading": {"date": day, **{key: getattr(readings[aid], key) or 0 for _, key, *_ in KINDS}, "note": "수거"}} for aid in body.assetIds if aid in readings}
     b = build_txn(ctx, cid, TxnCreate(type="rental_return", date=body.date, partnerId=c["partnerId"], assetIds=body.assetIds, lines=body.lines, returnLocation=body.returnLocation, memo=body.memo or f"계약 {c['no']} 수거"), extra={"contractId": kid, "contractNo": c["no"], "contractOp": "return"}, asset_set=sets)
     svc = _link(ctx, cid, body.serviceId, c["partnerId"], b, day, "return")
     remaining = [aid for aid, row in c["machines"].items() if not row.get("endedAt") and aid not in body.assetIds]
@@ -346,8 +369,10 @@ def return_machines(cid: str, kid: str) -> dict[str, Any]:
     for i, aid in enumerate(body.assetIds):
         r = readings.get(aid)
         row = c["machines"][aid]
-        vals |= {f":m{i}": r.mono if r else row["billedMono"], f":c{i}": (r.color or 0) if r else row["billedColor"]}
-        parts += [f"machines.#a{i}.endedAt = :d", f"machines.#a{i}.endMono = :m{i}", f"machines.#a{i}.endColor = :c{i}"]
+        parts.append(f"machines.#a{i}.endedAt = :d")
+        for j, (_, key, _, _, billed, _, end) in enumerate(KINDS):
+            vals[f":k{i}x{j}"] = (getattr(r, key) or 0) if r else int(row.get(billed, 0))
+            parts.append(f"machines.#a{i}.{end} = :k{i}x{j}")
     if not remaining:
         parts += ["#st = :e", "endedAt = :d"]
         names["#st"] = "status"
@@ -355,7 +380,7 @@ def return_machines(cid: str, kid: str) -> dict[str, Any]:
     b.txn["returnAll"] = not remaining
     b.tx.update({"PK": pk(cid), "SK": f"CONTRACT#{kid}"}, "SET " + ", ".join(parts) + ", ver = ver + :one, updatedAt = :now", names, vals, "ver = :v", "계약이 바뀌었습니다. 새로 고친 뒤 다시 시도하세요")
     for aid in sets:
-        b.tx.put(asset_log(cid, aid, ctx.sub, "reading", mono=readings[aid].mono, color=readings[aid].color or 0, date=day, note="수거"))
+        b.tx.put(asset_log(cid, aid, ctx.sub, "reading", **{key: getattr(readings[aid], key) or 0 for _, key, *_ in KINDS}, date=day, note="수거"))
     res = finish_txn(b)
     _rental_notify(cid, ctx.sub, "수거" + (" · 계약 종료" if not remaining else ""), c["partnerName"], kid, b.txn)
     if svc:
@@ -435,14 +460,20 @@ def _pending(c: dict[str, Any], assets: dict[str, dict[str, Any]], today: str, d
             lines.append({"name": f"{month_label(month)} 임대료 {label}", "qty": 1, "unitPrice": amount, "vatMode": vat, "memo": "" if full else f"일할 {days}/{dim}일 (월 {int(m['monthly']):,}원)"})
         if not m.get("counter"):
             continue
-        read = {"date": end, "mono": m.get("endMono"), "color": m.get("endColor")} if end else assets.get(aid, {}).get("lastReading")
-        from_mono, from_color = int(m["billedMono"]), int(m["billedColor"])
+        read = {"date": end, **{key: m.get(endk) for _, key, *_, endk in KINDS}} if end else assets.get(aid, {}).get("lastReading")
         if not read or read.get("mono") is None or read["date"] <= m.get("billedReadAt", "") and not end:
             warnings.append(f"검침 없음: {m['code']} (지난 청구 이후)")
             continue
-        to_mono, to_color = max(int(read["mono"]), from_mono), max(int(read.get("color") or 0), from_color)
-        counters.append({"assetId": aid, "code": m["code"], "fromMono": from_mono, "toMono": to_mono, "fromColor": from_color, "toColor": to_color, "fromReadAt": m.get("billedReadAt", ""), "readAt": read["date"]})
-        for kind, used, free, price in (("흑백", to_mono - from_mono, int(m.get("freeMono", 0)), int(m.get("overMono", 0))), ("컬러", to_color - from_color, int(m.get("freeColor", 0)), int(m.get("overColor", 0)))):
+        cnt: dict[str, Any] = {"assetId": aid, "code": m["code"], "fromReadAt": m.get("billedReadAt", ""), "readAt": read["date"]}
+        uses = []
+        for kind, key, free_k, over_k, billed, _, _ in KINDS:
+            frm = int(m.get(billed, 0))
+            to = max(int(read.get(key) or 0), frm)
+            cap = key[0].upper() + key[1:]
+            cnt |= {f"from{cap}": frm, f"to{cap}": to}
+            uses.append((kind, to - frm, int(m.get(free_k, 0)), int(m.get(over_k, 0))))
+        counters.append(cnt)
+        for kind, used, free, price in uses:
             over = used - free
             if over > 0 and price > 0:
                 lines.append({"name": f"{m['code']} {kind} 초과 {over:,}매", "qty": over, "unitPrice": price, "vatMode": vat, "memo": f"사용 {used:,}매 − 기본 {free:,}매"})
@@ -487,8 +518,11 @@ def _issue(ctx: CompanyCtx, cid: str, bill: BillIn, assets: dict[str, dict[str, 
     sets = ["billedThrough = :m", "updatedAt = :now"]
     for i, k in enumerate(p["counters"]):
         names[f"#a{i}"] = k["assetId"]
-        vals |= {f":bm{i}": k["toMono"], f":bc{i}": k["toColor"], f":br{i}": k["readAt"]}
-        sets += [f"machines.#a{i}.billedMono = :bm{i}", f"machines.#a{i}.billedColor = :bc{i}", f"machines.#a{i}.billedReadAt = :br{i}"]
+        vals[f":br{i}"] = k["readAt"]
+        sets.append(f"machines.#a{i}.billedReadAt = :br{i}")
+        for j, (_, key, _, _, billed, _, _) in enumerate(KINDS):
+            vals[f":b{i}x{j}"] = k[f"to{key[0].upper()}{key[1:]}"]
+            sets.append(f"machines.#a{i}.{billed} = :b{i}x{j}")
     b.tx.update({"PK": pk(cid), "SK": f"CONTRACT#{c['id']}"}, "SET " + ", ".join(sets) + ", ver = ver + :one", names or None, vals, "billedThrough = :prev", f"{c['no']}: 이미 청구했습니다")
     return finish_txn(b)["txn"]
 
@@ -529,7 +563,8 @@ def readings_due(cid: str) -> dict[str, Any]:
             rows.append({
                 "contractId": c["id"], "contractNo": c["no"], "partnerId": c["partnerId"], "partnerName": c["partnerName"], "billingDay": c["billingDay"],
                 "assetId": aid, "code": m["code"], "itemName": m["itemName"], "color": bool(m.get("freeColor") or m.get("overColor") or m.get("startColor")),
-                "lastReading": a.get("lastReading"), "billedMono": m["billedMono"], "billedColor": m["billedColor"], "billedReadAt": m.get("billedReadAt", ""),
+                "a3": bool(m.get("freeA3Mono") or m.get("overA3Mono") or m.get("freeA3Color") or m.get("overA3Color") or m.get("startA3Mono") or m.get("startA3Color")),
+                "lastReading": a.get("lastReading"), "billedMono": m["billedMono"], "billedColor": m["billedColor"], "billedA3Mono": m.get("billedA3Mono", 0), "billedA3Color": m.get("billedA3Color", 0), "billedReadAt": m.get("billedReadAt", ""),
             })
     rows.sort(key=lambda r: (r["partnerName"], r["code"]))
     return {"rows": rows}
@@ -543,17 +578,18 @@ def add_reading(cid: str, aid: str) -> dict[str, Any]:
     prev = a.get("lastReading")
     day = body.date.isoformat()
     color = body.color or 0
+    vals = {key: getattr(body, key) or 0 for _, key, *_ in KINDS}
     if prev and not body.fix:
-        if body.mono < int(prev["mono"]) or color < int(prev.get("color") or 0):
+        if any(vals[key] < int(prev.get(key) or 0) for _, key, *_ in KINDS):
             raise BadRequestError(f"counter is lower than the last reading ({int(prev['mono']):,} / {int(prev.get('color') or 0):,}). Use fix to correct")
         if day < prev["date"]:
             raise BadRequestError("date is before the last reading")
-    reading = {"date": day, "mono": body.mono, "color": color, "note": body.memo}
+    reading = {"date": day, **vals, "note": body.memo}
     tx = Tx()
     if prev:
         tx.update({"PK": pk(cid), "SK": f"ASSET#{aid}"}, "SET lastReading = :r, updatedAt = :now", {"#d": "date"}, {":r": reading, ":now": now_iso(), ":pd": prev["date"], ":pm": prev["mono"]}, "lastReading.#d = :pd AND lastReading.mono = :pm", "다른 검침이 먼저 들어왔습니다. 새로 고친 뒤 다시 시도하세요")
     else:
         tx.update({"PK": pk(cid), "SK": f"ASSET#{aid}"}, "SET lastReading = :r, updatedAt = :now", None, {":r": reading, ":now": now_iso()}, "attribute_exists(PK) AND attribute_not_exists(lastReading)", "다른 검침이 먼저 들어왔습니다. 새로 고친 뒤 다시 시도하세요")
-    tx.put(asset_log(cid, aid, ctx.sub, "reading", mono=body.mono, color=color, date=day, note=("정정 " if body.fix else "") + body.memo))
+    tx.put(asset_log(cid, aid, ctx.sub, "reading", **vals, date=day, note=("정정 " if body.fix else "") + body.memo))
     tx.run()
     return {"lastReading": reading}

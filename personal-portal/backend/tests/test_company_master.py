@@ -50,7 +50,7 @@ class TestPartners:
 class TestItemsAndAssets:
     def test_item_tracking_rules(self, ctx: FakeContext, cid: str) -> None:
         m = model(ctx, cid)
-        assert m["unit"] == "대" and m["assetCounts"] == {"in_stock": 0, "rented": 0, "repair": 0, "retired": 0}
+        assert m["unit"] == "대" and m["assetCounts"] == {"in_stock": 0, "rented": 0, "repair": 0, "retired": 0, "customer": 0}
         assert call(ctx, "h1", "POST", f"/company/{cid}/items", {"name": "x", "tracking": "asset", "openingQty": 3})[0] == 400
         toner = call(ctx, "h1", "POST", f"/company/{cid}/items", {"name": "X1 토너 검정", "tracking": "stock", "openingQty": 12, "minStock": 5, "rentPrice": 1, "compatibleWith": [m["id"]]})[1]
         assert (toner["qty"], toner["minStock"], toner["compatibleWith"], toner["unit"]) == (12, 5, [m["id"]], "개")

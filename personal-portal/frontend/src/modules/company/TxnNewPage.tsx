@@ -13,6 +13,7 @@ import {
   useOpenCharges,
   usePartners,
   useTxnMutations,
+  type AssetStatus,
 } from "@/api/company";
 import { NativeSelect } from "@/components/NativeSelect";
 import { ErrorAlert, FormError, InlineSpinner } from "@/components/states";
@@ -360,7 +361,7 @@ function AccountSelect({ accounts, value, onChange }: { accounts: { id: string; 
   );
 }
 
-export function AssetPicker({ assets, selected, onChange, loading, empty }: { assets: { id: string; code: string; itemName: string; serial: string; status: "in_stock" | "rented" | "repair" | "retired"; location: string }[]; selected: string[]; onChange: (ids: string[]) => void; loading: boolean; empty: string }) {
+export function AssetPicker({ assets, selected, onChange, loading, empty }: { assets: { id: string; code: string; itemName: string; serial: string; status: AssetStatus; location: string }[]; selected: string[]; onChange: (ids: string[]) => void; loading: boolean; empty: string }) {
   const [q, setQ] = useState("");
   const shown = assets.filter((a) => matches([a.code, a.itemName, a.serial, a.location].join(" "), q));
   const toggle = (id: string) => onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);

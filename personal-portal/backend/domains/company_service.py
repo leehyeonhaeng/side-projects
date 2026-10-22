@@ -137,6 +137,8 @@ def _out(s: dict[str, Any], names: dict[str, str], assets: dict[str, dict[str, A
     if a:
         out["assetSerial"] = a.get("serial", "")
         out["saleType"] = a.get("saleType") or ("임대" if a.get("status") == "rented" else "")
+        if a.get("department") and not out.get("department"):
+            out["department"] = a["department"]
     return out
 
 
@@ -213,6 +215,8 @@ def create_service(cid: str) -> dict[str, Any]:
     day = (body.date or date.today()).isoformat()
     sid = uuid4().hex[:10]
     fields = {k: v for k, v in body.model_dump(exclude={"partnerId", "assetId", "date"}, exclude_none=True).items() if v not in ("", None)}
+    if asset and asset.get("department") and not fields.get("department"):
+        fields["department"] = asset["department"]  # 장비가 있는 부서
     s = {
         "PK": pk(cid),
         "SK": f"SERVICE#{sid}",

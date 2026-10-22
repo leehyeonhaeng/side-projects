@@ -17,7 +17,23 @@ import { Chip, Field } from "./ui";
 const num = (v: string) => Number(v.replace(/,/g, "")) || 0;
 const digits = (v: string) => v.replace(/[^\d,]/g, "");
 
-type TermsDraft = { monthly: string; counter: boolean; freeMono: string; freeColor: string; overMono: string; overColor: string; startMono: string; startColor: string };
+type TermsDraft = {
+  monthly: string;
+  counter: boolean;
+  freeMono: string;
+  freeColor: string;
+  overMono: string;
+  overColor: string;
+  freeA3Mono: string;
+  freeA3Color: string;
+  overA3Mono: string;
+  overA3Color: string;
+  startMono: string;
+  startColor: string;
+  startA3Mono: string;
+  startA3Color: string;
+};
+const str = (v?: number) => (v ? v.toString() : "");
 const draftOf = (t: Partial<Terms>, monthly?: number): TermsDraft => ({
   monthly: (t.monthly ?? monthly ?? "").toString(),
   counter: t.counter ?? false,
@@ -25,19 +41,37 @@ const draftOf = (t: Partial<Terms>, monthly?: number): TermsDraft => ({
   freeColor: (t.freeColor ?? "").toString(),
   overMono: (t.overMono ?? "").toString(),
   overColor: (t.overColor ?? "").toString(),
+  freeA3Mono: str(t.freeA3Mono),
+  freeA3Color: str(t.freeA3Color),
+  overA3Mono: str(t.overA3Mono),
+  overA3Color: str(t.overA3Color),
   startMono: "",
   startColor: "",
+  startA3Mono: "",
+  startA3Color: "",
 });
 const termsOf = (d: TermsDraft, showAmounts: boolean): Terms => ({
   counter: d.counter,
   freeMono: d.counter ? num(d.freeMono) : 0,
   freeColor: d.counter ? num(d.freeColor) : 0,
-  ...(showAmounts ? { monthly: num(d.monthly), overMono: d.counter ? num(d.overMono) : 0, overColor: d.counter ? num(d.overColor) : 0 } : {}),
+  freeA3Mono: d.counter ? num(d.freeA3Mono) : 0,
+  freeA3Color: d.counter ? num(d.freeA3Color) : 0,
+  ...(showAmounts
+    ? { monthly: num(d.monthly), overMono: d.counter ? num(d.overMono) : 0, overColor: d.counter ? num(d.overColor) : 0, overA3Mono: d.counter ? num(d.overA3Mono) : 0, overA3Color: d.counter ? num(d.overA3Color) : 0 }
+    : {}),
 });
+/** 설치 카운터 (적은 것만) */
+const startsOf = (d: TermsDraft) => (d.counter && d.startMono ? { startMono: num(d.startMono), startColor: num(d.startColor), ...(d.startA3Mono ? { startA3Mono: num(d.startA3Mono) } : {}), ...(d.startA3Color ? { startA3Color: num(d.startA3Color) } : {}) } : {});
 
-/** 기기 한 대 요금 입력: 월 기본료 + (카운터 과금이면) 기본 매수·초과 단가·설치 카운터 */
+/** 기기 한 대 요금 입력: 월 기본료 + (카운터 과금이면) 기본 매수·초과 단가·설치 카운터. A3는 따로 받는 단가 (거래처·기기마다) */
 function TermsCard({ title, sub, d, onChange, showAmounts, withStart }: { title: string; sub: string; d: TermsDraft; onChange: (d: TermsDraft) => void; showAmounts: boolean; withStart: boolean }) {
   const set = (p: Partial<TermsDraft>) => onChange({ ...d, ...p });
+  const [a3, setA3] = useState(!!(d.freeA3Mono || d.freeA3Color || d.overA3Mono || d.overA3Color));
+  const box = (k: keyof TermsDraft, label: string) => (
+    <Field key={k} label={label}>
+      <Input inputMode="numeric" value={d[k] as string} onChange={(e) => set({ [k]: digits(e.target.value) })} className="h-9" />
+    </Field>
+  );
   return (
     <div className="grid gap-2 rounded-xl border bg-muted/20 p-3">
       <p className="flex items-center gap-2 text-sm">
@@ -85,6 +119,22 @@ function TermsCard({ title, sub, d, onChange, showAmounts, withStart }: { title:
               </Field>
             </>
           )}
+        </div>
+      )}
+      {d.counter && (
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" className="size-4 accent-primary" checked={a3} onChange={(e) => (setA3(e.target.checked), !e.target.checked && set({ freeA3Mono: "", freeA3Color: "", overA3Mono: "", overA3Color: "", startA3Mono: "", startA3Color: "" }))} />
+          A3 따로 받기
+        </label>
+      )}
+      {d.counter && a3 && (
+        <div className="grid grid-cols-2 gap-2">
+          {box("freeA3Mono", "A3 흑백 기본 매수")}
+          {showAmounts && box("overA3Mono", "A3 흑백 초과 1매 (원)")}
+          {box("freeA3Color", "A3 컬러 기본 매수")}
+          {showAmounts && box("overA3Color", "A3 컬러 초과 1매 (원)")}
+          {withStart && box("startA3Mono", "설치 카운터 A3 흑백")}
+          {withStart && box("startA3Color", "설치 카운터 A3 컬러")}
         </div>
       )}
     </div>
@@ -135,7 +185,7 @@ export function RentalOutPage() {
     if (assetIds.length === 0) return setError("출고할 기기를 고르세요.");
     const machines: MachineInput[] = assetIds.map((aid) => {
       const d = terms[aid] ?? draftOf({});
-      return { assetId: aid, ...termsOf(d, me.showAmounts), ...(d.counter && d.startMono ? { startMono: num(d.startMono), startColor: num(d.startColor) } : {}) };
+      return { assetId: aid, ...termsOf(d, me.showAmounts), ...startsOf(d) };
     });
     const ls = withLines ? lines.map((l) => toLineInput(l, [])).filter((l) => l.name) : [];
     const done = (kid: string) => void navigate(`/company/${cid}/contracts/${kid}`, { replace: true, state: { notice: `출고했습니다. 기기가 임대 중으로 바뀌었습니다.${serviceId ? " 설치 접수도 처리했습니다." : ""}` } });
@@ -262,7 +312,7 @@ export function ContractReturnPage() {
   const [date, setDate] = useState(todayStr());
   const [assetIds, setAssetIds] = useState<string[]>(params.get("asset") ? [params.get("asset")!] : []);
   const serviceId = params.get("service") ?? undefined;
-  const [readings, setReadings] = useState<Record<string, { mono: string; color: string }>>({});
+  const [readings, setReadings] = useState<Record<string, ReturnReading>>({});
   const [returnLocation, setReturnLocation] = useState("");
   const [withLines, setWithLines] = useState(false);
   const [lines, setLines] = useState<DraftLine[]>(() => [newLine(detail.company.vatDefault)]);
@@ -278,7 +328,7 @@ export function ContractReturnPage() {
   const submit = () => {
     setError(null);
     if (assetIds.length === 0) return setError("수거할 기기를 고르세요.");
-    const rs = assetIds.filter((aid) => readings[aid]?.mono).map((aid) => ({ assetId: aid, mono: num(readings[aid]!.mono), color: num(readings[aid]!.color) }));
+    const rs = assetIds.filter((aid) => readings[aid]?.mono).map((aid) => ({ assetId: aid, mono: num(readings[aid]!.mono), color: num(readings[aid]!.color), ...(readings[aid]!.a3Mono ? { a3Mono: num(readings[aid]!.a3Mono!) } : {}), ...(readings[aid]!.a3Color ? { a3Color: num(readings[aid]!.a3Color!) } : {}) }));
     const ls = withLines ? lines.map((l) => toLineInput(l, [])).filter((l) => l.name) : [];
     mut.returnMachines.mutate(
       { id: kid, date, assetIds, readings: rs, returnLocation: returnLocation.trim(), lines: ls, memo: memo.trim(), serviceId },
@@ -346,8 +396,10 @@ export function ContractReturnPage() {
   );
 }
 
-function ReadingInputs({ m, value, onChange }: { m: ContractMachine; value: { mono: string; color: string }; onChange: (v: { mono: string; color: string }) => void }) {
+type ReturnReading = { mono: string; color: string; a3Mono?: string; a3Color?: string };
+function ReadingInputs({ m, value, onChange }: { m: ContractMachine; value: ReturnReading; onChange: (v: ReturnReading) => void }) {
   const color = m.freeColor > 0 || (m.overColor ?? 0) > 0 || m.billedColor > 0;
+  const a3 = !!(m.freeA3Mono || m.overA3Mono || m.freeA3Color || m.overA3Color || m.billedA3Mono || m.billedA3Color);
   return (
     <div className="grid grid-cols-2 gap-2">
       <Field label="수거 카운터 흑백" hint={`지난 청구 ${m.billedMono.toLocaleString()}`}>
@@ -357,6 +409,16 @@ function ReadingInputs({ m, value, onChange }: { m: ContractMachine; value: { mo
         <Field label="수거 카운터 컬러" hint={`지난 청구 ${m.billedColor.toLocaleString()}`}>
           <Input inputMode="numeric" value={value.color} onChange={(e) => onChange({ ...value, color: digits(e.target.value) })} className="h-9" />
         </Field>
+      )}
+      {a3 && (
+        <>
+          <Field label="수거 카운터 A3 흑백" hint={`지난 청구 ${(m.billedA3Mono ?? 0).toLocaleString()}`}>
+            <Input inputMode="numeric" value={value.a3Mono ?? ""} onChange={(e) => onChange({ ...value, a3Mono: digits(e.target.value) })} className="h-9" />
+          </Field>
+          <Field label="수거 카운터 A3 컬러" hint={`지난 청구 ${(m.billedA3Color ?? 0).toLocaleString()}`}>
+            <Input inputMode="numeric" value={value.a3Color ?? ""} onChange={(e) => onChange({ ...value, a3Color: digits(e.target.value) })} className="h-9" />
+          </Field>
+        </>
       )}
     </div>
   );

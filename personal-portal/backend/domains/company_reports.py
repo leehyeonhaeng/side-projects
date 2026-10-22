@@ -159,7 +159,7 @@ def reports(cid: str) -> dict[str, Any]:
 
     models: dict[str, dict[str, Any]] = {}
     for a in _items(cid, "ASSET#"):
-        if "#LOG#" in a.get("SK", "") or "code" not in a or a["status"] == "retired":
+        if "#LOG#" in a.get("SK", "") or "code" not in a or a["status"] in ("retired", "customer"):  # 가동률은 우리 기기만
             continue
         row = models.setdefault(a["itemId"], {"id": a["itemId"], "name": names.get(a["itemId"], {}).get("name", ""), "total": 0, "rented": 0, "in_stock": 0, "repair": 0})
         row["total"] += 1

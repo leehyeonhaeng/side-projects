@@ -21,13 +21,15 @@ export function ContractBadge({ status }: { status: ContractStatus }) {
 }
 
 /** 기기 한 대 요금 한 줄 요약: "월 120,000원 · 흑백 기본 1,000매, 초과 10원" */
-export function termsText(m: Pick<ContractMachine, "monthly" | "counter" | "freeMono" | "freeColor" | "overMono" | "overColor">, showAmounts: boolean): string {
+export function termsText(m: Pick<ContractMachine, "monthly" | "counter" | "freeMono" | "freeColor" | "overMono" | "overColor" | "freeA3Mono" | "freeA3Color" | "overA3Mono" | "overA3Color">, showAmounts: boolean): string {
   const parts: string[] = [];
   if (showAmounts) parts.push(m.monthly ? `월 ${money(m.monthly)}` : "기본료 없음");
   if (m.counter) {
     const mono = `흑백 기본 ${m.freeMono.toLocaleString()}매${showAmounts && m.overMono ? `, 초과 ${m.overMono}원` : ""}`;
     const color = m.freeColor || m.overColor ? `컬러 기본 ${m.freeColor.toLocaleString()}매${showAmounts && m.overColor ? `, 초과 ${m.overColor}원` : ""}` : "";
-    parts.push([mono, color].filter(Boolean).join(" / "));
+    const a3m = m.freeA3Mono || m.overA3Mono ? `A3 흑백 기본 ${(m.freeA3Mono ?? 0).toLocaleString()}매${showAmounts && m.overA3Mono ? `, 초과 ${m.overA3Mono}원` : ""}` : "";
+    const a3c = m.freeA3Color || m.overA3Color ? `A3 컬러 기본 ${(m.freeA3Color ?? 0).toLocaleString()}매${showAmounts && m.overA3Color ? `, 초과 ${m.overA3Color}원` : ""}` : "";
+    parts.push([mono, color, a3m, a3c].filter(Boolean).join(" / "));
   } else parts.push("월 고정");
   return parts.join(" · ");
 }
