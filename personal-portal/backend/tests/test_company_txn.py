@@ -136,7 +136,7 @@ def test_sale_stock_paynow_and_shortage(w: World) -> None:
 
 def test_purchase_creates_assets_payment_and_adjust(w: World) -> None:
     res = w.ok("POST", f"{w.base}/txns", {"type": "purchase", "date": DAY, "partnerId": w.vendor, "lines": [{"itemId": w.model, "qty": 2, "unitPrice": 2_000_000}, {"itemId": w.toner, "qty": 5, "unitPrice": 30000}]})
-    assert [a["code"] for a in res["createdAssets"]] == ["A-000003", "A-000004"]
+    assert [a["code"] for a in res["createdAssets"]] == ["A003", "A004"]
     assert w.item(w.toner)["qty"] == 15 and w.item(w.model)["assetCounts"]["in_stock"] == 4
     assert w.partner(w.vendor)["payable"] == 4_565_000
     w.ok("POST", f"{w.base}/txns", {"type": "payment", "date": DAY, "partnerId": w.vendor, "accountId": w.bank, "amount": 500000})

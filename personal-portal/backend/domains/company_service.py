@@ -91,7 +91,7 @@ class ServiceDone(BaseModel):
     billable: bool = False  # 유상 (금액은 사무실이 나중에 청구할 때)
     report: str | None = Field(default=None, max_length=1000)
     remark: str | None = Field(default=None, max_length=1000)
-    consumables: dict[str, Level] = Field(default_factory=dict)  # 잔량 %
+    consumables: dict[str, Level | Annotated[str, Field(min_length=1, max_length=10)]] = Field(default_factory=dict)  # 잔량 % 또는 글자 (양호·교체·OK)
     counters: Counters | None = None  # 점검: 지금 카운터 → 기기 검침
 
 

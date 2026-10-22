@@ -172,7 +172,7 @@ class CompanyInfo(BaseModel):
     bizItem: str | None = Field(default=None, max_length=50)  # 종목
     bankAccount: str | None = Field(default=None, max_length=100)  # 입금 계좌 (문서에 표시)
     vatDefault: Literal["included", "excluded", "exempt"] | None = None
-    assetPrefix: str | None = Field(default=None, pattern=r"^[A-Z0-9]{1,5}$")  # 기기 고유번호 앞글자 (예: A → A-000001)
+    assetPrefix: str | None = Field(default=None, pattern=r"^[A-Z]$")  # 기기번호 시작 글자 (예: A → A001, A999 다음 B001)
     overdueDays: int | None = Field(default=None, ge=1, le=365)  # 청구 후 며칠 지나면 연체 (알림·대시보드, 기본 30)
     serviceTypes: list[Annotated[str, Field(min_length=1, max_length=10)]] | None = Field(default=None, min_length=1, max_length=20)  # 서비스 유형 (기본 고장·점검·설치·원격)
 

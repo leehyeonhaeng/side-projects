@@ -138,12 +138,12 @@ const cpItems = [
   { id: "it8", name: "D420 정착기 유닛", tracking: "stock", category: "부품", unit: "개", price: 320000, qty: 1, minStock: 1, compatibleWith: ["it1"], active: true, createdAt: now },
 ];
 const cpAssets = [
-  { id: "as1", code: "A-000001", itemId: "it1", itemName: "신도리코 D420 컬러복합기", serial: "SD420-23A0001", status: "rented", partnerId: "pa1", partnerName: "서울중앙초등학교", location: "", acquiredAt: "2025-03-02", cost: 3200000, memo: "", contractId: "k1", lastReading: { date: d(-12), mono: 48210, color: 12055, note: "" }, createdAt: now },
-  { id: "as2", code: "A-000002", itemId: "it1", itemName: "신도리코 D420 컬러복합기", serial: "SD420-23A0002", status: "rented", partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", location: "", cost: 3200000, memo: "", createdAt: now },
-  { id: "as3", code: "A-000003", itemId: "it1", itemName: "신도리코 D420 컬러복합기", serial: "", status: "in_stock", location: "본사 창고 2층", memo: "", createdAt: now },
-  { id: "as4", code: "A-000004", itemId: "it1", itemName: "신도리코 D420 컬러복합기", serial: "SD420-23A0004", status: "repair", location: "수리실", memo: "급지 불량", createdAt: now },
-  { id: "as5", code: "A-000005", itemId: "it2", itemName: "캐논 iR2630 흑백복합기", serial: "CN2630-998877", status: "rented", partnerId: "pa2", partnerName: "한빛정형외과의원", location: "", memo: "", createdAt: now },
-  { id: "as6", code: "A-000006", itemId: "it3", itemName: "HP 레이저젯 M404 프린터", serial: "VNB3K12345", status: "retired", location: "", memo: "폐기 처리", createdAt: now },
+  { id: "as1", code: "A001", itemId: "it1", itemName: "신도리코 D420 컬러복합기", serial: "SD420-23A0001", status: "rented", partnerId: "pa1", partnerName: "서울중앙초등학교", location: "", acquiredAt: "2025-03-02", cost: 3200000, memo: "", contractId: "k1", lastReading: { date: d(-12), mono: 48210, color: 12055, note: "" }, createdAt: now },
+  { id: "as2", code: "A002", itemId: "it1", itemName: "신도리코 D420 컬러복합기", serial: "SD420-23A0002", status: "rented", partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", location: "", cost: 3200000, memo: "", createdAt: now },
+  { id: "as3", code: "A003", itemId: "it1", itemName: "신도리코 D420 컬러복합기", serial: "", status: "in_stock", location: "본사 창고 2층", memo: "", createdAt: now },
+  { id: "as4", code: "A004", itemId: "it1", itemName: "신도리코 D420 컬러복합기", serial: "SD420-23A0004", status: "repair", location: "수리실", memo: "급지 불량", createdAt: now },
+  { id: "as5", code: "A005", itemId: "it2", itemName: "캐논 iR2630 흑백복합기", serial: "CN2630-998877", status: "rented", partnerId: "pa2", partnerName: "한빛정형외과의원", location: "", memo: "", createdAt: now },
+  { id: "as6", code: "A006", itemId: "it3", itemName: "HP 레이저젯 M404 프린터", serial: "VNB3K12345", status: "retired", location: "", memo: "폐기 처리", createdAt: now },
 ];
 const cpAccounts = [
   { id: "ac1", name: "국민 주거래", kind: "bank", bank: "국민은행", number: "123456-01-234567", holder: "행컴퍼니", active: true, openingBalance: 12000000, balance: 15840000, createdAt: now },
@@ -155,35 +155,35 @@ const cpAccounts = [
 const machine = (assetId: string, code: string, itemName: string, extra: object) => ({ assetId, code, itemName, startedAt: d(-200), startMono: 20000, startColor: 5000, billedMono: 46500, billedColor: 11800, billedReadAt: d(-40), counter: false, freeMono: 0, freeColor: 0, monthly: 0, overMono: 0, overColor: 0, ...extra });
 const cpContracts = [
   { id: "k1", no: "C-2026-0001", partnerId: "pa1", partnerName: "서울중앙초등학교", status: "active", startDate: d(-200), billingDay: 25, vatMode: "excluded", memo: "교무실·행정실", billedThrough: "2026-09", createdAt: now, termEnd: d(20),
-    machines: { as1: machine("as1", "A-000001", "신도리코 D420 컬러복합기", { monthly: 120000, counter: true, freeMono: 1000, freeColor: 300, overMono: 10, overColor: 80 }), as5: machine("as5", "A-000005", "캐논 iR2630 흑백복합기", { monthly: 60000, endedAt: d(-30) }) } },
+    machines: { as1: machine("as1", "A001", "신도리코 D420 컬러복합기", { monthly: 120000, counter: true, freeMono: 1000, freeColor: 300, overMono: 10, overColor: 80 }), as5: machine("as5", "A005", "캐논 iR2630 흑백복합기", { monthly: 60000, endedAt: d(-30) }) } },
   { id: "k2", no: "C-2026-0002", partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", status: "active", startDate: d(-90), billingDay: 31, vatMode: "excluded", memo: "", billedThrough: "2026-08", createdAt: now,
-    machines: { as2: machine("as2", "A-000002", "신도리코 D420 컬러복합기", { monthly: 150000 }) } },
+    machines: { as2: machine("as2", "A002", "신도리코 D420 컬러복합기", { monthly: 150000 }) } },
   { id: "k3", no: "C-2025-0007", partnerId: "pa2", partnerName: "한빛정형외과의원", status: "ended", startDate: "2025-04-01", endedAt: d(-60), billingDay: 10, vatMode: "included", memo: "", billedThrough: "2026-08", createdAt: now, machines: {} },
 ];
 const pendingBills = [
   { contractId: "k2", contractNo: "C-2026-0002", partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", month: "2026-09", dueOn: "2026-09-30", final: false, behind: 2, counters: [],
-    lines: [{ name: "9월 임대료 A-000002 신도리코 D420 컬러복합기", qty: 1, unitPrice: 150000, vatMode: "excluded", memo: "" }], warnings: [] },
+    lines: [{ name: "9월 임대료 A002 신도리코 D420 컬러복합기", qty: 1, unitPrice: 150000, vatMode: "excluded", memo: "" }], warnings: [] },
   { contractId: "k1", contractNo: "C-2026-0001", partnerId: "pa1", partnerName: "서울중앙초등학교", month: "2026-10", dueOn: d(-1), final: false, behind: 1,
-    counters: [{ assetId: "as1", code: "A-000001", fromMono: 46500, toMono: 48210, fromColor: 11800, toColor: 12055, readAt: d(-12) }],
+    counters: [{ assetId: "as1", code: "A001", fromMono: 46500, toMono: 48210, fromColor: 11800, toColor: 12055, readAt: d(-12) }],
     lines: [
-      { name: "10월 임대료 A-000001 신도리코 D420 컬러복합기", qty: 1, unitPrice: 120000, vatMode: "excluded", memo: "" },
-      { name: "A-000001 흑백 초과 710매", qty: 710, unitPrice: 10, vatMode: "excluded", memo: "사용 1,710매 − 기본 1,000매" },
-      { name: "A-000005 캐논 iR2630 흑백복합기 일할 임대료가 붙은 아주 긴 줄 이름", qty: 1, unitPrice: 26000, vatMode: "excluded", memo: "일할 13/30일 (월 60,000원)" },
+      { name: "10월 임대료 A001 신도리코 D420 컬러복합기", qty: 1, unitPrice: 120000, vatMode: "excluded", memo: "" },
+      { name: "A001 흑백 초과 710매", qty: 710, unitPrice: 10, vatMode: "excluded", memo: "사용 1,710매 − 기본 1,000매" },
+      { name: "A005 캐논 iR2630 흑백복합기 일할 임대료가 붙은 아주 긴 줄 이름", qty: 1, unitPrice: 26000, vatMode: "excluded", memo: "일할 13/30일 (월 60,000원)" },
     ],
-    warnings: ["검침 없음: A-000009 (지난 청구 이후)"] },
+    warnings: ["검침 없음: A009 (지난 청구 이후)"] },
 ];
 const readingRows = [
-  { contractId: "k1", contractNo: "C-2026-0001", partnerId: "pa1", partnerName: "서울중앙초등학교", billingDay: 25, assetId: "as1", code: "A-000001", itemName: "신도리코 D420 컬러복합기", color: true, lastReading: { date: d(-50), mono: 46500, color: 11800 }, billedMono: 46500, billedColor: 11800, billedReadAt: d(-40) },
-  { contractId: "k2", contractNo: "C-2026-0002", partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", billingDay: 31, assetId: "as2", code: "A-000002", itemName: "신도리코 D420 컬러복합기", color: false, billedMono: 0, billedColor: 0, billedReadAt: d(-90) },
+  { contractId: "k1", contractNo: "C-2026-0001", partnerId: "pa1", partnerName: "서울중앙초등학교", billingDay: 25, assetId: "as1", code: "A001", itemName: "신도리코 D420 컬러복합기", color: true, lastReading: { date: d(-50), mono: 46500, color: 11800 }, billedMono: 46500, billedColor: 11800, billedReadAt: d(-40) },
+  { contractId: "k2", contractNo: "C-2026-0002", partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", billingDay: 31, assetId: "as2", code: "A002", itemName: "신도리코 D420 컬러복합기", color: false, billedMono: 0, billedColor: 0, billedReadAt: d(-90) },
 ];
 const ago = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
 const cpServices = [
-  { id: "sv1", no: "AS-2026-0012", type: "고장", status: "open", urgent: true, date: T, partnerId: "pa1", partnerName: "서울중앙초등학교", department: "행정실", saleType: "임대", assetId: "as1", assetCode: "A-000001", assetSerial: "D420-7K1123", itemName: "신도리코 D420 컬러복합기", symptom: "용지 걸림이 하루에도 여러 번, 2단 카세트에서 소리가 남", requester: "김주무관", phone: "010-0000-0000", visitAt: `${T}T14:00`, contact: "", assignee: "u6", assigneeName: "박기사", createdBy: "u5", createdByName: "김경리", createdAt: ago(3) },
-  { id: "sv4", no: "AS-2026-0013", type: "고장", status: "in_progress", date: T, partnerId: "pa2", partnerName: "한빛정형외과의원", department: "원무과", saleType: "유지보수", assetId: "as2", assetCode: "A-000002", itemName: "신도리코 D420 컬러복합기", symptom: "스캔하면 PC로 안 넘어감", requester: "이실장", contact: "", progressNote: "네트워크 설정 확인 중", assignee: "u6", assigneeName: "박기사", createdBy: "mock-host", createdByName: "이현행", startedAt: ago(1), startedBy: "u6", startedByName: "박기사", createdAt: ago(2) },
-  { id: "sv5", no: "AS-2026-0014", type: "점검", status: "open", date: T, partnerId: "pa1", partnerName: "서울중앙초등학교", department: "3층 교무실", saleType: "임대", assetId: "as1", assetCode: "A-000001", itemName: "신도리코 D420 컬러복합기", symptom: "정기 점검 (토너 잔량, 카운터)", contact: "", createdBy: "u5", createdByName: "김경리", createdAt: ago(5) },
+  { id: "sv1", no: "AS-2026-0012", type: "고장", status: "open", urgent: true, date: T, partnerId: "pa1", partnerName: "서울중앙초등학교", department: "행정실", saleType: "임대", assetId: "as1", assetCode: "A001", assetSerial: "D420-7K1123", itemName: "신도리코 D420 컬러복합기", symptom: "용지 걸림이 하루에도 여러 번, 2단 카세트에서 소리가 남", requester: "김주무관", phone: "010-0000-0000", visitAt: `${T}T14:00`, contact: "", assignee: "u6", assigneeName: "박기사", createdBy: "u5", createdByName: "김경리", createdAt: ago(3) },
+  { id: "sv4", no: "AS-2026-0013", type: "고장", status: "in_progress", date: T, partnerId: "pa2", partnerName: "한빛정형외과의원", department: "원무과", saleType: "유지보수", assetId: "as2", assetCode: "A002", itemName: "신도리코 D420 컬러복합기", symptom: "스캔하면 PC로 안 넘어감", requester: "이실장", contact: "", progressNote: "네트워크 설정 확인 중", assignee: "u6", assigneeName: "박기사", createdBy: "mock-host", createdByName: "이현행", startedAt: ago(1), startedBy: "u6", startedByName: "박기사", createdAt: ago(2) },
+  { id: "sv5", no: "AS-2026-0014", type: "점검", status: "open", date: T, partnerId: "pa1", partnerName: "서울중앙초등학교", department: "3층 교무실", saleType: "임대", assetId: "as1", assetCode: "A001", itemName: "신도리코 D420 컬러복합기", symptom: "정기 점검 (토너 잔량, 카운터)", contact: "", createdBy: "u5", createdByName: "김경리", createdAt: ago(5) },
   { id: "sv6", no: "AS-2026-0015", type: "설치", subtype: "신규 설치", status: "open", date: T, partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", department: "2층 사무국", symptom: "복합기 1대 추가 설치", visitAt: d(2), contact: "", assignee: "mock-host", assigneeName: "이현행", createdBy: "mock-host", createdByName: "이현행", createdAt: ago(20) },
   { id: "sv7", no: "AS-2026-0016", type: "원격", status: "open", date: T, partnerId: "pa2", partnerName: "한빛정형외과의원", symptom: "새 PC에 프린터 드라이버 설치 요청", requester: "이실장", phone: "02-000-0000", contact: "", support: true, createdBy: "u5", createdByName: "김경리", createdAt: ago(0.5) },
-  { id: "sv2", no: "AS-2026-0011", type: "고장", status: "done", date: d(-3), partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", department: "2층 사무국", saleType: "임대", assetId: "as2", assetCode: "A-000002", itemName: "신도리코 D420 컬러복합기", symptom: "인쇄물 세로 줄", contact: "", needsBilling: true, report: "드럼 수명 거의 다 됨, 다음 방문 때 교체 권장", done: { date: d(-2), action: "드럼 청소, 정착기 점검", method: "방문", by: "u6", at: ago(40), consumables: { KT: 40, CT: 65, MT: 70, YT: 55, KD: 15, WTC: 60 }, counters: { a4Mono: 48210, a4Color: 9120, a3Mono: 310 } }, doneByName: "박기사", txn: { id: "tx7", date: d(-2), no: "T-2026-00013" }, createdBy: "u5", createdByName: "김경리", startedAt: ago(44), startedBy: "u6", startedByName: "박기사", createdAt: ago(72) },
+  { id: "sv2", no: "AS-2026-0011", type: "고장", status: "done", date: d(-3), partnerId: "pa3", partnerName: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소", department: "2층 사무국", saleType: "임대", assetId: "as2", assetCode: "A002", itemName: "신도리코 D420 컬러복합기", symptom: "인쇄물 세로 줄", contact: "", needsBilling: true, report: "드럼 수명 거의 다 됨, 다음 방문 때 교체 권장", done: { date: d(-2), action: "드럼 청소, 정착기 점검", method: "방문", by: "u6", at: ago(40), consumables: { KT: 40, CT: 65, MT: 70, YT: 55, KD: 15, WTC: 60 }, counters: { a4Mono: 48210, a4Color: 9120, a3Mono: 310 } }, doneByName: "박기사", txn: { id: "tx7", date: d(-2), no: "T-2026-00013" }, createdBy: "u5", createdByName: "김경리", startedAt: ago(44), startedBy: "u6", startedByName: "박기사", createdAt: ago(72) },
   { id: "sv3", no: "AS-2026-0010", type: "고장", status: "canceled", date: d(-9), partnerId: "pa2", partnerName: "한빛정형외과의원", symptom: "토너 교체 요청", contact: "", cancelReason: "고객이 직접 교체", canceledAt: ago(200), createdBy: "u5", createdByName: "김경리", createdAt: ago(210) },
 ];
 const cpServiceHistory = [
@@ -202,7 +202,7 @@ const cpDocs = [
 
 // 행컴퍼니 C3 거래
 const cpTxns = [
-  { id: "tx1", no: "T-2026-00012", type: "rental_out", date: T, status: "confirmed", partnerId: "pa1", partnerName: "서울중앙초등학교", lines: [{ name: "설치비", qty: 1, unitPrice: 50000, vatMode: "excluded", supply: 50000, vat: 5000, total: 55000, manual: false, memo: "" }], supply: 50000, vat: 5000, total: 55000, paid: 0, paidBy: [], assetIds: ["as1"], assetCodes: ["A-000001"], assetNames: ["신도리코 D420 컬러복합기"], memo: "", createdBy: "u6", createdAt: now },
+  { id: "tx1", no: "T-2026-00012", type: "rental_out", date: T, status: "confirmed", partnerId: "pa1", partnerName: "서울중앙초등학교", lines: [{ name: "설치비", qty: 1, unitPrice: 50000, vatMode: "excluded", supply: 50000, vat: 5000, total: 55000, manual: false, memo: "" }], supply: 50000, vat: 5000, total: 55000, paid: 0, paidBy: [], assetIds: ["as1"], assetCodes: ["A001"], assetNames: ["신도리코 D420 컬러복합기"], memo: "", createdBy: "u6", createdAt: now },
   { id: "tx2", no: "T-2026-00011", type: "receipt", date: T, status: "confirmed", partnerId: "pa2", partnerName: "한빛정형외과의원", accountId: "ac1", accountName: "국민 주거래", lines: [], amount: 200000, allocated: 150000, unallocated: 50000, allocations: [{ txnId: "tx3", date: d(-3), amount: 150000, no: "T-2026-00009" }], memo: "", createdBy: "u5", createdAt: now },
   { id: "tx3", no: "T-2026-00009", type: "sale", date: d(-3), status: "confirmed", partnerId: "pa2", partnerName: "한빛정형외과의원", lines: [{ itemId: "it4", name: "D420 토너 검정", unit: "개", qty: 2, unitPrice: 85000, vatMode: "included", supply: 154545, vat: 15455, total: 170000, manual: false, memo: "" }], supply: 154545, vat: 15455, total: 170000, paid: 150000, paidBy: [{ txnId: "tx2", date: T, amount: 150000 }], memo: "", createdBy: "u5", createdAt: now },
   { id: "tx4", no: "T-2026-00008", type: "purchase", date: d(-4), status: "confirmed", partnerId: "pa4", partnerName: "(주)대한오피스솔루션", lines: [{ itemId: "it1", name: "신도리코 D420 컬러복합기", unit: "대", qty: 2, unitPrice: 3200000, vatMode: "excluded", supply: 6400000, vat: 640000, total: 7040000, manual: false, memo: "", assetIds: ["as7", "as8"] }], supply: 6400000, vat: 640000, total: 7040000, paid: 3540000, paidBy: [], memo: "", createdBy: "mock-host", createdAt: now },
@@ -334,7 +334,7 @@ const GET: [RegExp, Handler][] = [
   [/^\/company\/[^/]+\/notifications$/, () => ({
     unread: 2,
     notifications: [
-      { type: "service_assigned", title: "내게 A/S 배정 AS-2026-0012", body: "서울중앙초등학교 · A-000001 · 용지 걸림이 하루에도 여러 번, 2단 카세트에서 소리가 남", url: "/company/cp1/services/sv1", at: now, unread: true },
+      { type: "service_assigned", title: "내게 A/S 배정 AS-2026-0012", body: "서울중앙초등학교 · A001 · 용지 걸림이 하루에도 여러 번, 2단 카세트에서 소리가 남", url: "/company/cp1/services/sv1", at: now, unread: true },
       { type: "overdue", title: "새로 연체된 미수 2건", body: "법무법인 정의와 공정 아주 긴 이름 서초 분사무소 외 1곳 · 1,320,000원", url: "/company/cp1/money", at: now, unread: true },
       { type: "stock_low", title: "재고 부족: D420 토너 검정", body: "T-2026-00009 이후 최소 재고보다 적습니다", url: "/company/cp1/items", at: now, unread: false },
     ],

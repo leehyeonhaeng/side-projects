@@ -1,12 +1,11 @@
 import { Link } from "react-router";
 import { ArrowLeftIcon, ChevronRightIcon } from "lucide-react";
-import { COMPANY_NAV } from "./CompanyLayout";
-import { useCompanyOutlet } from "./CompanyLayout";
+import { companyNav, useCompanyOutlet } from "./CompanyLayout";
 
 /** 폰 하단 탭 "전체": 회사 메뉴 전부 + 행포털로 돌아가기 */
 export function CompanyMorePage() {
   const { cid, detail } = useCompanyOutlet();
-  const items = COMPANY_NAV.filter((n) => n.to !== "more" && n.show(detail));
+  const items = companyNav(detail).filter((n) => n.to !== "more");
   return (
     <main className="mx-auto grid max-w-2xl gap-4 p-4">
       <h1 className="text-xl font-bold tracking-tight">전체</h1>

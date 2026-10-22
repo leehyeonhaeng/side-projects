@@ -518,7 +518,7 @@ export type Service = ServiceFields & {
   startedAt?: string;
   startedBy?: string;
   startedByName?: string;
-  done?: { date: string; action: string; method?: string; by: string; at: string; consumables?: Record<string, number>; counters?: ServiceCounters };
+  done?: { date: string; action: string; method?: string; by: string; at: string; consumables?: Record<string, number | string>; counters?: ServiceCounters };
   doneByName?: string;
   txn?: { id: string; date: string; no: string };
   chargeTxn?: { id: string; date: string; no: string };
@@ -565,7 +565,7 @@ type ContractBody = { partnerId: string; date: string; billingDay: number; vatMo
 type ReturnInput = { id: string; date: string; assetIds: string[]; readings: { assetId: string; mono: number; color?: number }[]; returnLocation: string; lines: LineInput[]; memo: string; serviceId?: string };
 type ContractPatch = { id: string; billingDay?: number; vatMode?: VatMode; termEnd?: string | null; memo?: string; machines?: Record<string, Partial<Terms>> };
 type BillResult = { contractId: string; month: string; ok: boolean; error?: string; txn?: { id: string; no: string; date: string; total?: number } };
-type ServiceDoneInput = { id: string; date: string; action: string; method: string; parts: LineInput[]; fees: LineInput[]; billable: boolean; report?: string; remark?: string; consumables?: Record<string, number>; counters?: ServiceCounters };
+type ServiceDoneInput = { id: string; date: string; action: string; method: string; parts: LineInput[]; fees: LineInput[]; billable: boolean; report?: string; remark?: string; consumables?: Record<string, number | string>; counters?: ServiceCounters };
 export type ServiceCreateInput = Partial<ServiceFields> & { partnerId: string; assetId?: string; date: string; symptom: string };
 
 export function useRentalMutations(cid: string) {

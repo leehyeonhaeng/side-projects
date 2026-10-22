@@ -2,7 +2,8 @@
 
 - 기준 정보는 지우지 않고 "사용 안 함"(active=false)으로 숨긴다. 한 번도 쓰이지 않은 것만 삭제 가능 (장부에 남은 이름 보존)
 - 재고 수량·거래처 잔액·계좌 잔액은 C3 거래가 바꾼다. 여기서는 처음 값(기초)만 정한다
-- 기기 고유번호: <설정 assetPrefix>-<6자리 순번>, 회사별 순번은 SEQ#asset (원자적 증가)
+- 기기번호: 영문 1자 + 숫자 3자 (A001 … A999 → B001 …, 시작 글자는 설정 assetPrefix). 등록할 때 한 번 붙고 바뀌지 않으며 돌려 쓰지 않음.
+  회사별 순번은 SEQ#asset (원자적 증가)
 - 금액 보기가 꺼진 직원에게는 단가·잔액 필드를 보내지 않는다 (company_core.redact)
 """
 
@@ -262,8 +263,18 @@ def next_seq(cid: str, name: str, count: int = 1) -> int:
 
 
 def asset_prefix(cid: str) -> str:
+    """기기번호 시작 글자 (예전 설정이 여러 글자면 첫 영문자, 없으면 A)"""
     meta = table().get_item(Key={"PK": pk(cid), "SK": "META"})["Item"]
-    return str(meta.get("assetPrefix") or "A")
+    p = str(meta.get("assetPrefix") or "A")[:1]
+    return p if "A" <= p <= "Z" else "A"
+
+
+def asset_code(start: str, n: int) -> str:
+    """n번째 기기 → A001 … A999, B001 … (글자당 999대). Z999를 넘으면 거절"""
+    letter = ord(start) + (n - 1) // 999
+    if letter > ord("Z"):
+        raise BadRequestError("asset numbers are used up (Z999)")
+    return f"{chr(letter)}{(n - 1) % 999 + 1:03d}"
 
 
 def asset_log(cid: str, aid: str, actor: str, action: str, **detail: Any) -> dict[str, Any]:
@@ -342,7 +353,7 @@ def register_assets(cid: str) -> dict[str, Any]:
                 "PK": pk(cid),
                 "SK": f"ASSET#{aid}",
                 "id": aid,
-                "code": f"{prefix}-{n:06d}",
+                "code": asset_code(prefix, n),
                 "itemId": body.itemId,
                 "serial": serial,
                 "status": "in_stock",

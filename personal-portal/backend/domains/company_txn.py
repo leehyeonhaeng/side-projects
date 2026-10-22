@@ -29,7 +29,7 @@ from common.http import parse_body
 from common.serialize import to_dynamo, to_plain
 from common.users import now_iso
 from domains.company_core import CompanyCtx, company_audit, company_ctx, pk, redact
-from domains.company_master import asset_log, asset_prefix, next_seq
+from domains.company_master import asset_code, asset_log, asset_prefix, next_seq
 from domains.company_notify import notify
 from domains.sharing import query_all
 
@@ -476,7 +476,7 @@ def build_txn(ctx: CompanyCtx, cid: str, body: TxnCreate, extra: dict[str, Any] 
                 prefix = asset_prefix(cid)
                 for k in range(last - n + 1, last + 1):
                     aid = uuid4().hex[:10]
-                    asset = {"PK": pk(cid), "SK": f"ASSET#{aid}", "id": aid, "code": f"{prefix}-{k:06d}", "itemId": it["id"], "serial": "", "status": "in_stock", "location": "", "memo": "", "acquiredAt": day, "cost": round(ln["supply"] / n) if n else 0, "createdAt": now_iso(), "updatedAt": now_iso()}
+                    asset = {"PK": pk(cid), "SK": f"ASSET#{aid}", "id": aid, "code": asset_code(prefix, k), "itemId": it["id"], "serial": "", "status": "in_stock", "location": "", "memo": "", "acquiredAt": day, "cost": round(ln["supply"] / n) if n else 0, "createdAt": now_iso(), "updatedAt": now_iso()}
                     created_assets.append(asset)
                     ln["assetIds"].append(aid)
             elif t in {"sale", "adjust", "service"}:

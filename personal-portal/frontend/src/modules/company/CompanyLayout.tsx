@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
-import { Link, NavLink, Outlet, useOutletContext, useParams } from "react-router";
-import { ArrowLeftIcon, ArrowRightLeftIcon, Building2Icon, WalletIcon, BarChart3Icon, BellIcon, ContactIcon, FileSignatureIcon, FileTextIcon, GaugeIcon, HistoryIcon, HouseIcon, LandmarkIcon, LayoutGridIcon, PackageIcon, PrinterIcon, ReceiptTextIcon, SettingsIcon, UsersIcon, WrenchIcon } from "lucide-react";
+import { Link, NavLink, Outlet, useLocation, useOutletContext, useParams } from "react-router";
+import { ArrowLeftIcon, ArrowRightLeftIcon, Building2Icon, ClipboardCheckIcon, WalletIcon, BarChart3Icon, BellIcon, ContactIcon, FileSignatureIcon, FileTextIcon, HistoryIcon, HouseIcon, LandmarkIcon, LayoutGridIcon, ListChecksIcon, MonitorSmartphoneIcon, PackageIcon, PrinterIcon, ReceiptTextIcon, SettingsIcon, TruckIcon, UsersIcon, WrenchIcon } from "lucide-react";
 import { ApiError } from "@/api/client";
-import { type CompanyDetail, useCompany, useNotifications } from "@/api/company";
+import { type CompanyDetail, serviceTypesOf, useCompany, useNotifications } from "@/api/company";
 import { ErrorAlert, PageSpinner } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -10,19 +10,25 @@ import { cn } from "@/lib/utils";
 export type CompanyOutlet = { cid: string; detail: CompanyDetail };
 export const useCompanyOutlet = () => useOutletContext<CompanyOutlet>();
 
-type NavItem = { to: string; label: string; icon: ReactNode; show: (d: CompanyDetail) => boolean; end?: boolean; phone?: boolean };
+type NavItem = { to: string; label: string; icon: ReactNode; show: (d: CompanyDetail) => boolean; end?: boolean; phone?: boolean; phoneLabel?: string };
 const can = (area: keyof CompanyDetail["me"]["perms"]) => (d: CompanyDetail) => d.me.perms[area] !== "none";
 
-/** 회사 메뉴 (COMPANY.md 4장). 단계마다 메뉴가 늘어난다 — 권한 없는 메뉴는 숨김 */
-export const COMPANY_NAV: NavItem[] = [
+const TYPE_ICON: Record<string, ReactNode> = { 고장: <WrenchIcon />, 점검: <ClipboardCheckIcon />, 설치: <TruckIcon />, 원격: <MonitorSmartphoneIcon /> };
+
+/** 회사 메뉴 (COMPANY.md 4장). 서비스 유형(고장·점검·설치·원격 …)은 회사 설정대로 메뉴가 따로 — 권한 없는 메뉴는 숨김 */
+export function companyNav(d: CompanyDetail): NavItem[] {
+  const types: NavItem[] = serviceTypesOf(d.company).map((t) => ({ to: `services?type=${encodeURIComponent(t)}`, label: t, icon: TYPE_ICON[t] ?? <WrenchIcon />, show: can("assets") }));
+  return [COMPANY_NAV[0]!, ...types, ...COMPANY_NAV.slice(1)].filter((n) => n.show(d));
+}
+
+const COMPANY_NAV: NavItem[] = [
   { to: "", label: "홈", icon: <HouseIcon />, show: () => true, end: true, phone: true },
-  { to: "services", label: "서비스", icon: <WrenchIcon />, show: can("assets"), phone: true },
+  { to: "services", label: "서비스 전체", phoneLabel: "서비스", icon: <ListChecksIcon />, show: can("assets"), phone: true },
   { to: "txns", label: "거래", icon: <ArrowRightLeftIcon />, show: (d) => can("txns")(d) || can("money")(d), phone: true },
   { to: "assets", label: "기기", icon: <PrinterIcon />, show: can("assets"), phone: true },
   { to: "partners", label: "거래처", icon: <ContactIcon />, show: can("partners"), phone: true },
   { to: "contracts", label: "임대 계약", icon: <FileSignatureIcon />, show: can("contracts") },
   { to: "billing", label: "청구 대기", icon: <ReceiptTextIcon />, show: (d) => can("contracts")(d) && d.me.showAmounts },
-  { to: "readings", label: "카운터 검침", icon: <GaugeIcon />, show: can("assets") },
   { to: "docs", label: "문서함", icon: <FileTextIcon />, show: can("docs") },
   { to: "reports", label: "보고서", icon: <BarChart3Icon />, show: (d) => can("reports")(d) && d.me.showAmounts },
   { to: "notifications", label: "알림", icon: <BellIcon />, show: () => true },
@@ -39,6 +45,7 @@ export function CompanyLayout() {
   const { cid = "" } = useParams();
   const company = useCompany(cid);
   const notes = useNotifications(cid);
+  const location = useLocation();
   const unread = notes.data?.unread ?? 0;
 
   if (company.isPending) return <PageSpinner />;
@@ -54,10 +61,17 @@ export function CompanyLayout() {
     );
   }
 
-  const items = COMPANY_NAV.filter((n) => n.show(company.data));
+  const items = companyNav(company.data);
   // 폰 하단 탭: 자주 쓰는 것 최대 4개 + 전체
   const phoneTabs: NavItem[] = [...items.filter((n) => n.phone).slice(0, 4), { to: "more", label: "전체", icon: <LayoutGridIcon />, show: () => true }];
   const base = `/company/${cid}`;
+  // 유형 메뉴(services?type=…)는 주소의 type까지 맞아야 선택 표시
+  const typeNow = location.pathname.endsWith("/services") ? (new URLSearchParams(location.search).get("type") ?? "") : null;
+  const on = (n: NavItem, isActive: boolean) => {
+    if (!n.to.startsWith("services")) return isActive;
+    const t = n.to.includes("?") ? new URLSearchParams(n.to.split("?")[1]).get("type") : "";
+    return typeNow === null ? isActive && n.to === "services" : typeNow === t;
+  };
   return (
     <div className="min-h-dvh">
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r bg-sidebar md:flex">
@@ -79,7 +93,7 @@ export function CompanyLayout() {
               to={n.to ? `${base}/${n.to}` : base}
               end={n.end}
               className={({ isActive }) =>
-                cn("flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm [&_svg]:size-4", isActive ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground" : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60")
+                cn("flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm [&_svg]:size-4", on(n, isActive) ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground" : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60")
               }
             >
               {n.icon}
@@ -115,7 +129,7 @@ export function CompanyLayout() {
             className={({ isActive }) => cn("flex flex-1 flex-col items-center gap-0.5 pt-2 pb-1.5 text-[10px] [&_svg]:size-5", isActive ? "font-semibold text-primary" : "text-muted-foreground")}
           >
             {n.icon}
-            <span className="max-w-full truncate px-1">{n.label}</span>
+            <span className="max-w-full truncate px-1">{n.phoneLabel ?? n.label}</span>
           </NavLink>
         ))}
       </nav>

@@ -193,7 +193,8 @@ export function ServicesPage() {
   const [params, setParams] = useSearchParams();
   const services = useServices(cid);
   const types = serviceTypesOf(detail.company);
-  const [type, setType] = useState(params.get("type") ?? "");
+  const type = params.get("type") ?? "";
+  const setType = (t: string) => setParams((p) => (t ? p.set("type", t) : p.delete("type"), p), { replace: true });
   const [status, setStatus] = useState<StatusFilter>("active");
   const [q, setQ] = useState("");
   const [dept, setDept] = useState("");
@@ -573,7 +574,7 @@ export function ServiceView({ cid, sid, onDeleted }: { cid: string; sid: string;
           <Row label="처리방식" value={s.done.method || "—"} />
           <Row label="완료" value={`${formatDay(s.done.date)} · ${s.doneByName ?? ""}`} />
           {s.done.consumables && (
-            <Row label="소모품 잔량" value={CONSUMABLES.filter(([k]) => s.done!.consumables![k] !== undefined).map(([k, l]) => `${l} ${s.done!.consumables![k]}%`).join(" · ")} />
+            <Row label="소모품 잔량" value={CONSUMABLES.filter(([k]) => s.done!.consumables![k] !== undefined).map(([k, l]) => { const v = s.done!.consumables![k]; return `${l} ${v}${typeof v === "number" ? "%" : ""}`; }).join(" · ")} />
           )}
           {s.done.counters && (
             <Row
@@ -773,7 +774,6 @@ function CompleteForm({ cid, s }: { cid: string; s: Service }) {
   const [date, setDate] = useState(todayStr());
   const [levels, setLevels] = useState<Record<string, string>>({});
   const [counters, setCounters] = useState<Record<string, string>>({});
-  const [withCheck, setWithCheck] = useState(s.type === "점검");
   const [parts, setParts] = useState<Part[]>([]);
   const [withFees, setWithFees] = useState(false);
   const [fees, setFees] = useState<DraftLine[]>(() => [newLine(detail.company.vatDefault)]);
@@ -791,8 +791,8 @@ function CompleteForm({ cid, s }: { cid: string; s: Service }) {
   const complete = () => {
     setError(null);
     if (!action.trim()) return setError("처리 내용을 적으세요.");
-    const lv = Object.fromEntries(Object.entries(levels).filter(([, v]) => v !== "").map(([k, v]) => [k, Number(v)]));
-    if (Object.values(lv).some((v) => !(v >= 0 && v <= 100))) return setError("잔량은 0~100 (%)");
+    const lv = Object.fromEntries(Object.entries(levels).map(([k, v]) => [k, v.trim()]).filter(([, v]) => v !== "").map(([k, v]) => [k, /^\d+$/.test(v!) ? Number(v) : v!]));
+    if (Object.values(lv).some((v) => typeof v === "number" && v > 100)) return setError("잔량 숫자는 0~100 (%)");
     const ct = Object.fromEntries(Object.entries(counters).filter(([, v]) => v !== "").map(([k, v]) => [k, Number(v.replace(/,/g, ""))]));
     if (Object.values(ct).some((v) => !(v >= 0) || !Number.isInteger(v))) return setError("카운터는 0 이상의 정수");
     if (Object.keys(ct).length && ct.a4Mono === undefined) return setError("카운터를 적을 때는 A4 흑백은 꼭 적으세요 (청구 기준).");
@@ -806,8 +806,8 @@ function CompleteForm({ cid, s }: { cid: string; s: Service }) {
       parts: ps,
       fees: fs,
       billable: billable && fs.length === 0,
-      ...(withCheck && Object.keys(lv).length ? { consumables: lv } : {}),
-      ...(withCheck && Object.keys(ct).length ? { counters: ct } : {}),
+      ...(Object.keys(lv).length ? { consumables: lv } : {}),
+      ...(Object.keys(ct).length ? { counters: ct } : {}),
     });
   };
 
@@ -838,21 +838,15 @@ function CompleteForm({ cid, s }: { cid: string; s: Service }) {
       <Field label="처리 내용">
         <Textarea rows={3} maxLength={1000} value={action} onChange={(e) => setAction(e.target.value)} placeholder="예: 급지 롤러 교체, 드럼 청소" />
       </Field>
-      {s.type !== "점검" && (
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" className="size-4 accent-primary" checked={withCheck} onChange={(e) => setWithCheck(e.target.checked)} />
-          소모품 잔량·카운터도 적기
-        </label>
-      )}
-      {withCheck && (
+      {(
         <div className="grid gap-3 rounded-lg bg-muted/40 p-3">
           <div className="grid gap-1">
-            <p className="text-xs text-muted-foreground">소모품 잔량 (%)</p>
+            <p className="text-xs text-muted-foreground">소모품 잔량 — 숫자(%) 또는 글자(양호·교체·OK). 비워도 됩니다</p>
             <div className="grid grid-cols-4 gap-2">
               {CONSUMABLES.map(([k, l]) => (
                 <label key={k} className="grid gap-0.5 text-[11px] text-muted-foreground">
                   {l}
-                  <Input inputMode="numeric" value={levels[k] ?? ""} onChange={(e) => setLevels({ ...levels, [k]: e.target.value.replace(/\D/g, "").slice(0, 3) })} className="h-8" placeholder="%" />
+                  <Input inputMode="numeric" value={levels[k] ?? ""} onChange={(e) => setLevels({ ...levels, [k]: e.target.value.slice(0, 10) })} className="h-8" placeholder="% / 양호" />
                 </label>
               ))}
             </div>

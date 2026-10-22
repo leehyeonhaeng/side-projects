@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { AlertTriangleIcon, CheckCircle2Icon, XCircleIcon } from "lucide-react";
+import { AlertTriangleIcon, CheckCircle2Icon, GaugeIcon, XCircleIcon } from "lucide-react";
 import { type PendingBill, monthLabel, useBilling, useRentalMutations } from "@/api/company";
 import { ErrorAlert, InlineSpinner } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -57,7 +57,15 @@ export function BillingPage() {
 
   return (
     <main className="mx-auto grid max-w-3xl gap-4 p-4 pb-28 md:p-6 md:pb-28">
-      <PageHead title="청구 대기" sub="청구일이 지난 계약입니다. 금액을 확인하고 발행하세요" />
+      <PageHead
+        title="청구 대기"
+        sub="청구일이 지난 계약입니다. 금액을 확인하고 발행하세요"
+        action={
+          <Button variant="outline" nativeButton={false} render={<Link to={`/company/${cid}/readings`} />}>
+            <GaugeIcon /> 카운터 입력
+          </Button>
+        }
+      />
       {results && (
         <section className="grid gap-1.5 rounded-2xl border bg-card p-4">
           <h2 className="text-sm font-medium">발행 결과</h2>

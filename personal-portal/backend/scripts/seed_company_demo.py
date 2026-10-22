@@ -149,7 +149,7 @@ def main() -> None:  # noqa: PLR0915 (날짜 순서대로 쭉 입력하는 각�
     api("PATCH", c, {
         "bizNo": "000-00-00000", "ceo": "홍길동", "address": "서울시 성동구 성수이로 00 (데모)", "phone": "02-555-0100", "fax": "02-555-0101",
         "email": "demo@example.com", "bizType": "도소매, 임대업", "bizItem": "사무기기, 복합기 임대", "bankAccount": "국민 000000-00-000000 데모프린텍",
-        "vatDefault": "excluded", "assetPrefix": "DP", "overdueDays": 30,
+        "vatDefault": "excluded", "assetPrefix": "A", "overdueDays": 30,
     })
     start = md(4, 1)
     kb = api("POST", f"{c}/accounts", {"name": "국민 주거래", "kind": "bank", "bank": "국민은행", "openingBalance": 40_000_000, "openingDate": start})["id"]

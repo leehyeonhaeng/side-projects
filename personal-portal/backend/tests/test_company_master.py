@@ -2,6 +2,7 @@ import json
 from typing import Any
 
 import pytest
+from aws_lambda_powertools.event_handler.exceptions import BadRequestError
 
 from common import users
 from common.perms import Role, Status
@@ -64,12 +65,12 @@ class TestItemsAndAssets:
 
     def test_register_assets_codes_and_serials(self, ctx: FakeContext, cid: str) -> None:
         m = model(ctx, cid)
-        call(ctx, "h1", "PATCH", f"/company/{cid}", {"assetPrefix": "HC"})
+        call(ctx, "h1", "PATCH", f"/company/{cid}", {"assetPrefix": "H"})
         res = call(ctx, "h1", "POST", f"/company/{cid}/assets", {"itemId": m["id"], "count": 3, "serials": ["SN1", "SN2"], "cost": 2_000_000})[1]["assets"]
-        assert [a["code"] for a in res] == ["HC-000001", "HC-000002", "HC-000003"]
+        assert [a["code"] for a in res] == ["H001", "H002", "H003"]
         assert [a["serial"] for a in res] == ["SN1", "SN2", ""] and res[0]["itemName"] == "컬러복합기 X1"
         more = call(ctx, "h1", "POST", f"/company/{cid}/assets", {"itemId": m["id"], "count": 1})[1]["assets"]
-        assert more[0]["code"] == "HC-000004"
+        assert more[0]["code"] == "H004"
         # 제조번호 중복, 수량 품목, 금액 숨김 직원의 매입가 입력
         assert call(ctx, "h1", "POST", f"/company/{cid}/assets", {"itemId": m["id"], "count": 1, "serials": ["SN1"]})[0] == 400
         assert call(ctx, "h1", "POST", f"/company/{cid}/assets", {"itemId": m["id"], "count": 2, "serials": ["Z", "Z"]})[0] == 400
@@ -105,3 +106,12 @@ class TestAccounts:
         assert call(ctx, "h1", "PATCH", f"/company/{cid}/accounts/{acc['id']}", {"memo": "급여 통장"})[1]["memo"] == "급여 통장"
         # 현장 기사는 돈 영역 없음
         assert call(ctx, "f1", "GET", f"/company/{cid}/accounts")[0] == 403
+
+
+def test_asset_code_rolls_to_next_letter() -> None:
+    from domains.company_master import asset_code
+
+    assert [asset_code("A", n) for n in (1, 999, 1000, 1998, 1999)] == ["A001", "A999", "B001", "B999", "C001"]
+    assert asset_code("Y", 1000) == "Z001"
+    with pytest.raises(BadRequestError):
+        asset_code("Z", 1000)

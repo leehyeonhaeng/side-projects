@@ -76,14 +76,14 @@ def test_stages_edit_history_delete(w: World) -> None:
 def test_inspection_counters_become_reading(w: World) -> None:
     w.ok("POST", f"{w.base}/assets/{w.assets[0]}/readings", {"date": TODAY.isoformat(), "mono": 1000, "color": 200})
     s = new(w, type="점검", assetId=w.assets[0], symptom="정기 점검")
-    body = {"date": TODAY.isoformat(), "action": "점검 완료", "consumables": {"KT": 30, "CT": 80, "WTC": 50, "XX": 1}}
+    body = {"date": TODAY.isoformat(), "action": "점검 완료", "consumables": {"KT": 30, "CT": "양호", "WTC": 50, "XX": 1}}
     # 카운터가 지난 검침보다 작으면 거절
     assert call(w.ctx, "f1", "POST", f"{w.base}/services/{s['id']}/complete", {**body, "counters": {"a4Mono": 900}})[0] == 400
     w.ok("POST", f"{w.base}/services/{s['id']}/complete", {**body, "counters": {"a4Mono": 1500, "a4Color": 260, "a3Mono": 40}}, sub="f1")
     r = w.asset(w.assets[0])["lastReading"]
     assert (r["mono"], r["color"], r["a3Mono"], r["a3Color"]) == (1500, 260, 40, 0)
     done = w.get(f"/services/{s['id']}")["service"]["done"]
-    assert done["consumables"] == {"KT": 30, "CT": 80, "WTC": 50} and done["counters"]["a4Mono"] == 1500
+    assert done["consumables"] == {"KT": 30, "CT": "양호", "WTC": 50} and done["counters"]["a4Mono"] == 1500
     # 기기 없는 접수에 카운터는 안 됨
     s2 = new(w, type="점검")
     assert call(w.ctx, "h1", "POST", f"{w.base}/services/{s2['id']}/complete", {**body, "counters": {"a4Mono": 1}})[0] == 400

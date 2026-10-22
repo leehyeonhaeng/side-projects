@@ -20,7 +20,7 @@ const FIELDS: { key: keyof Omit<Form, "vatDefault" | "overdueDays">; label: stri
   { key: "email", label: "이메일" },
   { key: "address", label: "주소", wide: true },
   { key: "bankAccount", label: "입금 계좌 (문서에 표시)", placeholder: "OO은행 123-456-789012 (예금주)", wide: true },
-  { key: "assetPrefix", label: "기기 고유번호 앞글자 (영문 대문자·숫자 5자 이내)", placeholder: "A → A-000001" },
+  { key: "assetPrefix", label: "기기번호 시작 글자 (영문 대문자 1자)", placeholder: "A → A001, A999 다음은 B001" },
 ];
 
 /** 회사 정보·직인: 영수증·명세서에 찍히는 값 (COMPANY.md 7장) */
@@ -39,7 +39,7 @@ export function CompanySettingsPage() {
     bizType: c.bizType ?? "",
     bizItem: c.bizItem ?? "",
     bankAccount: c.bankAccount ?? "",
-    assetPrefix: c.assetPrefix ?? "",
+    assetPrefix: (c.assetPrefix ?? "A").slice(0, 1),
     vatDefault: c.vatDefault,
     overdueDays: String(c.overdueDays ?? 30),
   }));
@@ -55,7 +55,7 @@ export function CompanySettingsPage() {
           e.preventDefault();
           setSaved(false);
           mut.patchCompany.mutate(
-            { ...Object.fromEntries(Object.entries(form).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v])), overdueDays: Math.min(365, Math.max(1, Number(form.overdueDays) || 30)) },
+            { ...Object.fromEntries(Object.entries(form).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v])), overdueDays: Math.min(365, Math.max(1, Number(form.overdueDays) || 30)), assetPrefix: form.assetPrefix || "A" },
             { onSuccess: () => setSaved(true) },
           );
         }}
@@ -65,7 +65,7 @@ export function CompanySettingsPage() {
           {FIELDS.map((f) => (
             <label key={f.key} className={`grid gap-1 text-xs text-muted-foreground ${f.wide ? "sm:col-span-2" : ""}`}>
               {f.label}
-              <Input value={form[f.key]} placeholder={f.placeholder} readOnly={!canEdit} required={f.key === "name"} maxLength={f.key === "address" ? 200 : 100} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} />
+              <Input value={form[f.key]} placeholder={f.placeholder} readOnly={!canEdit} required={f.key === "name"} maxLength={f.key === "address" ? 200 : 100} onChange={(e) => setForm({ ...form, [f.key]: f.key === "assetPrefix" ? e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(-1) : e.target.value })} />
             </label>
           ))}
           <label className="grid gap-1 text-xs text-muted-foreground">
